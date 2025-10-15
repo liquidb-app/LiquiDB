@@ -46,6 +46,9 @@ function saveDatabases(databases: any[]) {
 // Installation tracking to prevent loops
 const installationAttempts = new Map<string, number>();
 
+// Track running database processes for cleanup
+const runningProcesses = new Map<string, { pid: number; type: string; port: number }>();
+
 function trackInstallationAttempt(packageName: string): boolean {
   const attempts = installationAttempts.get(packageName) || 0;
   if (attempts >= 3) {
@@ -70,7 +73,26 @@ async function loadDatabases() {
         console.log('databases.json is empty, returning empty array');
         return [];
       }
-      return JSON.parse(data);
+      const databases = JSON.parse(data);
+      
+      // Verify actual status of databases by checking if processes are running
+      for (const db of databases) {
+        if (db.status === 'running') {
+          const isActuallyRunning = await checkPortInUse(db.port);
+          if (!isActuallyRunning) {
+            console.log(`Database ${db.name} was marked as running but process not found, updating status to stopped`);
+            db.status = 'stopped';
+          }
+        }
+      }
+      
+      // Save updated statuses if any were changed
+      const hasChanges = databases.some((db: any) => db.status === 'stopped' && databases.find((d: any) => d.id === db.id && d.status !== 'stopped'));
+      if (hasChanges) {
+        saveDatabases(databases);
+      }
+      
+      return databases;
     }
     return [];
   } catch (error) {
@@ -164,6 +186,9 @@ async function stopDatabaseService(db: any): Promise<boolean> {
 // PostgreSQL service stop
 async function stopPostgreSQLService(db: any): Promise<boolean> {
   try {
+    // First try to kill the tracked process
+    const killSuccess = await killDatabaseProcess(db.id);
+    
     const pgDataPath = path.join(db.dataPath, 'postgresql_data');
     const pgctlPath = '/opt/homebrew/Cellar/postgresql@16/16.10/bin/pg_ctl';
     
@@ -179,9 +204,14 @@ async function stopPostgreSQLService(db: any): Promise<boolean> {
       });
     });
     
-    return stopSuccess;
+    // Ensure process is untracked
+    untrackProcess(db.id);
+    
+    return stopSuccess || killSuccess;
   } catch (error) {
     console.error('Failed to stop PostgreSQL:', error);
+    // Still try to untrack the process
+    untrackProcess(db.id);
     return false;
   }
 }
@@ -270,8 +300,15 @@ async function stopCassandraService(db: any): Promise<boolean> {
 async function stopAllRunningDatabases() {
   try {
     console.log('Stopping all running databases...');
+    
+    // Kill all tracked processes first
+    await killAllDatabaseProcesses();
+    
+    // Also try to stop via database services
     const databases = await loadDatabases();
     const runningDatabases = databases.filter((db: any) => db.status === 'running');
+    
+    console.log(`Stopping ${runningDatabases.length} tracked running databases...`);
     
     for (const db of runningDatabases) {
       try {
@@ -298,10 +335,43 @@ async function stopAllRunningDatabases() {
   }
 }
 
+// Clean up orphaned processes on startup
+app.whenReady().then(async () => {
+  console.log('App ready, cleaning up orphaned processes...');
+  await cleanupOrphanedProcesses();
+});
+
 // Stop all databases when app is about to quit
 app.on('before-quit', async (event) => {
   console.log('App is about to quit, stopping all databases...');
   await stopAllRunningDatabases();
+});
+
+// Handle force-quit scenarios (SIGTERM, SIGINT, etc.)
+process.on('SIGTERM', async () => {
+  console.log('Received SIGTERM, stopping all databases...');
+  await killAllDatabaseProcesses();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('Received SIGINT, stopping all databases...');
+  await killAllDatabaseProcesses();
+  process.exit(0);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', async (error) => {
+  console.error('Uncaught exception:', error);
+  await killAllDatabaseProcesses();
+  process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', async (reason, promise) => {
+  console.error('Unhandled rejection at:', promise, 'reason:', reason);
+  await killAllDatabaseProcesses();
+  process.exit(1);
 });
 
 // Also handle window-all-closed to stop databases
@@ -585,9 +655,10 @@ ipcMain.handle('start-database', async (event, dbId: string) => {
     const portCheck = await isPortInUseByRunningDatabase(db.port);
     
     if (portCheck.inUse) {
+      const conflictingDbName = portCheck.conflictingDb?.name || 'another process';
       return {
         success: false,
-        message: `Port ${db.port} is already in use by "${portCheck.conflictingDb.name}". Please stop the conflicting database first before starting this one.`,
+        message: `Port ${db.port} is already in use by "${conflictingDbName}". Please stop the conflicting database first before starting this one.`,
         conflict: true,
         conflictingDb: portCheck.conflictingDb,
         blocking: true // This blocks the start operation
@@ -848,10 +919,160 @@ async function isPortInUseByRunningDatabase(port: number): Promise<{ inUse: bool
   const runningDatabases = databases.filter((db: any) => db.status === 'running');
   const conflictingDb = runningDatabases.find((db: any) => db.port === port);
   
+  // Also check if there's actually a process running on this port
+  const isPortActuallyInUse = await checkPortInUse(port);
+  
   return {
-    inUse: !!conflictingDb,
+    inUse: !!conflictingDb || isPortActuallyInUse,
     conflictingDb: conflictingDb
   };
+}
+
+// Helper function to check if a port is actually in use by any process
+async function checkPortInUse(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const { spawn } = require('child_process');
+    const lsof = spawn('lsof', ['-i', `:${port}`], { stdio: 'pipe' });
+    
+    let output = '';
+    lsof.stdout.on('data', (data: Buffer) => {
+      output += data.toString();
+    });
+    
+    lsof.on('close', (code: number) => {
+      // If lsof finds any processes using the port, it returns 0
+      // If no processes are found, it returns 1
+      resolve(code === 0 && output.trim().length > 0);
+    });
+    
+    lsof.on('error', () => {
+      // If lsof command fails, assume port is not in use
+      resolve(false);
+    });
+  });
+}
+
+// Track a running database process
+function trackProcess(dbId: string, pid: number, type: string, port: number) {
+  runningProcesses.set(dbId, { pid, type, port });
+  console.log(`Tracking process: ${type} (PID: ${pid}) for database ${dbId} on port ${port}`);
+}
+
+// Stop tracking a database process
+function untrackProcess(dbId: string) {
+  const process = runningProcesses.get(dbId);
+  if (process) {
+    console.log(`Untracking process: ${process.type} (PID: ${process.pid}) for database ${dbId}`);
+    runningProcesses.delete(dbId);
+  }
+}
+
+// Kill a specific database process
+async function killDatabaseProcess(dbId: string): Promise<boolean> {
+  const trackedProcess = runningProcesses.get(dbId);
+  if (!trackedProcess) {
+    console.log(`No tracked process found for database ${dbId}`);
+    return true; // Consider it successful if not tracked
+  }
+
+  try {
+    console.log(`Killing ${trackedProcess.type} process (PID: ${trackedProcess.pid}) for database ${dbId}`);
+    
+    // Try graceful termination first
+    process.kill(trackedProcess.pid, 'SIGTERM');
+    
+    // Wait a bit for graceful shutdown
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Check if process is still running
+    try {
+      process.kill(trackedProcess.pid, 0); // This throws if process doesn't exist
+      // Process still exists, force kill
+      console.log(`Process still running, force killing PID ${trackedProcess.pid}`);
+      process.kill(trackedProcess.pid, 'SIGKILL');
+    } catch (error) {
+      // Process already terminated
+      console.log(`Process ${trackedProcess.pid} already terminated`);
+    }
+    
+    untrackProcess(dbId);
+    return true;
+  } catch (error) {
+    console.error(`Failed to kill process ${trackedProcess.pid}:`, error);
+    return false;
+  }
+}
+
+// Kill all tracked database processes
+async function killAllDatabaseProcesses(): Promise<void> {
+  console.log(`Killing all tracked database processes (${runningProcesses.size} processes)`);
+  
+  const killPromises = Array.from(runningProcesses.keys()).map(dbId => killDatabaseProcess(dbId));
+  await Promise.all(killPromises);
+  
+  console.log('All database processes terminated');
+}
+
+// Clean up orphaned database processes on startup
+async function cleanupOrphanedProcesses(): Promise<void> {
+  console.log('Checking for orphaned database processes...');
+  
+  const commonPorts = [5432, 3306, 27017, 9042, 1433, 5439];
+  const orphanedProcesses: number[] = [];
+  
+  for (const port of commonPorts) {
+    try {
+      const isInUse = await checkPortInUse(port);
+      if (isInUse) {
+        console.log(`Found orphaned process on port ${port}, attempting cleanup...`);
+        
+        // Get process info
+        const { spawn } = require('child_process');
+        const lsof = spawn('lsof', ['-i', `:${port}`, '-t'], { stdio: 'pipe' });
+        
+        let output = '';
+        lsof.stdout.on('data', (data: Buffer) => {
+          output += data.toString();
+        });
+        
+        lsof.on('close', (code: number) => {
+          if (code === 0 && output.trim()) {
+            const pids = output.trim().split('\n').map(pid => parseInt(pid)).filter(pid => !isNaN(pid));
+            orphanedProcesses.push(...pids);
+          }
+        });
+        
+        await new Promise(resolve => lsof.on('close', resolve));
+      }
+    } catch (error) {
+      console.warn(`Error checking port ${port}:`, error);
+    }
+  }
+  
+  // Kill orphaned processes
+  for (const pid of orphanedProcesses) {
+    try {
+      console.log(`Killing orphaned process PID ${pid}`);
+      process.kill(pid, 'SIGTERM');
+      
+      // Wait and force kill if needed
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      try {
+        process.kill(pid, 0);
+        process.kill(pid, 'SIGKILL');
+      } catch (error) {
+        // Process already terminated
+      }
+    } catch (error) {
+      console.warn(`Failed to kill orphaned process ${pid}:`, error);
+    }
+  }
+  
+  if (orphanedProcesses.length > 0) {
+    console.log(`Cleaned up ${orphanedProcesses.length} orphaned database processes`);
+  } else {
+    console.log('No orphaned database processes found');
+  }
 }
 
 // Helper function to check if Homebrew is installed
@@ -1272,6 +1493,34 @@ async function startPostgreSQLService(db: any): Promise<boolean> {
         resolve(false);
       }, 10000); // 10 second timeout
     });
+
+    if (startSuccess) {
+      // Wait a moment for PostgreSQL to fully start, then get the main process PID
+      setTimeout(async () => {
+        try {
+          const { spawn } = require('child_process');
+          const lsof = spawn('lsof', ['-i', `:${db.port}`, '-t'], { stdio: 'pipe' });
+          
+          let output = '';
+          lsof.stdout.on('data', (data: Buffer) => {
+            output += data.toString();
+          });
+          
+          lsof.on('close', (code: number) => {
+            if (code === 0 && output.trim()) {
+              const pids = output.trim().split('\n').map(pid => parseInt(pid)).filter(pid => !isNaN(pid));
+              if (pids.length > 0) {
+                // Track the main PostgreSQL process (usually the first one)
+                const mainPid = pids[0];
+                trackProcess(db.id, mainPid, 'postgresql', db.port);
+              }
+            }
+          });
+        } catch (error) {
+          console.warn('Failed to track PostgreSQL process:', error);
+        }
+      }, 2000);
+    }
 
     console.log('PostgreSQL start result:', startSuccess);
     return startSuccess;
