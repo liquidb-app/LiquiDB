@@ -2,8 +2,9 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { DatabaseInstance } from '@/types/database';
-import { Play, Square, Trash2, Database, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Play, Square, Trash2, Database, AlertTriangle, RefreshCw, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -11,10 +12,10 @@ interface DatabaseCardProps {
   database: DatabaseInstance;
   onStart: (id: string) => void;
   onStop: (id: string) => void;
-  onDelete: (id: string) => void;
+  onSettings: (database: DatabaseInstance) => void;
 }
 
-export function DatabaseCard({ database, onStart, onStop, onDelete }: DatabaseCardProps) {
+export function DatabaseCard({ database, onStart, onStop, onSettings }: DatabaseCardProps) {
 
   const handleStartWithConflictCheck = async () => {
     try {
@@ -22,12 +23,11 @@ export function DatabaseCard({ database, onStart, onStop, onDelete }: DatabaseCa
         const result = await window.electronAPI.startDatabase(database.id);
         
         if (result.success) {
-          // Show success toast for starting database
-          toast.success("Database Started Successfully", {
-            description: `${database.type} database "${database.name}" is now running.`
+          // Show starting toast immediately
+          toast.info("Database Starting", {
+            description: `${database.type} database "${database.name}" is starting up...`
           });
-          // In Electron mode we already started the DB in main process;
-          // parent will refresh list separately.
+          // The status will be updated via the real-time listener
         } else if (result.conflict) {
           // Show toast notification for port conflict
           toast.error("Port Conflict Detected", {
@@ -54,6 +54,9 @@ export function DatabaseCard({ database, onStart, onStop, onDelete }: DatabaseCa
         } else {
           // Handle other errors
           console.error('Failed to start database:', result.message);
+          toast.error("Failed to Start Database", {
+            description: result.message || "An unknown error occurred while starting the database."
+          });
         }
       } else {
         // Demo start for browser development
@@ -61,42 +64,134 @@ export function DatabaseCard({ database, onStart, onStop, onDelete }: DatabaseCa
       }
     } catch (error) {
       console.error('Failed to start database:', error);
+      toast.error("Failed to Start Database", {
+        description: "An unexpected error occurred while starting the database."
+      });
+    }
+  };
+
+  const handleRefreshDatabase = async () => {
+    try {
+      if (window.electronAPI) {
+        // First stop the database if it's running
+        if (database.status === 'running') {
+          toast.info("Stopping Database", {
+            description: `Stopping ${database.type} database "${database.name}"...`
+          });
+          
+          const stopResult = await window.electronAPI.stopDatabase(database.id);
+          if (!stopResult.success) {
+            toast.error("Failed to Stop Database", {
+              description: stopResult.message || "Failed to stop the database."
+            });
+            return;
+          }
+          
+          // Wait a moment for the database to fully stop
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+        // Now start the database
+        toast.info("Starting Database", {
+          description: `Starting ${database.type} database "${database.name}"...`
+        });
+        
+        const startResult = await window.electronAPI.startDatabase(database.id);
+        
+        if (startResult.success) {
+          toast.success("Database Refreshed", {
+            description: `${database.type} database "${database.name}" has been restarted successfully.`
+          });
+        } else if (startResult.conflict) {
+          toast.error("Port Conflict Detected", {
+            description: `Port ${database.port} is already in use by "${startResult.conflictingDb?.name}". Would you like to stop the conflicting database?`,
+            action: {
+              label: "Stop Conflicting Database",
+              onClick: async () => {
+                try {
+                  if (window.electronAPI) {
+                    await window.electronAPI.stopDatabase(startResult.conflictingDb.id);
+                    toast.success("Conflicting Database Stopped", {
+                      description: `Stopped "${startResult.conflictingDb.name}" to resolve port conflict.`
+                    });
+                    // Try to start this database again
+                    setTimeout(() => handleRefreshDatabase(), 1000);
+                  }
+                } catch (error) {
+                  console.error('Failed to stop conflicting database:', error);
+                }
+              }
+            }
+          });
+        } else {
+          toast.error("Failed to Refresh Database", {
+            description: startResult.message || "An unknown error occurred while refreshing the database."
+          });
+        }
+      } else {
+        // Demo refresh for browser development
+        onStop(database.id);
+        setTimeout(() => onStart(database.id), 1000);
+      }
+    } catch (error) {
+      console.error('Failed to refresh database:', error);
+      toast.error("Failed to Refresh Database", {
+        description: "An unexpected error occurred while refreshing the database."
+      });
     }
   };
 
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'running':
-        return 'text-green-600';
-      case 'starting':
-        return 'text-blue-600';
-      case 'stopping':
-        return 'text-orange-600';
-      case 'stopped':
-        return 'text-gray-600';
-      case 'error':
-        return 'text-red-600';
-      default:
-        return 'text-gray-600';
-    }
-  };
+  const getStatusBadge = (status: string) => {
+    const getStatusIcon = (status: string) => {
+      switch (status) {
+        case 'running':
+          return <div className="w-2 h-2 bg-green-500 rounded-full" />;
+        case 'starting':
+          return <RefreshCw className="w-3 h-3 text-blue-500 animate-spin" />;
+        case 'stopping':
+          return <RefreshCw className="w-3 h-3 text-orange-500 animate-spin" />;
+        case 'stopped':
+          return <div className="w-2 h-2 bg-gray-400 rounded-full" />;
+        case 'error':
+          return <div className="w-2 h-2 bg-red-500 rounded-full" />;
+        default:
+          return <div className="w-2 h-2 bg-gray-400 rounded-full" />;
+      }
+    };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'running':
-        return <div className="w-2 h-2 bg-green-500 rounded-full" />;
-      case 'starting':
-        return <RefreshCw className="w-3 h-3 text-blue-500 animate-spin" />;
-      case 'stopping':
-        return <RefreshCw className="w-3 h-3 text-orange-500 animate-spin" />;
-      case 'stopped':
-        return <div className="w-2 h-2 bg-gray-400 rounded-full" />;
-      case 'error':
-        return <div className="w-2 h-2 bg-red-500 rounded-full" />;
-      default:
-        return <div className="w-2 h-2 bg-gray-400 rounded-full" />;
-    }
+    const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+      switch (status) {
+        case 'running':
+          return 'default';
+        case 'starting':
+          return 'secondary';
+        case 'stopping':
+          return 'outline';
+        case 'stopped':
+          return 'outline';
+        case 'error':
+          return 'destructive';
+        default:
+          return 'outline';
+      }
+    };
+
+    return (
+      <Badge 
+        variant={getStatusVariant(status)}
+        className={`flex items-center gap-2 ${
+          status === 'running' ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800' :
+          status === 'starting' ? 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800' :
+          status === 'stopping' ? 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800' :
+          status === 'stopped' ? 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700' :
+          'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
+        }`}
+      >
+        {getStatusIcon(status)}
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Badge>
+    );
   };
 
   return (
@@ -120,16 +215,7 @@ export function DatabaseCard({ database, onStart, onStop, onDelete }: DatabaseCa
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {getStatusIcon(database.status)}
-            <span className={`text-sm font-semibold px-3 py-1 rounded-full ${getStatusColor(database.status)} ${
-              database.status === 'running' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
-              database.status === 'starting' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400' :
-              database.status === 'stopping' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400' :
-              database.status === 'stopped' ? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400' :
-              'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-            }`}>
-              {database.status.charAt(0).toUpperCase() + database.status.slice(1)}
-            </span>
+            {getStatusBadge(database.status)}
           </div>
         </div>
       </CardHeader>
@@ -140,14 +226,14 @@ export function DatabaseCard({ database, onStart, onStop, onDelete }: DatabaseCa
             <p className="text-gray-600 dark:text-gray-400 font-mono text-xs">{database.dataPath}</p>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             {database.status === 'running' || database.status === 'stopping' ? (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={database.status === 'running' ? () => onStop(database.id) : undefined}
                 disabled={database.status === 'stopping'}
-                className={`flex-1 ${
+                className={`flex-1 h-10 ${
                   database.status === 'stopping' 
                     ? 'border-orange-200 text-orange-600 dark:border-orange-800 dark:text-orange-400' 
                     : 'border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20'
@@ -170,7 +256,7 @@ export function DatabaseCard({ database, onStart, onStop, onDelete }: DatabaseCa
                 variant="outline"
                 size="sm"
                 disabled
-                className="flex-1 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400"
+                className="flex-1 h-10 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400"
               >
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                 Starting...
@@ -180,7 +266,7 @@ export function DatabaseCard({ database, onStart, onStop, onDelete }: DatabaseCa
                 variant="outline"
                 size="sm"
                 onClick={handleStartWithConflictCheck}
-                className="flex-1 border-green-200 text-green-600 hover:bg-green-50 hover:border-green-300 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-900/20"
+                className="flex-1 h-10 border-green-200 text-green-600 hover:bg-green-50 hover:border-green-300 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-900/20"
               >
                 <Play className="h-4 w-4 mr-2" />
                 Start
@@ -189,10 +275,19 @@ export function DatabaseCard({ database, onStart, onStop, onDelete }: DatabaseCa
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onDelete(database.id)}
-              className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+              onClick={() => onSettings(database)}
+              className="h-10 w-10 border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
             >
-              <Trash2 className="h-4 w-4" />
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshDatabase}
+              className="h-10 w-10 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/20"
+              title="Refresh/Restart database"
+            >
+              <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
         </div>

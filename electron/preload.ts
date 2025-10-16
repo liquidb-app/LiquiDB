@@ -77,6 +77,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateDatabasePort: (dbId: string, newPort: number): Promise<{ success: boolean; message: string; conflict?: boolean }> => 
     ipcRenderer.invoke('update-database-port', dbId, newPort),
   
+  checkDatabaseStatus: (id: string) => ipcRenderer.invoke('check-database-status', id),
+  
+  createNamedDatabase: (id: string) => ipcRenderer.invoke('create-named-database', id),
+  
   onDatabaseStatusUpdate: (callback: (data: { id: string; status: string }) => void) => {
     ipcRenderer.on('database-status-updated', (event, data) => callback(data));
   },

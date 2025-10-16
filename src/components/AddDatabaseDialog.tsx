@@ -19,13 +19,16 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Progress } from '@/components/ui/progress';
 import { DatabaseType, DatabaseConfig } from '@/types/database';
-import { FolderOpen, Database, ChevronDown, ChevronUp, Lock, User } from 'lucide-react';
+import { FolderOpen, Database, ChevronDown, ChevronUp, Lock, User, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface AddDatabaseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddDatabase: (config: DatabaseConfig) => Promise<void>;
+  onAddDatabase: (config: DatabaseConfig) => Promise<any>;
 }
 
 export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddDatabaseDialogProps) {
@@ -44,6 +47,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
     useCustomCredentials: false,
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Installing...');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [portConflict, setPortConflict] = useState<{ hasConflict: boolean; conflictingDb?: any; suggestedPort?: number } | null>(null);
   const [duplicateDb, setDuplicateDb] = useState<{ isDuplicate: boolean; existingDb?: any } | null>(null);
@@ -269,7 +273,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
     try {
       if (window.electronAPI) {
         console.log('Using Electron API for installation');
-        await onAddDatabase(config);
+        const result = await onAddDatabase(config);
       } else {
         // Demo submission for browser development
         console.log('Demo: Adding database with config:', config);
@@ -306,7 +310,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-[480px] max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="w-[95vw] max-w-[600px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="text-center pb-3 flex-shrink-0">
           <div className="mx-auto mb-3 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
             <Database className="h-6 w-6 text-white" />
@@ -377,19 +381,21 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
               }`}
             />
             {nameConflict?.hasConflict && (
-              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <div className="text-red-600 dark:text-red-400 text-sm">
-                  ⚠️ Database name "{config.name}" is already taken by "{nameConflict.conflictingDb?.name}"
-                </div>
-                <div className="text-xs text-red-500 dark:text-red-400 mt-1">
-                  Please choose a different name for your database.
-                </div>
-              </div>
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="font-medium">Database name "{config.name}" is already taken by "{nameConflict.conflictingDb?.name}"</div>
+                  <div className="text-xs mt-1">Please choose a different name for your database.</div>
+                </AlertDescription>
+              </Alert>
             )}
             {config.name && !nameConflict?.hasConflict && (
-              <p className="text-xs text-green-600 dark:text-green-400">
-                ✓ Database name "{config.name}" is available
-              </p>
+              <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20">
+                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <AlertDescription className="text-green-600 dark:text-green-400">
+                  Database name "{config.name}" is available
+                </AlertDescription>
+              </Alert>
             )}
           </div>
 
@@ -435,14 +441,13 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
               </Button>
             </div>
             {duplicateDb?.isDuplicate && (
-              <div className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-                <div className="text-orange-600 dark:text-orange-400 text-sm">
-                  ⚠️ A {config.type} {config.version} database already exists in this folder: "{duplicateDb.existingDb?.name}"
-                </div>
-                <div className="text-xs text-orange-500 dark:text-orange-400 mt-1">
-                  Please choose a different location or version to avoid conflicts.
-                </div>
-              </div>
+              <Alert className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-900/20">
+                <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                <AlertDescription className="text-orange-600 dark:text-orange-400">
+                  <div className="font-medium">A {config.type} {config.version} database already exists in this folder: "{duplicateDb.existingDb?.name}"</div>
+                  <div className="text-xs mt-1">Please choose a different location or version to avoid conflicts.</div>
+                </AlertDescription>
+              </Alert>
             )}
           </div>
 
@@ -464,17 +469,15 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
             {showAdvanced && (
               <div className="mt-3 space-y-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id="use-custom-credentials"
                     checked={config.useCustomCredentials}
-                    onChange={(e) => setConfig(prev => ({ 
+                    onCheckedChange={(checked) => setConfig(prev => ({ 
                       ...prev, 
-                      useCustomCredentials: e.target.checked,
-                      username: e.target.checked ? prev.username : selectedDbType?.defaultUsername || '',
-                      password: e.target.checked ? prev.password : selectedDbType?.defaultPassword || ''
+                      useCustomCredentials: checked as boolean,
+                      username: checked ? prev.username : selectedDbType?.defaultUsername || '',
+                      password: checked ? prev.password : selectedDbType?.defaultPassword || ''
                     }))}
-                    className="rounded border-gray-300"
                   />
                   <Label htmlFor="use-custom-credentials" className="text-sm font-medium">
                     Use custom username and password
@@ -527,10 +530,20 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
           </div>
         </div>
         <DialogFooter className="gap-2 pt-3 flex-shrink-0">
+          {isLoading && (
+            <div className="w-full mb-2">
+              <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+                <span>{loadingMessage}</span>
+                <span>Please wait</span>
+              </div>
+              <Progress value={undefined} className="h-2" />
+            </div>
+          )}
           <Button 
             variant="outline" 
             onClick={() => onOpenChange(false)}
             className="flex-1 h-10"
+            disabled={isLoading}
           >
             Cancel
           </Button>
@@ -553,7 +566,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
             {isLoading ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Installing...
+                {loadingMessage}
               </>
             ) : (
               <>
