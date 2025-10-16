@@ -7,6 +7,7 @@ import { DatabaseInstance } from '@/types/database';
 import { Play, Square, Trash2, Database, AlertTriangle, RefreshCw, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { debugLog } from '@/lib/utils';
 
 interface DatabaseCardProps {
   database: DatabaseInstance;
@@ -20,7 +21,9 @@ export function DatabaseCard({ database, onStart, onStop, onSettings }: Database
   const handleStartWithConflictCheck = async () => {
     try {
       if (window.electronAPI) {
+        debugLog(`Starting database ${database.name} on port ${database.port}`);
         const result = await window.electronAPI.startDatabase(database.id);
+        debugLog('Start database result:', result);
         
         if (result.success) {
           // Show starting toast immediately
@@ -28,28 +31,44 @@ export function DatabaseCard({ database, onStart, onStop, onSettings }: Database
             description: `${database.type} database "${database.name}" is starting up...`
           });
           // The status will be updated via the real-time listener
-        } else if (result.conflict) {
-          // Show toast notification for port conflict
+        } else if (result.conflict && result.canResolve) {
+          // Show toast notification for port conflict with auto-resolve option
           toast.error("Port Conflict Detected", {
-            description: `Port ${database.port} is already in use by "${result.conflictingDb?.name}". Would you like to stop the conflicting database?`,
+            description: `Port ${database.port} is already in use by "${result.conflictingDb?.name}". Would you like to stop the conflicting database and start this one?`,
             action: {
-              label: "Stop Conflicting Database",
+              label: "Stop & Start",
               onClick: async () => {
                 try {
                   if (window.electronAPI) {
-                    await window.electronAPI.stopDatabase(result.conflictingDb.id);
-                    // Show toast for stopping conflicting database
-                    toast.success("Conflicting Database Stopped", {
-                      description: `Stopped "${result.conflictingDb.name}" to resolve port conflict.`
+                    toast.info("Resolving Port Conflict", {
+                      description: `Stopping "${result.conflictingDb.name}" and starting "${database.name}"...`
                     });
-                    // Try to start this database again
-                    setTimeout(() => handleStartWithConflictCheck(), 1000);
+                    
+                    const resolveResult = await window.electronAPI.resolvePortConflict(database.id, result.conflictingDb.id);
+                    
+                    if (resolveResult.success) {
+                      toast.success("Port Conflict Resolved", {
+                        description: `Stopped "${resolveResult.stoppedDatabase}" and started "${resolveResult.startedDatabase}"`
+                      });
+                    } else {
+                      toast.error("Failed to Resolve Conflict", {
+                        description: resolveResult.message
+                      });
+                    }
                   }
                 } catch (error) {
-                  console.error('Failed to stop conflicting database:', error);
+                  console.error('Failed to resolve port conflict:', error);
+                  toast.error("Failed to Resolve Conflict", {
+                    description: "An unexpected error occurred while resolving the port conflict."
+                  });
                 }
               }
             }
+          });
+        } else if (result.conflict) {
+          // Fallback: show non-resolvable conflict (external service) with guidance
+          toast.error("Port Conflict Detected", {
+            description: result.message || `Port ${database.port} is already in use. Please free the port or change the instance port in settings.`,
           });
         } else {
           // Handle other errors

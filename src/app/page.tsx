@@ -12,6 +12,7 @@ import { DatabaseInstance, DatabaseConfig } from '@/types/database';
 import { Plus, Database, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { debugLog } from '@/lib/utils';
 
 export default function Home() {
   const [databases, setDatabases] = useState<DatabaseInstance[]>([]);
@@ -27,7 +28,7 @@ export default function Home() {
       
       // Listen for real-time database status updates
       window.electronAPI.onDatabaseStatusUpdate((data) => {
-        console.log('Database status updated:', data);
+        debugLog('Database status updated:', data);
         setDatabases(prevDatabases => 
           prevDatabases.map(db => 
             db.id === data.id ? { ...db, status: data.status as any } : db
@@ -72,14 +73,14 @@ export default function Home() {
   };
 
   const handleAddDatabase = async (config: DatabaseConfig) => {
-    console.log('handleAddDatabase called with config:', config);
+        debugLog('handleAddDatabase called with config:', config);
     try {
       if (window.electronAPI) {
-        console.log('Electron API available, calling installDatabase...');
+        debugLog('Electron API available, calling installDatabase...');
         const result = await window.electronAPI.installDatabase(config);
-        console.log('Install database result:', result);
+        debugLog('Install database result:', result);
         if (result.success) {
-          console.log('Installation successful, reloading databases...');
+          debugLog('Installation successful, reloading databases...');
           // Show success toast
           toast.success("Database Created Successfully", {
             description: `${config.type} database "${config.name}" has been created and is ready to use.`
@@ -106,7 +107,7 @@ export default function Home() {
         }
       } else {
         // Demo installation for browser development
-        console.log('Demo: Installing database with config:', config);
+        debugLog('Demo: Installing database with config:', config);
         // Simulate successful installation
         await new Promise(resolve => setTimeout(resolve, 1000));
         // Add to demo databases
@@ -245,6 +246,21 @@ export default function Home() {
     }
   };
 
+  // Test function for port conflict detection
+  const testPortConflict = () => {
+    toast.error("Port Conflict Detected", {
+      description: `Port 5432 is already in use by "test-db". Would you like to stop the conflicting database and start this one?`,
+      action: {
+        label: "Stop & Start",
+        onClick: () => {
+          toast.success("Port Conflict Resolved", {
+            description: "Stopped 'test-db' and started 'new-db'"
+          });
+        }
+      }
+    });
+  };
+
   const handleOpenSettings = (database: DatabaseInstance) => {
     setSelectedDatabase(database);
     setIsSettingsDialogOpen(true);
@@ -361,6 +377,13 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-2">
               <ThemeToggle />
+              <Button 
+                onClick={testPortConflict}
+                variant="outline"
+                className="h-10 text-sm sm:text-base px-3 sm:px-4"
+              >
+                Test Conflict
+              </Button>
               <Button 
                 onClick={() => setIsAddDialogOpen(true)}
                 className="h-10 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 text-sm sm:text-base px-3 sm:px-4"

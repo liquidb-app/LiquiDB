@@ -81,6 +81,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   createNamedDatabase: (id: string) => ipcRenderer.invoke('create-named-database', id),
   
+  resolvePortConflict: (dbId: string, conflictingDbId: string) => ipcRenderer.invoke('resolve-port-conflict', dbId, conflictingDbId),
+  
   onDatabaseStatusUpdate: (callback: (data: { id: string; status: string }) => void) => {
     ipcRenderer.on('database-status-updated', (event, data) => callback(data));
   },

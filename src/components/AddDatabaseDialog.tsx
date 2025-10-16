@@ -24,6 +24,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { DatabaseType, DatabaseConfig } from '@/types/database';
 import { FolderOpen, Database, ChevronDown, ChevronUp, Lock, User, AlertTriangle, CheckCircle } from 'lucide-react';
+import { debugLog } from '@/lib/utils';
 
 interface AddDatabaseDialogProps {
   open: boolean;
@@ -243,8 +244,8 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
   };
 
   const handleSubmit = async () => {
-    console.log('Form submission started with config:', config);
-    console.log('Form validation:', {
+    debugLog('Form submission started with config:', config);
+    debugLog('Form validation:', {
       name: config.name,
       type: config.type,
       version: config.version,
@@ -254,33 +255,33 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
     });
 
     if (!config.name || !config.type || !config.version) {
-      console.log('Form validation failed - missing required fields');
+      debugLog('Form validation failed - missing required fields');
       return;
     }
 
     if (duplicateDb?.isDuplicate) {
-      console.log('Form validation failed - duplicate database detected');
+      debugLog('Form validation failed - duplicate database detected');
       return;
     }
 
     if (nameConflict?.hasConflict) {
-      console.log('Form validation failed - name conflict detected');
+      debugLog('Form validation failed - name conflict detected');
       return;
     }
 
-    console.log('Form validation passed, starting installation...');
+    debugLog('Form validation passed, starting installation...');
     setIsLoading(true);
     try {
       if (window.electronAPI) {
-        console.log('Using Electron API for installation');
+        debugLog('Using Electron API for installation');
         const result = await onAddDatabase(config);
       } else {
         // Demo submission for browser development
-        console.log('Demo: Adding database with config:', config);
+        debugLog('Demo: Adding database with config:', config);
         // Simulate successful installation
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      console.log('Installation completed successfully');
+      debugLog('Installation completed successfully');
       onOpenChange(false);
       // Reset form
       setConfig({
@@ -549,8 +550,8 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
           </Button>
           <Button
             onClick={() => {
-              console.log('Install button clicked!');
-              console.log('Button disabled state:', {
+              debugLog('Install button clicked!');
+              debugLog('Button disabled state:', {
                 isLoading,
                 missingName: !config.name,
                 missingType: !config.type,

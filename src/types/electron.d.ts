@@ -16,6 +16,7 @@ export interface ElectronAPI {
   updateDatabasePort: (dbId: string, newPort: number) => Promise<{ success: boolean; message: string; conflict?: boolean }>;
   checkDatabaseStatus: (id: string) => Promise<{ success: boolean; message: string; status?: string }>;
   createNamedDatabase: (id: string) => Promise<{ success: boolean; message: string }>;
+  resolvePortConflict: (dbId: string, conflictingDbId: string) => Promise<{ success: boolean; message: string; stoppedDatabase?: string; startedDatabase?: string }>;
   onDatabaseStatusUpdate: (callback: (data: { id: string; status: string }) => void) => void;
   removeDatabaseStatusListener: () => void;
 }
