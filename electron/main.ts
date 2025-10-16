@@ -3,10 +3,7 @@ import * as path from 'path';
 import { spawn, exec } from 'child_process';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-
-// Debug logging helper (gated by DEBUG env var)
-const DEBUG = process.env.DEBUG === '1' || process.env.DEBUG === 'true';
-const log = (...args: any[]) => { if (DEBUG) console.log(...args); };
+import { logger } from './logger';
 
 // Encryption/Decryption functions
 function getEncryptionKey(): string {
@@ -77,7 +74,7 @@ async function loadDatabases() {
       const data = fs.readFileSync(dbPath, 'utf8');
       // Handle empty file or invalid JSON
       if (!data.trim()) {
-        log('databases.json is empty, returning empty array');
+        logger.info('databases.json is empty, returning empty array');
         return [];
       }
       const databases = JSON.parse(data);
@@ -87,7 +84,7 @@ async function loadDatabases() {
         if (db.status === 'running') {
           const isActuallyRunning = await checkPortInUse(db.port);
           if (!isActuallyRunning) {
-            log(`Database ${db.name} was marked as running but process not found, updating status to stopped`);
+            logger.warning(`Database ${db.name} was marked as running but process not found, updating status to stopped`);
             db.status = 'stopped';
           }
         }
@@ -108,7 +105,7 @@ async function loadDatabases() {
     try {
       const dbPath = path.join(app.getPath('userData'), 'databases.json');
       fs.writeFileSync(dbPath, '[]', 'utf8');
-      log('Created new empty databases.json file');
+      logger.success('Created new empty databases.json file');
     } catch (writeError) {
       console.error('Failed to create new databases.json:', writeError);
     }
@@ -135,13 +132,13 @@ function createWindow(): void {
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
   
   if (isDev) {
-    log('Loading development URL: http://localhost:3000');
+    logger.info('Loading development URL: http://localhost:3000');
     mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools();
     
     // Add event listeners for debugging
     mainWindow.webContents.on('did-finish-load', () => {
-      log('Page finished loading');
+      logger.success('Page finished loading');
     });
     
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
@@ -169,7 +166,7 @@ app.on('activate', () => {
 // Helper function to stop a database service
 async function stopDatabaseService(db: any): Promise<boolean> {
   try {
-    log(`Stopping ${db.type} database: ${db.name}`);
+    logger.databaseStopBanner(db.name, db.type, db.port);
     
     if (db.type === 'postgresql') {
       return await stopPostgreSQLService(db);
@@ -206,7 +203,7 @@ async function stopPostgreSQLService(db: any): Promise<boolean> {
       });
       
       pgctl.on('close', (code) => {
-        log(`pg_ctl stop exited with code: ${code}`);
+        logger.debug(`pg_ctl stop exited with code: ${code}`);
         resolve(code === 0);
       });
     });
@@ -232,7 +229,7 @@ async function stopMySQLService(db: any): Promise<boolean> {
     // Get the correct mysqladmin binary path
     const packageName = getHomebrewPackageName(db.type, db.version);
     const mysqladminPath = getHomebrewBinaryPath('mysqladmin', packageName);
-    log(`Using mysqladmin at: ${mysqladminPath}`);
+    logger.debug(`Using mysqladmin at: ${mysqladminPath}`);
     
     const stopSuccess = await new Promise<boolean>((resolve) => {
       const mysqladmin = spawn(mysqladminPath, ['-u', db.username, '-p' + db.password, 'shutdown'], {
@@ -240,7 +237,7 @@ async function stopMySQLService(db: any): Promise<boolean> {
       });
       
       mysqladmin.on('close', (code) => {
-        log(`mysqladmin shutdown exited with code: ${code}`);
+        logger.debug(`mysqladmin shutdown exited with code: ${code}`);
         resolve(code === 0);
       });
       
@@ -344,7 +341,7 @@ async function stopCassandraService(db: any): Promise<boolean> {
 // Cleanup function to stop all running databases
 async function stopAllRunningDatabases() {
   try {
-    log('Stopping all running databases...');
+    logger.section('Stopping all running databases');
     
     // Kill all tracked processes first
     await killAllDatabaseProcesses();
@@ -353,17 +350,17 @@ async function stopAllRunningDatabases() {
     const databases = await loadDatabases();
     const runningDatabases = databases.filter((db: any) => db.status === 'running');
     
-    log(`Stopping ${runningDatabases.length} tracked running databases...`);
+    logger.info(`Stopping ${runningDatabases.length} tracked running databases...`);
     
     for (const db of runningDatabases) {
       try {
-        log(`Stopping ${db.type} database: ${db.name}`);
+        logger.databaseStopBanner(db.name, db.type, db.port);
         const stopSuccess = await stopDatabaseService(db);
         
         if (stopSuccess) {
           // Update status in storage
           db.status = 'stopped';
-          log(`Successfully stopped ${db.name}`);
+          logger.success(`Successfully stopped ${db.name}`);
         } else {
           console.error(`Failed to stop ${db.name}`);
         }
@@ -374,7 +371,7 @@ async function stopAllRunningDatabases() {
     
     // Save updated statuses
     saveDatabases(databases);
-    log('All databases stopped successfully');
+    logger.success('All databases stopped successfully');
   } catch (error) {
     console.error('Error stopping databases:', error);
   }
@@ -382,21 +379,21 @@ async function stopAllRunningDatabases() {
 
 // Clean up orphaned processes on startup
 app.whenReady().then(async () => {
-  log('App ready, cleaning up orphaned processes...');
+  logger.header('LiquiDB Starting');
   await cleanupOrphanedProcesses();
 });
 
 // Stop all databases when app is about to quit
 app.on('before-quit', async (event) => {
-  log('App is about to quit, cleaning up database processes...');
+  logger.section('App is about to quit, cleaning up database processes');
   
   // Cancel all starting processes and reset their status
   if (startingProcesses.size > 0) {
-      log(`Cancelling ${startingProcesses.size} starting database processes...`);
-    for (const [dbId, processInfo] of startingProcesses) {
+      logger.info(`Cancelling ${startingProcesses.size} starting database processes...`);
+    for (const [dbId, processInfo] of Array.from(startingProcesses.entries())) {
       try {
         if (processInfo.process && !processInfo.process.killed) {
-          log(`Killing starting process for database ${dbId}`);
+          logger.debug(`Killing starting process for database ${dbId}`);
           processInfo.process.kill('SIGTERM');
         }
         
@@ -406,7 +403,7 @@ app.on('before-quit', async (event) => {
         if (db && db.status === 'starting') {
           db.status = 'stopped';
           saveDatabases(databases);
-          log(`Reset database ${dbId} status to stopped`);
+          logger.debug(`Reset database ${dbId} status to stopped`);
         }
       } catch (error) {
         console.error(`Error killing starting process for ${dbId}:`, error);
@@ -421,13 +418,13 @@ app.on('before-quit', async (event) => {
 
 // Handle force-quit scenarios (SIGTERM, SIGINT, etc.)
 process.on('SIGTERM', async () => {
-  log('Received SIGTERM, stopping all databases...');
+  logger.warning('Received SIGTERM, stopping all databases...');
   await killAllDatabaseProcesses();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-  log('Received SIGINT, stopping all databases...');
+  logger.warning('Received SIGINT, stopping all databases...');
   await killAllDatabaseProcesses();
   process.exit(0);
 });
@@ -448,7 +445,7 @@ process.on('unhandledRejection', async (reason, promise) => {
 
 // Also handle window-all-closed to stop databases
 app.on('window-all-closed', async () => {
-  log('All windows closed, stopping all databases...');
+  logger.section('All windows closed, stopping all databases');
   await stopAllRunningDatabases();
   
   if (process.platform !== 'darwin') {
@@ -647,10 +644,10 @@ ipcMain.handle('resolve-port-conflict', async (event, dbId: string, conflictingD
       return { success: false, message: 'Conflicting database not found' };
     }
     
-    log(`Resolving port conflict: stopping "${conflictingDb.name}" and starting "${db.name}"`);
+    logger.section(`Resolving port conflict: stopping "${conflictingDb.name}" and starting "${db.name}"`);
     
     // Stop the conflicting database
-    log(`Stopping conflicting database: ${conflictingDb.name}`);
+    logger.database(conflictingDb.type, `Stopping conflicting database: ${conflictingDb.name}`);
     const stopSuccess = await stopDatabaseService(conflictingDb);
     
     if (!stopSuccess) {
@@ -673,7 +670,7 @@ ipcMain.handle('resolve-port-conflict', async (event, dbId: string, conflictingD
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Now start the requested database
-    log(`Starting requested database: ${db.name}`);
+    logger.database(db.type, `Starting requested database: ${db.name}`);
     db.status = 'starting';
     saveDatabases(databases);
     
@@ -702,7 +699,7 @@ ipcMain.handle('resolve-port-conflict', async (event, dbId: string, conflictingD
                 event.sender.send('database-status-updated', { id: dbId, status: 'running' });
               }
               
-              log(`Database ${db.name} is now running on port ${db.port}`);
+              logger.successBanner(`Database ${db.name} is now running`, `Type: ${db.type} | Port: ${db.port}`);
             }
           } else {
             // Database failed to start
@@ -717,7 +714,7 @@ ipcMain.handle('resolve-port-conflict', async (event, dbId: string, conflictingD
                 event.sender.send('database-status-updated', { id: dbId, status: 'stopped' });
               }
               
-              log(`Database ${db.name} failed to start on port ${db.port}`);
+              logger.errorBanner(`Database ${db.name} failed to start`, `Type: ${db.type} | Port: ${db.port}`);
             }
           }
         } catch (error) {
@@ -843,7 +840,7 @@ ipcMain.handle('install-database', async (event, config: any) => {
     let hasHomebrew = await isHomebrewInstalled();
     
     if (!hasHomebrew) {
-      log('Homebrew not found, installing...');
+      logger.startSpinner('Installing Homebrew...');
       const homebrewInstalled = await installHomebrew();
       if (!homebrewInstalled) {
         return {
@@ -871,14 +868,15 @@ ipcMain.handle('install-database', async (event, config: any) => {
       }
 
       // Install the database via Homebrew
-      log(`Installing ${packageName} via Homebrew...`);
+      logger.installationBanner(packageName, version);
+      logger.startSpinner(`Installing ${packageName} via Homebrew...`);
       installSuccess = await new Promise<boolean>((resolve) => {
         const brew = spawn('brew', ['install', packageName], {
           stdio: 'inherit'
         });
 
         brew.on('close', (code) => {
-          log(`Homebrew install exited with code: ${code}`);
+          logger.debug(`Homebrew install exited with code: ${code}`);
           resolve(code === 0);
         });
       });
@@ -890,7 +888,7 @@ ipcMain.handle('install-database', async (event, config: any) => {
         installMessage = `Failed to install ${packageName} via Homebrew`;
       }
     } else {
-      log(`${packageName} is already installed, skipping download`);
+      logger.info(`${packageName} is already installed, skipping download`);
       installMessage = `${packageName} already installed locally`;
       clearInstallationAttempts(packageName);
     }
@@ -919,12 +917,12 @@ ipcMain.handle('install-database', async (event, config: any) => {
 
     // Initialize the database server after installation (without creating named database yet)
     if (installSuccess) {
-      log(`Initializing ${type} database server...`);
+      logger.startSpinner(`Initializing ${type} database server...`);
       const initSuccess = await initializeDatabaseServer(type, version, dbPath, finalUsername, finalPassword, port);
       if (!initSuccess) {
         console.warn(`Failed to initialize ${type} database server, but continuing with installation`);
       } else {
-        log(`${type} database server initialized successfully`);
+        logger.stopSpinner(true, `${type} database server initialized successfully`);
       }
     }
     
@@ -952,7 +950,8 @@ ipcMain.handle('install-database', async (event, config: any) => {
 
     // After installation, ensure the named database is created
     try {
-      log(`Ensuring named database '${name}' exists...`);
+      logger.databaseCreateBanner(name, type, port, dbPath);
+      logger.startSpinner(`Creating named database '${name}'...`);
       // Start service temporarily if not running
       const isRunning = await checkPortInUse(port);
       let startedTemporarily = false;
@@ -984,7 +983,7 @@ ipcMain.handle('install-database', async (event, config: any) => {
       if (startedTemporarily) {
         await stopDatabaseService(dbConfig);
       }
-      log(`Named database '${name}' created successfully.`);
+      logger.stopSpinner(true, `Named database '${name}' created successfully`);
     } catch (createError) {
       console.error('Error creating named database after install:', createError);
       return {
@@ -993,9 +992,7 @@ ipcMain.handle('install-database', async (event, config: any) => {
       };
     }
 
-    log(`Successfully installed ${type} ${version}`);
-    log(`Data directory: ${dbPath}`);
-    log(`Port: ${port}`);
+    logger.successBanner(`Successfully installed ${type} ${version}`, `Data directory: ${dbPath} | Port: ${port}`);
     
     return {
       success: true,
@@ -1026,19 +1023,19 @@ ipcMain.handle('start-database', async (event, dbId: string) => {
     }
 
     // Check if port is already in use (reliable check)
-    log(`Checking port usage for ${db.name} on port ${db.port}`);
+    logger.port(db.port, `Checking port usage for ${db.name}`);
     const portInUse = await checkPortInUse(db.port);
-    log(`Port ${db.port} in use: ${portInUse}`);
+    logger.debug(`Port ${db.port} in use: ${portInUse}`);
 
     if (portInUse) {
       // Check for conflicts with known databases (running or starting)
-      log(`Port ${db.port} in use, checking for internal conflicts...`);
+      logger.port(db.port, 'Checking for internal conflicts...');
       const portCheck = await isPortInUseByRunningDatabase(db.port);
-      log(`Port conflict check result:`, portCheck);
+      logger.debug(`Port conflict check result:`, portCheck);
 
       if (portCheck.inUse && portCheck.conflictingDb) {
         const conflictingDbName = portCheck.conflictingDb?.name || 'another process';
-        log(`Port conflict detected with database: ${conflictingDbName}`);
+        logger.portConflictBanner(db.port, conflictingDbName, db.name);
         return {
           success: false,
           message: `Port ${db.port} is already in use by "${conflictingDbName}". Would you like to stop the conflicting database and start this one?`,
@@ -1051,7 +1048,7 @@ ipcMain.handle('start-database', async (event, dbId: string) => {
       }
 
       // In use by some other process (or unknown DB)
-      log(`Port ${db.port} is in use by an external process.`);
+      logger.warning(`Port ${db.port} is in use by an external process.`);
       return {
         success: false,
         message: `Port ${db.port} is already in use by another service. Please choose a different port or stop the conflicting service.`,
@@ -1070,10 +1067,10 @@ ipcMain.handle('start-database', async (event, dbId: string) => {
     }
 
     // Start the database service with proper configuration
-    log(`Attempting to start ${db.type} database...`);
+    logger.databaseStartBanner(db.name, db.type, db.port);
     const process = await startDatabaseService(db);
 
-    log(`Database start result: ${process !== null}`);
+    logger.debug(`Database start result: ${process !== null}`);
 
     if (process) {
       // For PostgreSQL, the process might be null but the database is actually running
@@ -1094,7 +1091,7 @@ ipcMain.handle('start-database', async (event, dbId: string) => {
                 event.sender.send('database-status-updated', { id: dbId, status: 'running' });
               }
               
-              log(`Database ${db.name} is now running on port ${db.port}`);
+              logger.successBanner(`Database ${db.name} is now running`, `Type: ${db.type} | Port: ${db.port}`);
             }
           } else {
             // Database failed to start
@@ -1109,7 +1106,7 @@ ipcMain.handle('start-database', async (event, dbId: string) => {
                 event.sender.send('database-status-updated', { id: dbId, status: 'stopped' });
               }
               
-              log(`Database ${db.name} failed to start on port ${db.port}`);
+              logger.errorBanner(`Database ${db.name} failed to start`, `Type: ${db.type} | Port: ${db.port}`);
             }
           }
         } catch (error) {
