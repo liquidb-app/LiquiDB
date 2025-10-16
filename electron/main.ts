@@ -49,6 +49,9 @@ const installationAttempts = new Map<string, number>();
 // Track running database processes for cleanup
 const runningProcesses = new Map<string, { pid: number; type: string; port: number }>();
 
+// Track starting database processes (to be able to cancel them)
+const startingProcesses = new Map<string, { process: any; type: string; port: number }>();
+
 function trackInstallationAttempt(packageName: string): boolean {
   const attempts = installationAttempts.get(packageName) || 0;
   if (attempts >= 3) {
@@ -219,19 +222,38 @@ async function stopPostgreSQLService(db: any): Promise<boolean> {
 // MySQL service stop
 async function stopMySQLService(db: any): Promise<boolean> {
   try {
+    // First try to kill the tracked process
+    const killSuccess = await killDatabaseProcess(db.id);
+    
+    // Get the correct mysqladmin binary path
+    const packageName = getHomebrewPackageName(db.type, db.version);
+    const mysqladminPath = getHomebrewBinaryPath('mysqladmin', packageName);
+    console.log(`Using mysqladmin at: ${mysqladminPath}`);
+    
     const stopSuccess = await new Promise<boolean>((resolve) => {
-      const mysqladmin = spawn('mysqladmin', ['-u', db.username, '-p' + db.password, 'shutdown'], {
+      const mysqladmin = spawn(mysqladminPath, ['-u', db.username, '-p' + db.password, 'shutdown'], {
         stdio: 'inherit'
       });
       
       mysqladmin.on('close', (code) => {
+        console.log(`mysqladmin shutdown exited with code: ${code}`);
         resolve(code === 0);
+      });
+      
+      mysqladmin.on('error', (error) => {
+        console.error(`mysqladmin shutdown error: ${error}`);
+        resolve(false);
       });
     });
     
-    return stopSuccess;
+    // Ensure process is untracked
+    untrackProcess(db.id);
+    
+    return stopSuccess || killSuccess;
   } catch (error) {
     console.error('Failed to stop MySQL:', error);
+    // Still try to untrack the process
+    untrackProcess(db.id);
     return false;
   }
 }
@@ -239,19 +261,38 @@ async function stopMySQLService(db: any): Promise<boolean> {
 // MariaDB service stop
 async function stopMariaDBService(db: any): Promise<boolean> {
   try {
+    // First try to kill the tracked process
+    const killSuccess = await killDatabaseProcess(db.id);
+    
+    // Get the correct mysqladmin binary path (MariaDB uses mysqladmin)
+    const packageName = getHomebrewPackageName(db.type, db.version);
+    const mysqladminPath = getHomebrewBinaryPath('mysqladmin', packageName);
+    console.log(`Using mysqladmin at: ${mysqladminPath}`);
+    
     const stopSuccess = await new Promise<boolean>((resolve) => {
-      const mysqladmin = spawn('mysqladmin', ['-u', db.username, '-p' + db.password, 'shutdown'], {
+      const mysqladmin = spawn(mysqladminPath, ['-u', db.username, '-p' + db.password, 'shutdown'], {
         stdio: 'inherit'
       });
       
       mysqladmin.on('close', (code) => {
+        console.log(`mysqladmin shutdown exited with code: ${code}`);
         resolve(code === 0);
+      });
+      
+      mysqladmin.on('error', (error) => {
+        console.error(`mysqladmin shutdown error: ${error}`);
+        resolve(false);
       });
     });
     
-    return stopSuccess;
+    // Ensure process is untracked
+    untrackProcess(db.id);
+    
+    return stopSuccess || killSuccess;
   } catch (error) {
     console.error('Failed to stop MariaDB:', error);
+    // Still try to untrack the process
+    untrackProcess(db.id);
     return false;
   }
 }
@@ -343,7 +384,34 @@ app.whenReady().then(async () => {
 
 // Stop all databases when app is about to quit
 app.on('before-quit', async (event) => {
-  console.log('App is about to quit, stopping all databases...');
+  console.log('App is about to quit, cleaning up database processes...');
+  
+  // Cancel all starting processes and reset their status
+  if (startingProcesses.size > 0) {
+    console.log(`Cancelling ${startingProcesses.size} starting database processes...`);
+    for (const [dbId, processInfo] of startingProcesses) {
+      try {
+        if (processInfo.process && !processInfo.process.killed) {
+          console.log(`Killing starting process for database ${dbId}`);
+          processInfo.process.kill('SIGTERM');
+        }
+        
+        // Reset database status to stopped
+        const databases = await loadDatabases();
+        const db = databases.find((d: any) => d.id === dbId);
+        if (db && db.status === 'starting') {
+          db.status = 'stopped';
+          saveDatabases(databases);
+          console.log(`Reset database ${dbId} status to stopped`);
+        }
+      } catch (error) {
+        console.error(`Error killing starting process for ${dbId}:`, error);
+      }
+    }
+    startingProcesses.clear();
+  }
+  
+  // Stop all running databases
   await stopAllRunningDatabases();
 });
 
@@ -491,6 +559,30 @@ ipcMain.handle('install-database', async (event, config: any) => {
         existingDb: existingDbInFolder
       };
     }
+
+    // Check if the requested port is available
+    const portAvailable = await isPortAvailable(port);
+    
+    if (!portAvailable) {
+      // Check if it's used by another database
+      const portCheck = await isPortInUseByRunningDatabase(port);
+      
+      if (portCheck.inUse) {
+        const conflictingDbName = portCheck.conflictingDb?.name || 'another database';
+        return {
+          success: false,
+          message: `Port ${port} is already in use by "${conflictingDbName}". Please choose a different port.`,
+          conflict: true,
+          conflictingDb: portCheck.conflictingDb
+        };
+      } else {
+        return {
+          success: false,
+          message: `Port ${port} is already in use by another service. Please choose a different port.`,
+          conflict: true
+        };
+      }
+    }
     
     // Determine data root (fallback to userData if none provided)
     const dataRoot = dataPath && dataPath.trim().length > 0
@@ -589,7 +681,7 @@ ipcMain.handle('install-database', async (event, config: any) => {
     // Initialize and configure the database after installation
     if (installSuccess) {
       console.log(`Initializing ${type} database...`);
-      const initSuccess = await initializeDatabase(type, version, dbPath, finalUsername, finalPassword, port);
+      const initSuccess = await initializeDatabase(type, version, dbPath, finalUsername, finalPassword, port, name);
       if (!initSuccess) {
         console.warn(`Failed to initialize ${type} database, but continuing with installation`);
       } else {
@@ -651,18 +743,30 @@ ipcMain.handle('start-database', async (event, dbId: string) => {
       return { success: false, message: 'Database not found' };
     }
 
-    // Check for port conflicts with running databases
-    const portCheck = await isPortInUseByRunningDatabase(db.port);
+    // Check if port is available on the system
+    const portAvailable = await isPortAvailable(db.port);
     
-    if (portCheck.inUse) {
-      const conflictingDbName = portCheck.conflictingDb?.name || 'another process';
-      return {
-        success: false,
-        message: `Port ${db.port} is already in use by "${conflictingDbName}". Please stop the conflicting database first before starting this one.`,
-        conflict: true,
-        conflictingDb: portCheck.conflictingDb,
-        blocking: true // This blocks the start operation
-      };
+    if (!portAvailable) {
+      // Check for port conflicts with running databases
+      const portCheck = await isPortInUseByRunningDatabase(db.port);
+      
+      if (portCheck.inUse) {
+        const conflictingDbName = portCheck.conflictingDb?.name || 'another process';
+        return {
+          success: false,
+          message: `Port ${db.port} is already in use by "${conflictingDbName}". Please stop the conflicting database first before starting this one.`,
+          conflict: true,
+          conflictingDb: portCheck.conflictingDb,
+          blocking: true // This blocks the start operation
+        };
+      } else {
+        return {
+          success: false,
+          message: `Port ${db.port} is already in use by another service. Please choose a different port or stop the conflicting service.`,
+          conflict: true,
+          blocking: true // This blocks the start operation
+        };
+      }
     }
 
     // Update status to starting immediately
@@ -676,19 +780,30 @@ ipcMain.handle('start-database', async (event, dbId: string) => {
 
     // Start the database service with proper configuration
     console.log(`Attempting to start ${db.type} database...`);
-    const startSuccess = await startDatabaseService(db);
+    const process = await startDatabaseService(db);
 
-    console.log(`Database start result: ${startSuccess}`);
+    console.log(`Database start result: ${process !== null}`);
 
-    if (startSuccess) {
-      // Update status in storage
-      db.status = 'running';
-      saveDatabases(databases);
-      
-      // Notify renderer that status is updated
-      if (event.sender) {
-        event.sender.send('database-status-updated', { id: dbId, status: 'running' });
-      }
+    if (process) {
+      // Wait a moment for the process to fully start, then update status
+      setTimeout(async () => {
+        // Check if process is still running
+        if (process && !process.killed && startingProcesses.has(dbId)) {
+          // Update status in storage
+          db.status = 'running';
+          saveDatabases(databases);
+          
+          // Notify renderer that status is updated
+          if (event.sender) {
+            event.sender.send('database-status-updated', { id: dbId, status: 'running' });
+          }
+          
+          // Track the running process
+          if (process.pid) {
+            runningProcesses.set(dbId, { pid: process.pid, type: db.type, port: db.port });
+          }
+        }
+      }, 2000);
       
       return { success: true, message: 'Database started' };
     } else {
@@ -721,6 +836,15 @@ ipcMain.handle('stop-database', async (event, dbId: string) => {
     }
     
     console.log(`Stopping ${db.type} database: ${db.name}`);
+    
+    // Update status to stopping immediately
+    db.status = 'stopping';
+    saveDatabases(databases);
+    
+    // Notify renderer that status is updating
+    if (event.sender) {
+      event.sender.send('database-status-updated', { id: dbId, status: 'stopping' });
+    }
     
     // Stop the database service using the proper stop function
     const stopSuccess = await stopDatabaseService(db);
@@ -848,6 +972,29 @@ ipcMain.handle('check-duplicate-database', async (event, config: any) => {
   } catch (error) {
     console.error('Error checking duplicate database:', error);
     return { isDuplicate: false };
+  }
+});
+
+ipcMain.handle('check-name-conflict', async (event, name: string) => {
+  try {
+    const databases = await loadDatabases();
+    
+    // Check for existing database with the same name (case-insensitive)
+    const existingDbWithName = databases.find((db: any) => 
+      db.name.toLowerCase() === name.toLowerCase()
+    );
+    
+    if (existingDbWithName) {
+      return {
+        hasConflict: true,
+        conflictingDb: existingDbWithName
+      };
+    }
+    
+    return { hasConflict: false };
+  } catch (error) {
+    console.error('Error checking name conflict:', error);
+    return { hasConflict: false };
   }
 });
 
@@ -997,7 +1144,13 @@ async function killDatabaseProcess(dbId: string): Promise<boolean> {
     
     untrackProcess(dbId);
     return true;
-  } catch (error) {
+  } catch (error: any) {
+    // Handle ESRCH error (process doesn't exist) as success
+    if (error.code === 'ESRCH') {
+      console.log(`Process ${trackedProcess.pid} already terminated (ESRCH)`);
+      untrackProcess(dbId);
+      return true;
+    }
     console.error(`Failed to kill process ${trackedProcess.pid}:`, error);
     return false;
   }
@@ -1173,19 +1326,19 @@ function getHomebrewPackageName(dbType: string, version: string): string {
 }
 
 // Helper function to initialize database
-async function initializeDatabase(type: string, version: string, dataPath: string, username: string, password: string, port: number): Promise<boolean> {
+async function initializeDatabase(type: string, version: string, dataPath: string, username: string, password: string, port: number, databaseName: string): Promise<boolean> {
   try {
     const packageName = getHomebrewPackageName(type, version);
     
     switch (type) {
       case 'postgresql':
-        return await initializePostgreSQL(packageName, dataPath, username, password, port);
+        return await initializePostgreSQL(packageName, dataPath, username, password, port, databaseName);
       case 'mysql':
-        return await initializeMySQL(packageName, dataPath, username, password, port);
+        return await initializeMySQL(packageName, dataPath, username, password, port, databaseName);
       case 'mariadb':
-        return await initializeMariaDB(packageName, dataPath, username, password, port);
+        return await initializeMariaDB(packageName, dataPath, username, password, port, databaseName);
       case 'mongodb':
-        return await initializeMongoDB(packageName, dataPath, username, password, port);
+        return await initializeMongoDB(packageName, dataPath, username, password, port, databaseName);
       default:
         console.log(`No specific initialization needed for ${type}`);
         return true;
@@ -1264,7 +1417,7 @@ async function createPostgreSQLDatabase(pgDataPath: string, dbName: string, port
 }
 
 // PostgreSQL initialization
-async function initializePostgreSQL(packageName: string, dataPath: string, username: string, password: string, port: number): Promise<boolean> {
+async function initializePostgreSQL(packageName: string, dataPath: string, username: string, password: string, port: number, databaseName: string): Promise<boolean> {
   try {
     // Create PostgreSQL data directory
     const pgDataPath = path.join(dataPath, 'postgresql_data');
@@ -1330,11 +1483,11 @@ shared_buffers = 128MB
       console.log('PostgreSQL configuration file created');
       
       // Start PostgreSQL temporarily to create the named database
-      console.log(`Creating database: ${username}`);
-      const createDbSuccess = await createPostgreSQLDatabase(pgDataPath, username, port);
+      console.log(`Creating database: ${databaseName}`);
+      const createDbSuccess = await createPostgreSQLDatabase(pgDataPath, databaseName, port);
       
       if (createDbSuccess) {
-        console.log(`Database '${username}' created successfully`);
+        console.log(`Database '${databaseName}' created successfully`);
         return true;
       } else {
         console.error('Failed to create named database');
@@ -1350,8 +1503,47 @@ shared_buffers = 128MB
   }
 }
 
+// Helper function to check if a port is available
+function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const net = require('net');
+    const server = net.createServer();
+    
+    server.listen(port, () => {
+      server.once('close', () => {
+        resolve(true);
+      });
+      server.close();
+    });
+    
+    server.on('error', () => {
+      resolve(false);
+    });
+  });
+}
+
+// Helper function to get Homebrew binary path
+function getHomebrewBinaryPath(binaryName: string, packageName: string): string {
+  // Try common Homebrew paths
+  const possiblePaths = [
+    `/opt/homebrew/opt/${packageName}/bin/${binaryName}`,
+    `/usr/local/opt/${packageName}/bin/${binaryName}`,
+    `/opt/homebrew/bin/${binaryName}`,
+    `/usr/local/bin/${binaryName}`,
+    binaryName // fallback to system PATH
+  ];
+  
+  for (const binaryPath of possiblePaths) {
+    if (fs.existsSync(binaryPath)) {
+      return binaryPath;
+    }
+  }
+  
+  return binaryName; // fallback
+}
+
 // MySQL initialization
-async function initializeMySQL(packageName: string, dataPath: string, username: string, password: string, port: number): Promise<boolean> {
+async function initializeMySQL(packageName: string, dataPath: string, username: string, password: string, port: number, databaseName: string): Promise<boolean> {
   try {
     // Create MySQL data directory
     const mysqlDataPath = path.join(dataPath, 'mysql_data');
@@ -1359,11 +1551,30 @@ async function initializeMySQL(packageName: string, dataPath: string, username: 
       fs.mkdirSync(mysqlDataPath, { recursive: true });
     }
 
+    // Get the correct mysqld binary path
+    const mysqldPath = getHomebrewBinaryPath('mysqld', packageName);
+    console.log(`Using mysqld at: ${mysqldPath}`);
+
     // Initialize MySQL database
     const initSuccess = await new Promise<boolean>((resolve) => {
-      const mysqld = spawn('mysqld', ['--initialize-insecure', `--datadir=${mysqlDataPath}`, `--user=${username}`]);
+      const mysqld = spawn(mysqldPath, ['--initialize-insecure', `--datadir=${mysqlDataPath}`, `--user=${username}`]);
+      
+      mysqld.stdout.on('data', (data) => {
+        console.log(`MySQL init stdout: ${data}`);
+      });
+      
+      mysqld.stderr.on('data', (data) => {
+        console.log(`MySQL init stderr: ${data}`);
+      });
+      
       mysqld.on('close', (code) => {
+        console.log(`MySQL init process exited with code ${code}`);
         resolve(code === 0);
+      });
+      
+      mysqld.on('error', (error) => {
+        console.error(`MySQL init process error: ${error}`);
+        resolve(false);
       });
     });
 
@@ -1379,7 +1590,7 @@ async function initializeMySQL(packageName: string, dataPath: string, username: 
 }
 
 // MariaDB initialization
-async function initializeMariaDB(packageName: string, dataPath: string, username: string, password: string, port: number): Promise<boolean> {
+async function initializeMariaDB(packageName: string, dataPath: string, username: string, password: string, port: number, databaseName: string): Promise<boolean> {
   try {
     // Create MariaDB data directory
     const mariadbDataPath = path.join(dataPath, 'mariadb_data');
@@ -1387,11 +1598,30 @@ async function initializeMariaDB(packageName: string, dataPath: string, username
       fs.mkdirSync(mariadbDataPath, { recursive: true });
     }
 
+    // Get the correct mysql_install_db binary path
+    const mysqlInstallDbPath = getHomebrewBinaryPath('mysql_install_db', packageName);
+    console.log(`Using mysql_install_db at: ${mysqlInstallDbPath}`);
+
     // Initialize MariaDB database
     const initSuccess = await new Promise<boolean>((resolve) => {
-      const mariadbInstall = spawn('mysql_install_db', [`--datadir=${mariadbDataPath}`, `--user=${username}`]);
+      const mariadbInstall = spawn(mysqlInstallDbPath, [`--datadir=${mariadbDataPath}`, `--user=${username}`]);
+      
+      mariadbInstall.stdout.on('data', (data) => {
+        console.log(`MariaDB init stdout: ${data}`);
+      });
+      
+      mariadbInstall.stderr.on('data', (data) => {
+        console.log(`MariaDB init stderr: ${data}`);
+      });
+      
       mariadbInstall.on('close', (code) => {
+        console.log(`MariaDB init process exited with code ${code}`);
         resolve(code === 0);
+      });
+      
+      mariadbInstall.on('error', (error) => {
+        console.error(`MariaDB init process error: ${error}`);
+        resolve(false);
       });
     });
 
@@ -1407,7 +1637,7 @@ async function initializeMariaDB(packageName: string, dataPath: string, username
 }
 
 // MongoDB initialization
-async function initializeMongoDB(packageName: string, dataPath: string, username: string, password: string, port: number): Promise<boolean> {
+async function initializeMongoDB(packageName: string, dataPath: string, username: string, password: string, port: number, databaseName: string): Promise<boolean> {
   try {
     // Create MongoDB data directory
     const mongoDataPath = path.join(dataPath, 'mongodb_data');
@@ -1424,31 +1654,50 @@ async function initializeMongoDB(packageName: string, dataPath: string, username
 }
 
 // Helper function to start database service
-async function startDatabaseService(db: any): Promise<boolean> {
+async function startDatabaseService(db: any): Promise<any> {
   try {
+    let process: any = null;
+    
     switch (db.type) {
       case 'postgresql':
-        return await startPostgreSQLService(db);
+        process = await startPostgreSQLService(db);
+        break;
       case 'mysql':
-        return await startMySQLService(db);
+        process = await startMySQLService(db);
+        break;
       case 'mariadb':
-        return await startMariaDBService(db);
+        process = await startMariaDBService(db);
+        break;
       case 'mongodb':
-        return await startMongoDBService(db);
+        process = await startMongoDBService(db);
+        break;
       case 'cassandra':
-        return await startCassandraService(db);
+        process = await startCassandraService(db);
+        break;
       default:
         console.log(`Starting ${db.type} via Homebrew services`);
-        return await new Promise<boolean>((resolve) => {
-          const process = spawn('brew', ['services', 'start', db.packageName]);
-          process.on('close', (code) => {
-            resolve(code === 0);
-          });
-        });
+        process = spawn('brew', ['services', 'start', db.packageName]);
+        break;
     }
+    
+    // Track the starting process only if it's a real process object
+    if (process && typeof process === 'object' && process.pid !== undefined) {
+      startingProcesses.set(db.id, { process, type: db.type, port: db.port });
+      
+      // Remove from starting processes when it completes
+      process.on('close', () => {
+        startingProcesses.delete(db.id);
+      });
+      
+      process.on('error', () => {
+        startingProcesses.delete(db.id);
+      });
+    }
+    
+    return process;
   } catch (error) {
     console.error(`Failed to start ${db.type} service:`, error);
-    return false;
+    return null;
   }
 }
 
@@ -1531,56 +1780,86 @@ async function startPostgreSQLService(db: any): Promise<boolean> {
 }
 
 // MySQL service start
-async function startMySQLService(db: any): Promise<boolean> {
+async function startMySQLService(db: any): Promise<any> {
   try {
     const mysqlDataPath = path.join(db.dataPath, 'mysql_data');
     
+    // Get the correct mysqld binary path
+    const packageName = getHomebrewPackageName(db.type, db.version);
+    const mysqldPath = getHomebrewBinaryPath('mysqld', packageName);
+    console.log(`Starting MySQL with mysqld at: ${mysqldPath}`);
+    
     // Start MySQL with custom data directory and port
-    const startSuccess = await new Promise<boolean>((resolve) => {
-      const mysqld = spawn('mysqld', [
-        `--datadir=${mysqlDataPath}`,
-        `--port=${db.port}`,
-        `--user=${db.username}`,
-        '--skip-networking=false',
-        '--bind-address=127.0.0.1'
-      ]);
-      
-      mysqld.on('close', (code) => {
-        resolve(code === 0);
-      });
+    const mysqld = spawn(mysqldPath, [
+      `--datadir=${mysqlDataPath}`,
+      `--port=${db.port}`,
+      `--user=${db.username}`,
+      '--skip-networking=false',
+      '--bind-address=127.0.0.1'
+    ]);
+    
+    mysqld.stdout.on('data', (data) => {
+      console.log(`MySQL start stdout: ${data}`);
     });
     
-    return startSuccess;
+    mysqld.stderr.on('data', (data) => {
+      console.log(`MySQL start stderr: ${data}`);
+    });
+    
+    mysqld.on('close', (code) => {
+      console.log(`MySQL start process exited with code ${code}`);
+    });
+    
+    mysqld.on('error', (error) => {
+      console.error(`MySQL start process error: ${error}`);
+    });
+    
+    return mysqld;
   } catch (error) {
     console.error('Failed to start MySQL:', error);
-    return false;
+    return null;
   }
 }
 
 // MariaDB service start
-async function startMariaDBService(db: any): Promise<boolean> {
+async function startMariaDBService(db: any): Promise<any> {
   try {
     const mariadbDataPath = path.join(db.dataPath, 'mariadb_data');
     
+    // Get the correct mysqld binary path (MariaDB uses mysqld)
+    const packageName = getHomebrewPackageName(db.type, db.version);
+    const mysqldPath = getHomebrewBinaryPath('mysqld', packageName);
+    console.log(`Starting MariaDB with mysqld at: ${mysqldPath}`);
+    
     // Start MariaDB with custom data directory and port
-    const startSuccess = await new Promise<boolean>((resolve) => {
-      const mariadbd = spawn('mysqld', [
-        `--datadir=${mariadbDataPath}`,
-        `--port=${db.port}`,
-        `--user=${db.username}`,
-        '--skip-networking=false',
-        '--bind-address=127.0.0.1'
-      ]);
-      
-      mariadbd.on('close', (code) => {
-        resolve(code === 0);
-      });
+    const mariadbd = spawn(mysqldPath, [
+      `--datadir=${mariadbDataPath}`,
+      `--port=${db.port}`,
+      `--user=${db.username}`,
+      '--skip-networking=false',
+      '--bind-address=127.0.0.1'
+    ]);
+    
+    mariadbd.stdout.on('data', (data) => {
+      console.log(`MariaDB start stdout: ${data}`);
     });
     
-    return startSuccess;
+    mariadbd.stderr.on('data', (data) => {
+      console.log(`MariaDB start stderr: ${data}`);
+    });
+    
+    mariadbd.on('close', (code) => {
+      console.log(`MariaDB start process exited with code ${code}`);
+    });
+    
+    mariadbd.on('error', (error) => {
+      console.error(`MariaDB start process error: ${error}`);
+    });
+    
+    return mariadbd;
   } catch (error) {
     console.error('Failed to start MariaDB:', error);
-    return false;
+    return null;
   }
 }
 
