@@ -47,6 +47,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [portConflict, setPortConflict] = useState<{ hasConflict: boolean; conflictingDb?: any; suggestedPort?: number } | null>(null);
   const [duplicateDb, setDuplicateDb] = useState<{ isDuplicate: boolean; existingDb?: any } | null>(null);
+  const [nameConflict, setNameConflict] = useState<{ hasConflict: boolean; conflictingDb?: any } | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -95,6 +96,18 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
       setDuplicateDb(null);
     }
   }, [config.type, config.version, config.dataPath]);
+
+  // Check for name conflicts when name changes
+  useEffect(() => {
+    if (config.name && config.name.trim().length > 0) {
+      const timeoutId = setTimeout(() => {
+        checkForNameConflict(config.name);
+      }, 500); // Debounce the check
+      return () => clearTimeout(timeoutId);
+    } else {
+      setNameConflict(null);
+    }
+  }, [config.name]);
 
   const loadDatabaseTypes = async () => {
     try {
@@ -204,6 +217,20 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
     }
   };
 
+  const checkForNameConflict = async (name: string) => {
+    try {
+      if (window.electronAPI && name.trim().length > 0) {
+        const result = await window.electronAPI.checkNameConflict(name);
+        setNameConflict(result);
+      } else {
+        setNameConflict(null);
+      }
+    } catch (error) {
+      console.error('Failed to check name conflict:', error);
+      setNameConflict(null);
+    }
+  };
+
   const useSuggestedPort = () => {
     if (portConflict?.suggestedPort) {
       setConfig(prev => ({ ...prev, port: portConflict.suggestedPort }));
@@ -229,6 +256,11 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
 
     if (duplicateDb?.isDuplicate) {
       console.log('Form validation failed - duplicate database detected');
+      return;
+    }
+
+    if (nameConflict?.hasConflict) {
+      console.log('Form validation failed - name conflict detected');
       return;
     }
 
@@ -262,6 +294,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
       setShowAdvanced(false);
       setPortConflict(null);
       setDuplicateDb(null);
+      setNameConflict(null);
     } catch (error) {
       console.error('Failed to add database:', error);
     } finally {
@@ -339,8 +372,25 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
               placeholder="Enter database name"
               value={config.name}
               onChange={(e) => setConfig(prev => ({ ...prev, name: e.target.value }))}
-              className="h-10 border-2 focus-visible:ring-blue-500"
+              className={`h-10 border-2 focus-visible:ring-blue-500 ${
+                nameConflict?.hasConflict ? 'border-red-500 focus:border-red-500' : ''
+              }`}
             />
+            {nameConflict?.hasConflict && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <div className="text-red-600 dark:text-red-400 text-sm">
+                  ⚠️ Database name "{config.name}" is already taken by "{nameConflict.conflictingDb?.name}"
+                </div>
+                <div className="text-xs text-red-500 dark:text-red-400 mt-1">
+                  Please choose a different name for your database.
+                </div>
+              </div>
+            )}
+            {config.name && !nameConflict?.hasConflict && (
+              <p className="text-xs text-green-600 dark:text-green-400">
+                ✓ Database name "{config.name}" is available
+              </p>
+            )}
           </div>
 
           <div className="grid gap-2">
@@ -497,7 +547,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
               });
               handleSubmit();
             }}
-            disabled={isLoading || !config.name || !config.type || !config.version || duplicateDb?.isDuplicate}
+            disabled={isLoading || !config.name || !config.type || !config.version || duplicateDb?.isDuplicate || nameConflict?.hasConflict}
             className="flex-1 h-10 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
           >
             {isLoading ? (
