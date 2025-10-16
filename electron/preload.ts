@@ -71,6 +71,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkDuplicateDatabase: (config: any): Promise<{ isDuplicate: boolean; existingDb?: any }> => 
     ipcRenderer.invoke('check-duplicate-database', config),
   
+  checkNameConflict: (name: string): Promise<{ hasConflict: boolean; conflictingDb?: any }> => 
+    ipcRenderer.invoke('check-name-conflict', name),
+  
   updateDatabasePort: (dbId: string, newPort: number): Promise<{ success: boolean; message: string; conflict?: boolean }> => 
     ipcRenderer.invoke('update-database-port', dbId, newPort),
   
