@@ -14,6 +14,8 @@ export interface ElectronAPI {
   checkPortConflict: (port: number) => Promise<{ hasConflict: boolean; conflictingDb?: any; suggestedPort?: number }>;
   checkDuplicateDatabase: (config: any) => Promise<{ isDuplicate: boolean; existingDb?: any }>;
   updateDatabasePort: (dbId: string, newPort: number) => Promise<{ success: boolean; message: string; conflict?: boolean }>;
+  checkDatabaseStatus: (id: string) => Promise<{ success: boolean; message: string; status?: string }>;
+  createNamedDatabase: (id: string) => Promise<{ success: boolean; message: string }>;
   onDatabaseStatusUpdate: (callback: (data: { id: string; status: string }) => void) => void;
   removeDatabaseStatusListener: () => void;
 }
