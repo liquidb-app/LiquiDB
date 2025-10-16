@@ -69,6 +69,20 @@ export default function Home() {
           await loadDatabases();
         } else {
           console.error('Installation failed:', result.message);
+          // Handle port conflict or other errors
+          if (result.conflict) {
+            toast.error("Port Conflict", {
+              description: result.message
+            });
+          } else if (result.duplicate) {
+            toast.error("Database Already Exists", {
+              description: result.message
+            });
+          } else {
+            toast.error("Installation Failed", {
+              description: result.message || "An unknown error occurred during installation."
+            });
+          }
           throw new Error(result.message);
         }
       } else {
@@ -120,6 +134,17 @@ export default function Home() {
               description: `${database?.type} database "${database?.name}" is now running.`
             });
           }, 2000);
+        } else {
+          // Handle port conflict or other errors
+          if (result.conflict) {
+            toast.error("Port Conflict", {
+              description: result.message
+            });
+          } else {
+            toast.error("Failed to Start Database", {
+              description: result.message || "An unknown error occurred while starting the database."
+            });
+          }
         }
       } else {
         // Demo start for browser development
@@ -132,6 +157,9 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Failed to start database:', error);
+      toast.error("Failed to Start Database", {
+        description: "An unexpected error occurred while starting the database."
+      });
     }
   };
 
@@ -139,12 +167,22 @@ export default function Home() {
     try {
       const database = databases.find(db => db.id === dbId);
       if (window.electronAPI) {
+        // Show stopping toast immediately
+        toast.info("Database Stopping", {
+          description: `${database?.type} database "${database?.name}" is stopping...`
+        });
+        
         const result = await window.electronAPI.stopDatabase(dbId);
         if (result.success) {
           await loadDatabases();
-          // Show stopped toast
-          toast.info("Database Stopped", {
+          // Show stopped toast after successful stop
+          toast.success("Database Stopped", {
             description: `${database?.type} database "${database?.name}" has been stopped.`
+          });
+        } else {
+          // Handle stop failure
+          toast.error("Failed to Stop Database", {
+            description: result.message || "An error occurred while stopping the database."
           });
         }
       } else {
@@ -152,12 +190,15 @@ export default function Home() {
         setDatabases(prev => prev.map(db => 
           db.id === dbId ? { ...db, status: 'stopped' as const } : db
         ));
-        toast.info("Database Stopped", {
+        toast.success("Database Stopped", {
           description: `${database?.type} database "${database?.name}" has been stopped.`
         });
       }
     } catch (error) {
       console.error('Failed to stop database:', error);
+      toast.error("Failed to Stop Database", {
+        description: "An unexpected error occurred while stopping the database."
+      });
     }
   };
 
