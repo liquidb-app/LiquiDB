@@ -238,7 +238,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
 
   const useSuggestedPort = () => {
     if (portConflict?.suggestedPort) {
-      setConfig(prev => ({ ...prev, port: portConflict.suggestedPort }));
+      setConfig(prev => ({ ...prev, port: portConflict.suggestedPort! }));
       setPortConflict(null);
     }
   };
@@ -311,228 +311,225 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-[600px] max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="text-center pb-3 flex-shrink-0">
-          <div className="mx-auto mb-3 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-            <Database className="h-6 w-6 text-white" />
-          </div>
-          <DialogTitle className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+      <DialogContent className="w-[600px] max-h-[80vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
             Install New Database
           </DialogTitle>
-          <DialogDescription className="text-sm">
+          <DialogDescription>
             Choose a database type and configure its settings for installation.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-1 overflow-y-auto px-1">
-          <div className="grid gap-4 py-2">
-          <div className="grid gap-3">
-            <Label htmlFor="db-type" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Database Type
-            </Label>
-            <Select value={selectedType} onValueChange={setSelectedType}>
-              <SelectTrigger className="h-10 border-2 focus:border-blue-500 transition-colors">
-                <SelectValue placeholder="Select database type" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[200px] overflow-y-auto">
-                {databaseTypes.map((type) => (
-                  <SelectItem key={type.id} value={type.id} className="py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{type.icon}</span>
-                      <div>
-                        <div className="font-medium text-sm">{type.name}</div>
-                        <div className="text-xs text-muted-foreground">Port {type.defaultPort}</div>
-                      </div>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
-          {selectedType && (
-            <div className="grid gap-2">
-              <Label htmlFor="db-version" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Version</Label>
-              <Select value={selectedVersion} onValueChange={(value) => {
-                setSelectedVersion(value);
-                setConfig(prev => ({ ...prev, version: value }));
-              }}>
-                <SelectTrigger className="h-10 border-2 focus:border-blue-500 transition-colors">
-                  <SelectValue placeholder="Select version" />
+        <div className="flex-1 min-h-0 overflow-y-auto pr-2 scrollbar-thin">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="db-type">Database Type</Label>
+              <Select value={selectedType} onValueChange={setSelectedType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select database type" />
                 </SelectTrigger>
-                <SelectContent className="max-h-[150px] overflow-y-auto">
-                  {versions.map((version) => (
-                    <SelectItem key={version} value={version} className="py-2">
-                      {version}
+                <SelectContent>
+                  {databaseTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{type.icon}</span>
+                        <div>
+                          <div className="font-medium text-sm">{type.name}</div>
+                          <div className="text-xs text-muted-foreground">Port {type.defaultPort}</div>
+                        </div>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-          )}
 
-          <div className="grid gap-2">
-            <Label htmlFor="db-name" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Database Name</Label>
-            <Input
-              id="db-name"
-              placeholder="Enter database name"
-              value={config.name}
-              onChange={(e) => setConfig(prev => ({ ...prev, name: e.target.value }))}
-              className={`h-10 border-2 focus-visible:ring-blue-500 ${
-                nameConflict?.hasConflict ? 'border-red-500 focus:border-red-500' : ''
-              }`}
-            />
-            {nameConflict?.hasConflict && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  <div className="font-medium">Database name "{config.name}" is already taken by "{nameConflict.conflictingDb?.name}"</div>
-                  <div className="text-xs mt-1">Please choose a different name for your database.</div>
-                </AlertDescription>
-              </Alert>
+            {selectedType && (
+              <div className="space-y-2">
+                <Label htmlFor="db-version">Version</Label>
+                <Select value={selectedVersion} onValueChange={(value) => {
+                  setSelectedVersion(value);
+                  setConfig(prev => ({ ...prev, version: value }));
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select version" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {versions.map((version) => (
+                      <SelectItem key={version} value={version}>
+                        {version}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
-            {config.name && !nameConflict?.hasConflict && (
-              <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20">
-                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                <AlertDescription className="text-green-600 dark:text-green-400">
-                  Database name "{config.name}" is available
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="db-port" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Port</Label>
-            <Input
-              id="db-port"
-              type="number"
-              placeholder="Enter port number"
-              value={config.port || ''}
-              onChange={(e) => setConfig(prev => ({ ...prev, port: parseInt(e.target.value) || 0 }))}
-              className={`h-10 border-2 focus-visible:ring-blue-500 ${
-                portConflict?.hasConflict ? 'border-red-500 focus:border-red-500' : ''
-              }`}
-            />
-            {selectedDbType && !portConflict?.hasConflict && (
-              <p className="text-xs text-muted-foreground">
-                Default port for {selectedDbType.name}: {selectedDbType.defaultPort}
-              </p>
-            )}
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="data-path" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Data Directory</Label>
-            <div className="flex gap-2">
+            <div className="space-y-2">
+              <Label htmlFor="db-name">Database Name</Label>
               <Input
-                id="data-path"
-                placeholder="Select data directory"
-                value={config.dataPath}
-                readOnly
-                className={`h-10 border-2 focus-visible:ring-blue-500 ${
-                  duplicateDb?.isDuplicate ? 'border-orange-500 focus:border-orange-500' : ''
-                }`}
+                id="db-name"
+                placeholder="Enter database name"
+                value={config.name}
+                onChange={(e) => setConfig(prev => ({ ...prev, name: e.target.value }))}
+                className={nameConflict?.hasConflict ? 'border-red-500' : ''}
               />
+              {nameConflict?.hasConflict && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="font-medium">Database name "{config.name}" is already taken by "{nameConflict.conflictingDb?.name}"</div>
+                    <div className="text-sm mt-1">Please choose a different name for your database.</div>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {config.name && !nameConflict?.hasConflict && (
+                <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20">
+                  <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <AlertDescription className="text-green-600 dark:text-green-400">
+                    Database name "{config.name}" is available
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="db-port">Port</Label>
+              <Input
+                id="db-port"
+                type="number"
+                placeholder="Enter port number"
+                value={config.port || ''}
+                onChange={(e) => setConfig(prev => ({ ...prev, port: parseInt(e.target.value) || 0 }))}
+                className={portConflict?.hasConflict ? 'border-red-500' : ''}
+              />
+              {selectedDbType && !portConflict?.hasConflict && (
+                <p className="text-sm text-muted-foreground">
+                  Default port for {selectedDbType.name}: {selectedDbType.defaultPort}
+                </p>
+              )}
+              {portConflict?.hasConflict && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="font-medium">Port {config.port} is already in use by "{portConflict.conflictingDb?.name}"</div>
+                    {portConflict.suggestedPort && (
+                      <div className="text-sm mt-1">
+                        Suggested port: {portConflict.suggestedPort}
+                      </div>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="data-path">Data Directory</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="data-path"
+                  placeholder="Select data directory"
+                  value={config.dataPath}
+                  readOnly
+                  className={duplicateDb?.isDuplicate ? 'border-orange-500' : ''}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSelectFolder}
+                >
+                  <FolderOpen className="h-4 w-4" />
+                </Button>
+              </div>
+              {duplicateDb?.isDuplicate && (
+                <Alert className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-900/20">
+                  <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                  <AlertDescription className="text-orange-600 dark:text-orange-400">
+                    <div className="font-medium">A {config.type} {config.version} database already exists in this folder: "{duplicateDb.existingDb?.name}"</div>
+                    <div className="text-sm mt-1">Please choose a different location or version to avoid conflicts.</div>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+
+            {/* Advanced Configuration */}
+            <div className="border-t pt-4">
               <Button
                 type="button"
-                variant="outline"
-                size="icon"
-                onClick={handleSelectFolder}
-                className="h-10 w-10"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="w-full justify-between"
               >
-                <FolderOpen className="h-4 w-4" />
-              </Button>
-            </div>
-            {duplicateDb?.isDuplicate && (
-              <Alert className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-900/20">
-                <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                <AlertDescription className="text-orange-600 dark:text-orange-400">
-                  <div className="font-medium">A {config.type} {config.version} database already exists in this folder: "{duplicateDb.existingDb?.name}"</div>
-                  <div className="text-xs mt-1">Please choose a different location or version to avoid conflicts.</div>
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-
-          {/* Advanced Configuration */}
-          <div className="border-t pt-3">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="w-full justify-between p-0 h-auto font-medium text-gray-700 dark:text-gray-300 text-sm"
-            >
-              <div className="flex items-center gap-2">
-                <Lock className="h-4 w-4" />
-                Advanced Configuration
-              </div>
-              {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-            
-            {showAdvanced && (
-              <div className="mt-3 space-y-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Checkbox
-                    id="use-custom-credentials"
-                    checked={config.useCustomCredentials}
-                    onCheckedChange={(checked) => setConfig(prev => ({ 
-                      ...prev, 
-                      useCustomCredentials: checked as boolean,
-                      username: checked ? prev.username : selectedDbType?.defaultUsername || '',
-                      password: checked ? prev.password : selectedDbType?.defaultPassword || ''
-                    }))}
-                  />
-                  <Label htmlFor="use-custom-credentials" className="text-sm font-medium">
-                    Use custom username and password
-                  </Label>
+                <div className="flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  <span>Advanced Configuration</span>
                 </div>
-                
-                {config.useCustomCredentials && (
-                  <div className="space-y-3">
-                    <div className="grid gap-2">
-                      <Label htmlFor="db-username" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        <User className="h-4 w-4 inline mr-1" />
-                        Username
-                      </Label>
-                      <Input
-                        id="db-username"
-                        placeholder="Enter username"
-                        value={config.username || ''}
-                        onChange={(e) => setConfig(prev => ({ ...prev, username: e.target.value }))}
-                        className="h-10 border-2 focus-visible:ring-blue-500"
-                      />
-                    </div>
-                    
-                    <div className="grid gap-2">
-                      <Label htmlFor="db-password" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        <Lock className="h-4 w-4 inline mr-1" />
-                        Password
-                      </Label>
-                      <Input
-                        id="db-password"
-                        type="password"
-                        placeholder="Enter password"
-                        value={config.password || ''}
-                        onChange={(e) => setConfig(prev => ({ ...prev, password: e.target.value }))}
-                        className="h-10 border-2 focus-visible:ring-blue-500"
-                      />
-                    </div>
+                {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+              
+              {showAdvanced && (
+                <div className="mt-4 space-y-4 p-4 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="use-custom-credentials"
+                      checked={config.useCustomCredentials}
+                      onCheckedChange={(checked) => setConfig(prev => ({ 
+                        ...prev, 
+                        useCustomCredentials: checked as boolean,
+                        username: checked ? prev.username : selectedDbType?.defaultUsername || '',
+                        password: checked ? prev.password : selectedDbType?.defaultPassword || ''
+                      }))}
+                    />
+                    <Label htmlFor="use-custom-credentials">
+                      Use custom username and password
+                    </Label>
                   </div>
-                )}
-                
-                {!config.useCustomCredentials && selectedDbType && (
-                  <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg">
-                    <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">Default Credentials:</p>
-                    <p><strong>Username:</strong> {selectedDbType.defaultUsername}</p>
-                    <p><strong>Password:</strong> {selectedDbType.defaultPassword}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                  
+                  {config.useCustomCredentials && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="db-username">Username</Label>
+                        <Input
+                          id="db-username"
+                          placeholder="Enter username"
+                          value={config.username || ''}
+                          onChange={(e) => setConfig(prev => ({ ...prev, username: e.target.value }))}
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="db-password">Password</Label>
+                        <Input
+                          id="db-password"
+                          type="password"
+                          placeholder="Enter password"
+                          value={config.password || ''}
+                          onChange={(e) => setConfig(prev => ({ ...prev, password: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!config.useCustomCredentials && selectedDbType && (
+                    <div className="text-sm text-muted-foreground bg-background p-3 rounded border">
+                      <p className="font-medium mb-2">Default Credentials:</p>
+                      <p><strong>Username:</strong> {selectedDbType.defaultUsername}</p>
+                      <p><strong>Password:</strong> {selectedDbType.defaultPassword}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        <DialogFooter className="gap-2 pt-3 flex-shrink-0">
+
+        <DialogFooter className="flex-shrink-0">
           {isLoading && (
-            <div className="w-full mb-2">
+            <div className="w-full mb-4">
               <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
                 <span>{loadingMessage}</span>
                 <span>Please wait</span>
@@ -543,26 +540,13 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
           <Button 
             variant="outline" 
             onClick={() => onOpenChange(false)}
-            className="flex-1 h-10"
             disabled={isLoading}
           >
             Cancel
           </Button>
           <Button
-            onClick={() => {
-              debugLog('Install button clicked!');
-              debugLog('Button disabled state:', {
-                isLoading,
-                missingName: !config.name,
-                missingType: !config.type,
-                missingVersion: !config.version,
-                hasPortConflict: portConflict?.hasConflict,
-                hasDuplicateDb: duplicateDb?.isDuplicate
-              });
-              handleSubmit();
-            }}
+            onClick={handleSubmit}
             disabled={isLoading || !config.name || !config.type || !config.version || duplicateDb?.isDuplicate || nameConflict?.hasConflict}
-            className="flex-1 h-10 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
           >
             {isLoading ? (
               <>

@@ -13,6 +13,7 @@ export interface ElectronAPI {
   decryptPassword: (encryptedPassword: string) => Promise<string>;
   checkPortConflict: (port: number) => Promise<{ hasConflict: boolean; conflictingDb?: any; suggestedPort?: number }>;
   checkDuplicateDatabase: (config: any) => Promise<{ isDuplicate: boolean; existingDb?: any }>;
+  checkNameConflict: (name: string) => Promise<{ hasConflict: boolean; conflictingDb?: any }>;
   updateDatabasePort: (dbId: string, newPort: number) => Promise<{ success: boolean; message: string; conflict?: boolean }>;
   checkDatabaseStatus: (id: string) => Promise<{ success: boolean; message: string; status?: string }>;
   createNamedDatabase: (id: string) => Promise<{ success: boolean; message: string }>;

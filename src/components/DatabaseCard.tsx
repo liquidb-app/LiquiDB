@@ -214,58 +214,45 @@ export function DatabaseCard({ database, onStart, onStop, onSettings }: Database
   };
 
   return (
-    <Card className="w-full hover:shadow-lg transition-all duration-200 border-0 shadow-md bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
-      <CardHeader className="pb-4">
+    <Card>
+      <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-lg blur-sm"></div>
-              <div className="relative bg-gradient-to-r from-blue-500 to-purple-500 p-3 rounded-lg">
-                <Database className="h-6 w-6 text-white" />
-              </div>
-            </div>
+          <div className="flex items-center gap-2">
+            <Database className="h-4 w-4 text-primary" />
             <div>
-              <CardTitle className="text-xl font-semibold text-gray-900 dark:text-white">
-                {database.name}
-              </CardTitle>
-              <CardDescription className="text-gray-600 dark:text-gray-400">
-                <span className="font-medium capitalize">{database.type}</span> {database.version} • Port {database.port}
+              <CardTitle className="text-sm">{database.name}</CardTitle>
+              <CardDescription className="text-xs">
+                {database.type} {database.version} • Port {database.port}
               </CardDescription>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            {getStatusBadge(database.status)}
-          </div>
+          {getStatusBadge(database.status)}
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="space-y-4">
-          <div className="text-sm text-muted-foreground bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-            <p className="font-medium text-gray-700 dark:text-gray-300">Data Directory</p>
-            <p className="text-gray-600 dark:text-gray-400 font-mono text-xs">{database.dataPath}</p>
+        <div className="space-y-3">
+          <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
+            <p className="font-medium">Data Directory</p>
+            <p className="font-mono text-xs">{database.dataPath}</p>
           </div>
           
-          <div className="flex gap-3">
+          <div className="flex gap-1">
             {database.status === 'running' || database.status === 'stopping' ? (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={database.status === 'running' ? () => onStop(database.id) : undefined}
                 disabled={database.status === 'stopping'}
-                className={`flex-1 h-10 ${
-                  database.status === 'stopping' 
-                    ? 'border-orange-200 text-orange-600 dark:border-orange-800 dark:text-orange-400' 
-                    : 'border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20'
-                }`}
+                className="flex-1"
               >
                 {database.status === 'stopping' ? (
                   <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
                     Stopping...
                   </>
                 ) : (
                   <>
-                    <Square className="h-4 w-4 mr-2" />
+                    <Square className="h-3 w-3 mr-1" />
                     Stop
                   </>
                 )}
@@ -275,9 +262,9 @@ export function DatabaseCard({ database, onStart, onStop, onSettings }: Database
                 variant="outline"
                 size="sm"
                 disabled
-                className="flex-1 h-10 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400"
+                className="flex-1"
               >
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
                 Starting...
               </Button>
             ) : (
@@ -285,9 +272,9 @@ export function DatabaseCard({ database, onStart, onStop, onSettings }: Database
                 variant="outline"
                 size="sm"
                 onClick={handleStartWithConflictCheck}
-                className="flex-1 h-10 border-green-200 text-green-600 hover:bg-green-50 hover:border-green-300 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-900/20"
+                className="flex-1"
               >
-                <Play className="h-4 w-4 mr-2" />
+                <Play className="h-3 w-3 mr-1" />
                 Start
               </Button>
             )}
@@ -295,18 +282,16 @@ export function DatabaseCard({ database, onStart, onStop, onSettings }: Database
               variant="outline"
               size="sm"
               onClick={() => onSettings(database)}
-              className="h-10 w-10 border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
             >
-              <Settings className="h-4 w-4" />
+              <Settings className="h-3 w-3" />
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={handleRefreshDatabase}
-              className="h-10 w-10 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/20"
               title="Refresh/Restart database"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-3 w-3" />
             </Button>
           </div>
         </div>

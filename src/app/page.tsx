@@ -247,19 +247,6 @@ export default function Home() {
   };
 
   // Test function for port conflict detection
-  const testPortConflict = () => {
-    toast.error("Port Conflict Detected", {
-      description: `Port 5432 is already in use by "test-db". Would you like to stop the conflicting database and start this one?`,
-      action: {
-        label: "Stop & Start",
-        onClick: () => {
-          toast.success("Port Conflict Resolved", {
-            description: "Stopped 'test-db' and started 'new-db'"
-          });
-        }
-      }
-    });
-  };
 
   const handleOpenSettings = (database: DatabaseInstance) => {
     setSelectedDatabase(database);
@@ -354,43 +341,21 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b bg-gradient-to-r from-white to-gray-50 dark:from-gray-900 dark:to-gray-800">
-        <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6">
+      <div className="border-b">
+        <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg blur-sm opacity-75"></div>
-                  <div className="relative bg-gradient-to-r from-blue-500 to-purple-500 p-1.5 sm:p-2 rounded-lg">
-                    <Zap className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-                  </div>
-                </div>
-                <div>
-                  <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-                    LiquiDB
-                  </h1>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Database Management for macOS
-                  </p>
-                </div>
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-primary" />
+              <div>
+                <h1 className="text-lg font-bold">LiquiDB</h1>
+                <p className="text-xs text-muted-foreground">Database Management Dashboard</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <ThemeToggle />
-              <Button 
-                onClick={testPortConflict}
-                variant="outline"
-                className="h-10 text-sm sm:text-base px-3 sm:px-4"
-              >
-                Test Conflict
-              </Button>
-              <Button 
-                onClick={() => setIsAddDialogOpen(true)}
-                className="h-10 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 text-sm sm:text-base px-3 sm:px-4"
-              >
-                <Plus className="h-4 w-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Add Database</span>
-                <span className="sm:hidden">Add</span>
+              <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
+                <Plus className="h-3 w-3 mr-1" />
+                Add Database
               </Button>
             </div>
           </div>
@@ -398,37 +363,37 @@ export default function Home() {
       </div>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <div className="container mx-auto px-4 py-4">
         {databases.length === 0 ? (
-          <Empty className="min-h-[400px]">
+          <Empty className="min-h-[300px]">
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <Database className="h-10 w-10" />
+                <Database className="h-8 w-8" />
               </EmptyMedia>
-              <EmptyTitle>No databases yet</EmptyTitle>
-              <EmptyDescription>
+              <EmptyTitle className="text-lg">No databases yet</EmptyTitle>
+              <EmptyDescription className="text-sm">
                 Get started by creating your first database. Choose from PostgreSQL, MySQL, MongoDB, and more.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button
+                size="sm"
                 onClick={() => setIsAddDialogOpen(true)}
-                className="h-12 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
               >
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-3 w-3 mr-1" />
                 Create Database
               </Button>
             </EmptyContent>
           </Empty>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Your Databases</h2>
-              <div className="text-sm text-muted-foreground">
+              <h2 className="text-lg font-semibold">Your Databases</h2>
+              <div className="text-xs text-muted-foreground">
                 {databases.length} database{databases.length !== 1 ? 's' : ''} installed
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {databases.map((database) => (
                 <DatabaseCard
                   key={database.id}

@@ -169,80 +169,65 @@ export function DatabaseSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-[600px] max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="text-center pb-3 flex-shrink-0">
-          <div className="mx-auto mb-3 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-            <Settings className="h-6 w-6 text-white" />
-          </div>
-          <DialogTitle className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+      <DialogContent className="w-[600px] h-[80vh] flex flex-col p-0">
+        <DialogHeader className="flex-shrink-0 px-4 pt-4 pb-3">
+          <DialogTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
             Database Settings
           </DialogTitle>
-          <DialogDescription className="text-sm">
+          <DialogDescription>
             Configure settings and view connection information for "{database.name}".
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-1">
-          <Tabs defaultValue="general" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+        <div className="flex-1 min-h-0 px-4 pb-3">
+          <Tabs defaultValue="general" className="w-full h-full flex flex-col">
+            <TabsList className="grid w-full grid-cols-3 flex-shrink-0 mb-3">
               <TabsTrigger value="general">General</TabsTrigger>
-              <TabsTrigger value="connection">Connection Info</TabsTrigger>
+              <TabsTrigger value="connection">Connection</TabsTrigger>
               <TabsTrigger value="dangerous">Dangerous</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="general" className="space-y-4 mt-4 min-h-[400px]">
-              <div className="space-y-4">
-                <div className="text-center">
-                  <div className="mx-auto mb-3 w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                    <Settings className="h-8 w-8 text-white" />
+            <div className="flex-1 overflow-y-auto scrollbar-thin" style={{ maxHeight: 'calc(80vh - 200px)' }}>
+              <TabsContent value="general" className="space-y-3 mt-0 pb-3">
+                {/* Settings Form */}
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="db-name">Database Name</Label>
+                      <Input
+                        id="db-name"
+                        placeholder="Enter database name"
+                        value={settings.name}
+                        onChange={(e) => setSettings(prev => ({ ...prev, name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="db-port">Port</Label>
+                      <Input
+                        id="db-port"
+                        type="number"
+                        placeholder="Enter port number"
+                        value={settings.port || ''}
+                        onChange={(e) => setSettings(prev => ({ ...prev, port: parseInt(e.target.value) || 0 }))}
+                        className={portConflict?.hasConflict ? 'border-red-500 focus-visible:ring-red-500' : ''}
+                      />
+                    </div>
                   </div>
-                  <h3 className="text-lg font-semibold">General Settings</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Configure your database name and port settings
-                  </p>
-                </div>
 
-                <Separator />
-
-                <div className="grid gap-2">
-                  <Label htmlFor="db-name" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Database Name
-                  </Label>
-                  <Input
-                    id="db-name"
-                    placeholder="Enter database name"
-                    value={settings.name}
-                    onChange={(e) => setSettings(prev => ({ ...prev, name: e.target.value }))}
-                    className="h-10 border-2 focus-visible:ring-blue-500"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="db-port" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Port
-                  </Label>
-                  <Input
-                    id="db-port"
-                    type="number"
-                    placeholder="Enter port number"
-                    value={settings.port || ''}
-                    onChange={(e) => setSettings(prev => ({ ...prev, port: parseInt(e.target.value) || 0 }))}
-                    className={`h-10 border-2 focus-visible:ring-blue-500 ${
-                      portConflict?.hasConflict ? 'border-red-500 focus:border-red-500' : ''
-                    }`}
-                  />
                   {selectedDbType && !portConflict?.hasConflict && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                       Default port for {selectedDbType.name}: {selectedDbType.defaultPort}
                     </p>
                   )}
+
                   {portConflict?.hasConflict && (
                     <Alert variant="destructive">
                       <AlertTriangle className="h-4 w-4" />
                       <AlertDescription>
                         <div className="font-medium">Port {settings.port} is already in use by "{portConflict.conflictingDb?.name}"</div>
                         {portConflict.suggestedPort && (
-                          <div className="text-xs mt-1">
+                          <div className="text-sm mt-1">
                             Suggested port: {portConflict.suggestedPort}
                           </div>
                         )}
@@ -253,49 +238,60 @@ export function DatabaseSettingsDialog({
 
                 <Separator />
 
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Database Information</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
+                {/* Database Information */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Database Information</h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="space-y-1">
                       <span className="text-muted-foreground">Type:</span>
                       <div className="font-medium capitalize">{database.type}</div>
                     </div>
-                    <div>
+                    <div className="space-y-1">
                       <span className="text-muted-foreground">Version:</span>
                       <div className="font-medium">{database.version}</div>
                     </div>
-                    <div>
+                    <div className="space-y-1">
                       <span className="text-muted-foreground">Status:</span>
                       <div className="font-medium capitalize">{database.status}</div>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Data Path:</span>
-                      <div className="font-medium text-xs truncate" title={database.dataPath}>
-                        {database.dataPath}
-                      </div>
+                    <div className="space-y-1">
+                      <span className="text-muted-foreground">Port:</span>
+                      <div className="font-medium">{database.port}</div>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground">Data Path:</span>
+                    <div className="font-medium text-sm truncate" title={database.dataPath}>
+                      {database.dataPath}
                     </div>
                   </div>
                 </div>
-              </div>
-            </TabsContent>
 
-            <TabsContent value="connection" className="space-y-4 mt-4 min-h-[400px]">
-              <div className="space-y-4">
-                <div className="text-center">
-                  <div className="mx-auto mb-3 w-16 h-16 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center">
-                    <Database className="h-8 w-8 text-white" />
-                  </div>
-                  <h3 className="text-lg font-semibold">Connection Information</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Use these credentials to connect to your database
-                  </p>
-                </div>
+                {selectedDbType && (
+                  <>
+                    <Separator />
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Default Credentials</h4>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="space-y-1">
+                          <span className="text-muted-foreground">Username:</span>
+                          <div className="font-medium">{selectedDbType.defaultUsername}</div>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-muted-foreground">Password:</span>
+                          <div className="font-medium">{selectedDbType.defaultPassword}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </TabsContent>
 
-                <Separator />
-
-                <div className="space-y-4">
-                  <div className="grid gap-2">
-                    <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <TabsContent value="connection" className="space-y-3 mt-0 pb-3">
+                {/* Connection Details */}
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
                       <Globe className="h-4 w-4" />
                       Host & Port
                     </Label>
@@ -303,26 +299,25 @@ export function DatabaseSettingsDialog({
                       <Input
                         value="localhost"
                         readOnly
-                        className="h-10 bg-gray-50 dark:bg-gray-800"
+                        className="flex-1 bg-muted"
                       />
                       <Input
                         value={database.port}
                         readOnly
-                        className="h-10 bg-gray-50 dark:bg-gray-800 w-24"
+                        className="w-20 bg-muted"
                       />
                       <Button
                         variant="outline"
-                        size="icon"
+                        size="sm"
                         onClick={() => copyToClipboard(`localhost:${database.port}`, 'Host:Port')}
-                        className="h-10 w-10"
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
 
-                  <div className="grid gap-2">
-                    <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
                       <User className="h-4 w-4" />
                       Username
                     </Label>
@@ -330,24 +325,23 @@ export function DatabaseSettingsDialog({
                       <Input
                         value={database.useCustomCredentials ? database.username : selectedDbType?.defaultUsername || ''}
                         readOnly
-                        className="h-10 bg-gray-50 dark:bg-gray-800"
+                        className="flex-1 bg-muted"
                       />
                       <Button
                         variant="outline"
-                        size="icon"
+                        size="sm"
                         onClick={() => copyToClipboard(
                           database.useCustomCredentials ? database.username : selectedDbType?.defaultUsername || '', 
                           'Username'
                         )}
-                        className="h-10 w-10"
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
 
-                  <div className="grid gap-2">
-                    <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
                       <Lock className="h-4 w-4" />
                       Password
                     </Label>
@@ -356,161 +350,177 @@ export function DatabaseSettingsDialog({
                         type={showPassword ? "text" : "password"}
                         value={database.useCustomCredentials ? database.encryptedPassword : selectedDbType?.defaultPassword || ''}
                         readOnly
-                        className="h-10 bg-gray-50 dark:bg-gray-800"
+                        className="flex-1 bg-muted"
                       />
                       <Button
                         variant="outline"
-                        size="icon"
+                        size="sm"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="h-10 w-10"
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                       <Button
                         variant="outline"
-                        size="icon"
+                        size="sm"
                         onClick={() => copyToClipboard(
                           database.useCustomCredentials ? database.encryptedPassword : selectedDbType?.defaultPassword || '', 
                           'Password'
                         )}
-                        className="h-10 w-10"
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
 
-                  <div className="grid gap-2">
-                    <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Database Name
-                    </Label>
+                  <div className="space-y-2">
+                    <Label>Database Name</Label>
                     <div className="flex gap-2">
                       <Input
                         value={database.databaseName || database.name}
                         readOnly
-                        className="h-10 bg-gray-50 dark:bg-gray-800"
+                        className="flex-1 bg-muted"
                         placeholder="Database name to connect to"
                       />
                       <Button
                         variant="outline"
-                        size="icon"
+                        size="sm"
                         onClick={() => copyToClipboard(database.databaseName || database.name, 'Database Name')}
-                        className="h-10 w-10"
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      This is the actual database name you can connect to with your client
-                    </p>
                   </div>
                 </div>
 
                 <Separator />
 
-                <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20">
-                  <CheckCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  <AlertDescription className="text-blue-600 dark:text-blue-400">
-                    <div className="font-medium">Connection String</div>
-                    <div className="text-xs mt-1 font-mono">
+                {/* Connection String */}
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="font-medium mb-2">Connection String</div>
+                    <div className="text-xs font-mono bg-muted p-2 rounded border break-all">
                       {database.type}://{database.useCustomCredentials ? database.username : selectedDbType?.defaultUsername}:{database.useCustomCredentials ? database.encryptedPassword : selectedDbType?.defaultPassword}@localhost:{database.port}/{database.databaseName || database.name}
                     </div>
-                    <div className="text-xs mt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => copyToClipboard(
-                          `${database.type}://${database.useCustomCredentials ? database.username : selectedDbType?.defaultUsername}:${database.useCustomCredentials ? database.encryptedPassword : selectedDbType?.defaultPassword}@localhost:${database.port}/${database.databaseName || database.name}`,
-                          'Connection String'
-                        )}
-                        className="h-6 text-xs"
-                      >
-                        <Copy className="h-3 w-3 mr-1" />
-                        Copy Connection String
-                      </Button>
-                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => copyToClipboard(
+                        `${database.type}://${database.useCustomCredentials ? database.username : selectedDbType?.defaultUsername}:${database.useCustomCredentials ? database.encryptedPassword : selectedDbType?.defaultPassword}@localhost:${database.port}/${database.databaseName || database.name}`,
+                        'Connection String'
+                      )}
+                      className="mt-2"
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy Connection String
+                    </Button>
                   </AlertDescription>
                 </Alert>
-              </div>
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="dangerous" className="space-y-4 mt-4 min-h-[400px]">
-              <div className="space-y-4">
-                <div className="text-center">
-                  <div className="mx-auto mb-3 w-16 h-16 bg-gradient-to-r from-red-500 to-orange-500 rounded-full flex items-center justify-center">
-                    <AlertTriangle className="h-8 w-8 text-white" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">Dangerous Operations</h3>
-                  <p className="text-sm text-muted-foreground">
-                    These operations cannot be undone. Please proceed with caution.
-                  </p>
-                </div>
+              <TabsContent value="dangerous" className="space-y-3 mt-0 pb-3">
+                {/* Delete Section */}
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="font-medium mb-2">Delete Database</div>
+                    <div className="text-sm mb-3">
+                      Permanently delete this database instance and all its data. This action cannot be undone.
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setShowDeleteDialog(true)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Database
+                    </Button>
+                  </AlertDescription>
+                </Alert>
 
                 <Separator />
 
-                <div className="space-y-4">
-                  <div className="p-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-900/10">
-                    <div className="flex items-start space-x-3">
-                      <Trash2 className="h-5 w-5 text-red-500 mt-0.5" />
-                      <div className="flex-1">
-                        <h4 className="text-sm font-semibold text-red-800 dark:text-red-200">Delete Database</h4>
-                        <p className="text-sm text-red-600 dark:text-red-300 mt-1">
-                          Permanently delete this database instance and all its data. This action cannot be undone.
-                        </p>
-                        <div className="mt-3">
-                          <Button
-                            variant="destructive"
-                            onClick={() => setShowDeleteDialog(true)}
-                            className="h-10"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete Database
-                          </Button>
-                        </div>
-                      </div>
+                {/* Database Details */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Database Details</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="space-y-1">
+                      <span className="text-muted-foreground">Name:</span>
+                      <div className="font-medium">{database.name}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-muted-foreground">Type:</span>
+                      <div className="font-medium capitalize">{database.type}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-muted-foreground">Port:</span>
+                      <div className="font-medium">{database.port}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-muted-foreground">Status:</span>
+                      <div className="font-medium capitalize">{database.status}</div>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground">Data Path:</span>
+                    <div className="font-medium text-sm truncate" title={database.dataPath}>
+                      {database.dataPath}
                     </div>
                   </div>
                 </div>
-              </div>
-            </TabsContent>
+
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="font-medium mb-2">Warning</div>
+                    <ul className="text-sm space-y-1 list-disc list-inside">
+                      <li>All data in this database will be permanently lost</li>
+                      <li>This action cannot be undone</li>
+                      <li>Make sure you have backups if needed</li>
+                      <li>Consider stopping the database first</li>
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              </TabsContent>
+            </div>
           </Tabs>
         </div>
 
-        <DialogFooter className="gap-2 pt-3 flex-shrink-0">
-          <Button 
-            variant="outline" 
-            onClick={() => onOpenChange(false)}
-            className="flex-1 h-10"
-            disabled={isLoading}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={isLoading || !settings.name.trim() || portConflict?.hasConflict}
-            className="flex-1 h-10 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-          >
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Saving...
-              </>
-            ) : (
-              <>
-                <Settings className="h-4 w-4 mr-2" />
-                Save Changes
-              </>
-            )}
-          </Button>
+        <DialogFooter className="flex-shrink-0 px-4 py-3 border-t bg-background mt-auto">
+          <div className="flex justify-end gap-3 w-full">
+            <Button 
+              variant="outline" 
+              onClick={() => onOpenChange(false)}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={isLoading || !settings.name.trim() || portConflict?.hasConflict}
+            >
+              {isLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Save Changes
+                </>
+              )}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-sm">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
+            <AlertDialogTitle className="flex items-center gap-2 text-lg">
+              <AlertTriangle className="h-4 w-4 text-red-500" />
               Delete Database
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
@@ -537,14 +547,14 @@ export function DatabaseSettingsDialog({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="h-10">
+            <AlertDialogCancel className="h-8 text-xs">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="h-10 bg-red-600 hover:bg-red-700 text-white"
+              className="h-8 text-xs bg-red-600 hover:bg-red-700 text-white"
             >
-              <Trash2 className="h-4 w-4 mr-2" />
+              <Trash2 className="h-3 w-3 mr-1" />
               Delete Database
             </AlertDialogAction>
           </AlertDialogFooter>

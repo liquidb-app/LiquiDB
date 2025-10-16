@@ -72,5 +72,55 @@ module.exports = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    function({ addUtilities }) {
+      addUtilities({
+        '.scrollbar-thin': {
+          'scrollbar-width': 'thin',
+        },
+        '.scrollbar-thumb-gray-300': {
+          '&::-webkit-scrollbar-thumb': {
+            'background-color': '#d1d5db',
+            'border-radius': '0.375rem',
+          },
+        },
+        '.scrollbar-thumb-gray-600': {
+          '&::-webkit-scrollbar-thumb': {
+            'background-color': '#4b5563',
+            'border-radius': '0.375rem',
+          },
+        },
+        '.scrollbar-track-transparent': {
+          '&::-webkit-scrollbar-track': {
+            'background-color': 'transparent',
+          },
+        },
+        '.scrollbar-thin::-webkit-scrollbar': {
+          'width': '8px',
+        },
+        '.scrollbar-thin::-webkit-scrollbar-track': {
+          'background': 'rgba(0,0,0,0.1)',
+          'border-radius': '4px',
+        },
+        '.scrollbar-thin::-webkit-scrollbar-thumb': {
+          'background-color': '#d1d5db',
+          'border-radius': '4px',
+          'border': '1px solid transparent',
+        },
+        '.scrollbar-thin::-webkit-scrollbar-thumb:hover': {
+          'background-color': '#9ca3af',
+        },
+        '.dark .scrollbar-thin::-webkit-scrollbar-track': {
+          'background': 'rgba(255,255,255,0.1)',
+        },
+        '.dark .scrollbar-thin::-webkit-scrollbar-thumb': {
+          'background-color': '#4b5563',
+        },
+        '.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover': {
+          'background-color': '#6b7280',
+        },
+      })
+    }
+  ],
 }
