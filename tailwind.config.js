@@ -97,7 +97,7 @@ module.exports = {
           },
         },
         '.scrollbar-thin::-webkit-scrollbar': {
-          'width': '8px',
+          'width': '4px',
         },
         '.scrollbar-thin::-webkit-scrollbar-track': {
           'background': 'rgba(0,0,0,0.1)',
