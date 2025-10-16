@@ -24,7 +24,7 @@ export interface DatabaseInstance {
   type: string;
   version: string;
   port: number;
-  status: 'running' | 'stopped' | 'starting' | 'error';
+  status: 'running' | 'stopped' | 'starting' | 'stopping' | 'error';
   dataPath: string;
   username: string;
   databaseName: string;
