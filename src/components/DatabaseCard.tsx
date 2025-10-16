@@ -71,6 +71,8 @@ export function DatabaseCard({ database, onStart, onStop, onDelete }: DatabaseCa
         return 'text-green-600';
       case 'starting':
         return 'text-blue-600';
+      case 'stopping':
+        return 'text-orange-600';
       case 'stopped':
         return 'text-gray-600';
       case 'error':
@@ -86,6 +88,8 @@ export function DatabaseCard({ database, onStart, onStop, onDelete }: DatabaseCa
         return <div className="w-2 h-2 bg-green-500 rounded-full" />;
       case 'starting':
         return <RefreshCw className="w-3 h-3 text-blue-500 animate-spin" />;
+      case 'stopping':
+        return <RefreshCw className="w-3 h-3 text-orange-500 animate-spin" />;
       case 'stopped':
         return <div className="w-2 h-2 bg-gray-400 rounded-full" />;
       case 'error':
@@ -120,6 +124,7 @@ export function DatabaseCard({ database, onStart, onStop, onDelete }: DatabaseCa
             <span className={`text-sm font-semibold px-3 py-1 rounded-full ${getStatusColor(database.status)} ${
               database.status === 'running' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
               database.status === 'starting' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400' :
+              database.status === 'stopping' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400' :
               database.status === 'stopped' ? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400' :
               'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
             }`}>
@@ -136,15 +141,29 @@ export function DatabaseCard({ database, onStart, onStop, onDelete }: DatabaseCa
           </div>
           
           <div className="flex gap-2">
-            {database.status === 'running' ? (
+            {database.status === 'running' || database.status === 'stopping' ? (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onStop(database.id)}
-                className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                onClick={database.status === 'running' ? () => onStop(database.id) : undefined}
+                disabled={database.status === 'stopping'}
+                className={`flex-1 ${
+                  database.status === 'stopping' 
+                    ? 'border-orange-200 text-orange-600 dark:border-orange-800 dark:text-orange-400' 
+                    : 'border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20'
+                }`}
               >
-                <Square className="h-4 w-4 mr-2" />
-                Stop
+                {database.status === 'stopping' ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Stopping...
+                  </>
+                ) : (
+                  <>
+                    <Square className="h-4 w-4 mr-2" />
+                    Stop
+                  </>
+                )}
               </Button>
             ) : database.status === 'starting' ? (
               <Button
