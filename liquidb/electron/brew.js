@@ -1,0 +1,231 @@
+const fs = require("fs")
+const path = require("path")
+const { spawn } = require("child_process")
+
+function findBrewPath() {
+  const candidates = [
+    "/opt/homebrew/bin/brew", // Apple Silicon default
+    "/usr/local/bin/brew", // Intel default
+  ]
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate
+  }
+  // Fallback to PATH resolution
+  return "brew"
+}
+
+function isHomebrewInstalled() {
+  try {
+    const brewPath = findBrewPath()
+    if (!brewPath) return false
+    // Quick check by trying to stat or just return true if path exists
+    if (brewPath !== "brew") return true
+    return true
+  } catch {
+    return false
+  }
+}
+
+function installHomebrew({ onStdout, onStderr } = {}) {
+  return new Promise((resolve, reject) => {
+    console.log("[Homebrew] Starting Homebrew installation...")
+    // Non-interactive Homebrew install script
+    const script =
+      '/bin/bash -c "NONINTERACTIVE=1 /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""'
+    const child = spawn("bash", ["-lc", script], { 
+      env: { ...process.env, NONINTERACTIVE: "1" },
+      stdio: "pipe"
+    })
+
+    child.stdout.on("data", (d) => {
+      const output = d.toString()
+      console.log(`[Homebrew Install] ${output.trim()}`)
+      onStdout?.(output)
+    })
+    
+    child.stderr.on("data", (d) => {
+      const output = d.toString()
+      console.log(`[Homebrew Install Error] ${output.trim()}`)
+      onStderr?.(output)
+    })
+    
+    child.on("error", (err) => {
+      console.error(`[Homebrew Install] Process error:`, err)
+      reject(err)
+    })
+    
+    child.on("close", (code) => {
+      console.log(`[Homebrew Install] Installation completed with code ${code}`)
+      if (code === 0) {
+        console.log("[Homebrew] Homebrew installation successful!")
+        resolve(true)
+      } else {
+        reject(new Error(`Homebrew install exited with code ${code}`))
+      }
+    })
+  })
+}
+
+function execBrew(args, { onStdout, onStderr } = {}) {
+  return new Promise((resolve, reject) => {
+    const brewPath = findBrewPath()
+    const child = spawn(brewPath, args, { stdio: "pipe" })
+    let stdout = ""
+    let stderr = ""
+    
+    child.stdout.on("data", (d) => {
+      const s = d.toString()
+      stdout += s
+      console.log(`[Homebrew] ${s.trim()}`)
+      onStdout?.(s)
+    })
+    
+    child.stderr.on("data", (d) => {
+      const s = d.toString()
+      stderr += s
+      console.log(`[Homebrew Error] ${s.trim()}`)
+      onStderr?.(s)
+    })
+    
+    child.on("error", (err) => {
+      console.error(`[Homebrew] Process error:`, err)
+      reject(err)
+    })
+    
+    child.on("close", (code) => {
+      console.log(`[Homebrew] Process exited with code ${code}`)
+      if (code === 0) resolve({ stdout, stderr })
+      else reject(new Error(stderr || `brew ${args.join(" ")} failed with code ${code}`))
+    })
+  })
+}
+
+async function ensureTap(tap) {
+  try {
+    await execBrew(["tap", tap])
+  } catch {
+    // ignore
+  }
+}
+
+async function getDatabaseVersions(dbType) {
+  try {
+    if (dbType === "postgresql") {
+      const { stdout } = await execBrew(["search", "^postgresql@"], {})
+      const versions = stdout
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.startsWith("postgresql@"))
+        .map((l) => l.replace("postgresql@", ""))
+        .filter(Boolean)
+      return versions.length ? versions : ["16", "15", "14", "13"]
+    }
+    if (dbType === "mysql") {
+      const { stdout } = await execBrew(["search", "^mysql@"], {})
+      const versions = stdout
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.startsWith("mysql@"))
+        .map((l) => l.replace("mysql@", ""))
+        .filter(Boolean)
+      return versions.length ? versions : ["8.0", "5.7"]
+    }
+    if (dbType === "mongodb") {
+      await ensureTap("mongodb/brew")
+      const { stdout } = await execBrew(["search", "^mongodb-community@"], {})
+      const versions = stdout
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.startsWith("mongodb-community@"))
+        .map((l) => l.replace("mongodb-community@", ""))
+        .filter(Boolean)
+      return versions.length ? versions : ["7.0", "6.0"]
+    }
+    if (dbType === "redis") {
+      try {
+        const { stdout } = await execBrew(["info", "--json=v2", "redis"]) // stable
+        const json = JSON.parse(stdout)
+        const stable = json?.formulae?.[0]?.versions?.stable
+        return stable ? [stable] : ["7.2", "7.0", "6.2"]
+      } catch {
+        return ["7.2", "7.0", "6.2"]
+      }
+    }
+  } catch (e) {
+    // Fallback to defaults
+  }
+  if (dbType === "postgresql") return ["16", "15", "14", "13"]
+  if (dbType === "mysql") return ["8.0", "5.7"]
+  if (dbType === "mongodb") return ["7.0", "6.0", "5.0"]
+  if (dbType === "redis") return ["7.2", "7.0", "6.2"]
+  return []
+}
+
+function formulaFor(dbType, version) {
+  if (dbType === "postgresql") return `postgresql@${version}`
+  if (dbType === "mysql") return `mysql@${version}`
+  if (dbType === "mongodb") return `mongodb-community@${version}`
+  if (dbType === "redis") return version ? `redis@${version}` : "redis"
+  return ""
+}
+
+async function installDatabase({ dbType, version, onStdout, onStderr }) {
+  console.log(`[Homebrew] Installing ${dbType} version ${version}...`)
+  
+  if (dbType === "mongodb") {
+    console.log("[Homebrew] Adding MongoDB tap...")
+    await ensureTap("mongodb/brew")
+  }
+  
+  const formula = formulaFor(dbType, version)
+  console.log(`[Homebrew] Installing formula: ${formula}`)
+  
+  // Check if already installed first
+  try {
+    const { stdout } = await execBrew(["list", formula])
+    if (stdout.includes(formula)) {
+      console.log(`[Homebrew] ${formula} is already installed, skipping installation`)
+      return { 
+        stdout: `${formula} already installed`, 
+        stderr: "",
+        alreadyInstalled: true 
+      }
+    }
+  } catch (e) {
+    console.log(`[Homebrew] ${formula} not found in list, will install`)
+    // Not installed, continue with installation
+  }
+  
+  const result = await execBrew(["install", formula], { 
+    onStdout: (data) => {
+      console.log(`[Homebrew Install] ${data.trim()}`)
+      onStdout?.(data)
+    },
+    onStderr: (data) => {
+      console.log(`[Homebrew Install Error] ${data.trim()}`)
+      onStderr?.(data)
+    }
+  })
+  
+  // Check if the installation was successful or if it was already installed
+  if (result.stderr && result.stderr.includes("already installed")) {
+    console.log(`[Homebrew] ${formula} was already installed (detected from stderr)`)
+    return {
+      ...result,
+      alreadyInstalled: true
+    }
+  }
+  
+  return result
+}
+
+module.exports = {
+  findBrewPath,
+  isHomebrewInstalled,
+  installHomebrew,
+  getDatabaseVersions,
+  installDatabase,
+}
+
+
+
