@@ -88,8 +88,6 @@ export function DatabaseSettingsDialog({
           { id: 'mariadb', name: 'MariaDB', defaultPort: 3306, icon: '🐚', defaultUsername: 'root', defaultPassword: 'root' },
           { id: 'mongodb', name: 'MongoDB', defaultPort: 27017, icon: '🍃', defaultUsername: 'admin', defaultPassword: 'admin' },
           { id: 'cassandra', name: 'Cassandra', defaultPort: 9042, icon: '☁️', defaultUsername: 'cassandra', defaultPassword: 'cassandra' },
-          { id: 'mssql', name: 'Microsoft SQL Server', defaultPort: 1433, icon: '🗄️', defaultUsername: 'sa', defaultPassword: 'YourStrong@Passw0rd' },
-          { id: 'redshift', name: 'Amazon Redshift', defaultPort: 5439, icon: '🔴', defaultUsername: 'admin', defaultPassword: 'admin' },
         ]);
       }
     } catch (error) {

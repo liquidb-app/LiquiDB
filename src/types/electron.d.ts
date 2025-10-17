@@ -6,7 +6,7 @@ export interface ElectronAPI {
   selectFolder: () => Promise<string | null>;
   installDatabase: (config: DatabaseConfig) => Promise<{ success: boolean; message: string; path?: string; suggestedPort?: number; conflict?: boolean; duplicate?: boolean; existingDb?: any }>;
   getInstalledDatabases: () => Promise<DatabaseInstance[]>;
-  startDatabase: (dbId: string) => Promise<{ success: boolean; message: string; conflict?: boolean; conflictingDb?: any; suggestedPort?: number }>;
+  startDatabase: (dbId: string) => Promise<{ success: boolean; message: string; conflict?: boolean; conflictingDb?: any; suggestedPort?: number; canResolve?: boolean; blocking?: boolean; suggestedAction?: string }>;
   stopDatabase: (dbId: string) => Promise<{ success: boolean; message: string }>;
   deleteDatabase: (dbId: string) => Promise<{ success: boolean; message: string }>;
   encryptPassword: (password: string) => Promise<string>;

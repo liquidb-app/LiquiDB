@@ -9,7 +9,7 @@ import { AddDatabaseDialog } from '@/components/AddDatabaseDialog';
 import { DatabaseCard } from '@/components/DatabaseCard';
 import { DatabaseSettingsDialog } from '@/components/DatabaseSettingsDialog';
 import { DatabaseInstance, DatabaseConfig } from '@/types/database';
-import { Plus, Database, Zap } from 'lucide-react';
+import { Plus, Database, Zap, Activity } from 'lucide-react';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { debugLog } from '@/lib/utils';
@@ -338,23 +338,42 @@ export default function Home() {
     );
   }
 
+  const runningCount = databases.filter(db => db.status === 'running').length;
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b">
-        <div className="container mx-auto px-4 py-3">
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Database className="h-4 w-4 text-primary" />
-              <div>
-                <h1 className="text-lg font-bold">LiquiDB</h1>
-                <p className="text-xs text-muted-foreground">Database Management Dashboard</p>
+            {/* Left side - Logo only */}
+            <div className="flex items-center space-x-2">
+              <Database className="h-6 w-6 text-primary" />
+            </div>
+            
+            {/* Center - Stats */}
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <Database className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Databases</span>
+                <span className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm font-medium">
+                  {databases.length}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Activity className="h-4 w-4 text-green-500" />
+                <span className="text-sm text-muted-foreground">Running</span>
+                <span className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded-md text-sm font-medium">
+                  {runningCount}
+                </span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            
+            {/* Right side - Actions */}
+            <div className="flex items-center space-x-2">
               <ThemeToggle />
-              <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
-                <Plus className="h-3 w-3 mr-1" />
+              <Button onClick={() => setIsAddDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
                 Add Database
               </Button>
             </div>

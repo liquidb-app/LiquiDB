@@ -4,7 +4,7 @@ A modern database management application for macOS built with Electron, Next.js,
 
 ## Features
 
-- **Multi-Database Support**: PostgreSQL, MySQL, MariaDB, MongoDB, Cassandra, Microsoft SQL Server, and Amazon Redshift
+- **Multi-Database Support**: PostgreSQL, MySQL, MariaDB, MongoDB, and Cassandra
 - **Easy Installation**: One-click database installation with automatic configuration
 - **macOS Optimized**: Native macOS experience with Intel and Apple Silicon support
 - **Modern UI**: Beautiful interface built with ShadCN/UI components
@@ -17,8 +17,6 @@ A modern database management application for macOS built with Electron, Next.js,
 - 🐚 **MariaDB** (Port 3306)
 - 🍃 **MongoDB** (Port 27017)
 - ☁️ **Cassandra** (Port 9042)
-- 🗄️ **Microsoft SQL Server** (Port 1433)
-- 🔴 **Amazon Redshift** (Port 5439)
 
 ## Getting Started
 

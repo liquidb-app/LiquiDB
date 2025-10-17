@@ -50,7 +50,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getInstalledDatabases: (): Promise<DatabaseInstance[]> => 
     ipcRenderer.invoke('get-installed-databases'),
   
-  startDatabase: (dbId: string): Promise<{ success: boolean; message: string }> => 
+  startDatabase: (dbId: string): Promise<{ success: boolean; message: string; conflict?: boolean; conflictingDb?: any; suggestedPort?: number; canResolve?: boolean; blocking?: boolean; suggestedAction?: string }> => 
     ipcRenderer.invoke('start-database', dbId),
   
   stopDatabase: (dbId: string): Promise<{ success: boolean; message: string }> => 

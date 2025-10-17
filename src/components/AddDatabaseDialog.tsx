@@ -37,6 +37,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
   const [versions, setVersions] = useState<string[]>([]);
   const [selectedType, setSelectedType] = useState<string>('');
   const [selectedVersion, setSelectedVersion] = useState<string>('');
+  const [loadingVersions, setLoadingVersions] = useState<boolean>(false);
   const [config, setConfig] = useState<DatabaseConfig>({
     type: '',
     name: '',
@@ -57,11 +58,18 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
   useEffect(() => {
     if (open) {
       loadDatabaseTypes();
+      // Reset states when dialog opens
+      setVersions([]);
+      setSelectedVersion('');
+      setLoadingVersions(false);
     }
   }, [open]);
 
   useEffect(() => {
     if (selectedType) {
+      // Reset version selection when type changes
+      setSelectedVersion('');
+      setVersions([]);
       loadVersions(selectedType);
       const dbType = databaseTypes.find(t => t.id === selectedType);
       if (dbType) {
@@ -137,6 +145,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
   };
 
   const loadVersions = async (dbType: string) => {
+    setLoadingVersions(true);
     try {
       if (window.electronAPI) {
         const versions = await window.electronAPI.getDatabaseVersions(dbType);
@@ -153,8 +162,6 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
           mariadb: ['11.2.2', '11.1.3', '10.11.6', '10.10.7', '10.9.9'],
           mongodb: ['7.0.4', '6.0.13', '5.0.22', '4.4.25', '4.2.25'],
           cassandra: ['4.1.3', '4.0.11', '3.11.16', '3.0.28'],
-          mssql: ['2022', '2019', '2017', '2016'],
-          redshift: ['1.0.0', '0.9.0'],
         };
         const versions = demoVersions[dbType] || ['1.0.0'];
         setVersions(versions);
@@ -165,6 +172,12 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
       }
     } catch (error) {
       console.error('Failed to load versions:', error);
+    } finally {
+      setLoadingVersions(false);
+      // Clear any loading value that might be selected
+      if (selectedVersion === "loading") {
+        setSelectedVersion('');
+      }
     }
   };
 
@@ -349,19 +362,37 @@ export function AddDatabaseDialog({ open, onOpenChange, onAddDatabase }: AddData
             {selectedType && (
               <div className="space-y-2">
                 <Label htmlFor="db-version">Version</Label>
-                <Select value={selectedVersion} onValueChange={(value) => {
-                  setSelectedVersion(value);
-                  setConfig(prev => ({ ...prev, version: value }));
-                }}>
+                <Select 
+                  value={selectedVersion} 
+                  onValueChange={(value) => {
+                    // Don't set loading value as the actual version
+                    if (value !== "loading") {
+                      setSelectedVersion(value);
+                      setConfig(prev => ({ ...prev, version: value }));
+                    }
+                  }}
+                  disabled={loadingVersions}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select version" />
+                    <SelectValue 
+                      placeholder={loadingVersions ? "Loading versions..." : "Select version"} 
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {versions.map((version) => (
-                      <SelectItem key={version} value={version}>
-                        {version}
+                    {loadingVersions ? (
+                      <SelectItem value="loading" disabled>
+                        <div className="flex items-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                          Loading versions...
+                        </div>
                       </SelectItem>
-                    ))}
+                    ) : (
+                      versions.map((version) => (
+                        <SelectItem key={version} value={version}>
+                          {version}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>

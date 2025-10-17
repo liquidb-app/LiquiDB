@@ -4,6 +4,7 @@ import { spawn, exec } from 'child_process';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
 import { logger } from './logger';
+import { HomebrewService } from './services/homebrew-service';
 
 // Encryption/Decryption functions
 function getEncryptionKey(): string {
@@ -124,8 +125,9 @@ function createWindow(): void {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
-    titleBarStyle: 'hiddenInset',
-    title: 'LiquiDB',
+    titleBarStyle: 'default',
+    title: 'LiquiDB - Database Management',
+    show: false, // Don't show until ready
   });
 
   // Load the Next.js app
@@ -147,6 +149,13 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../out/index.html'));
   }
+
+  // Show window when ready to prevent visual flash
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    // Ensure the title is set
+    mainWindow.setTitle('LiquiDB - Database Management');
+  });
 }
 
 app.whenReady().then(createWindow);
@@ -496,37 +505,27 @@ ipcMain.handle('get-database-types', async () => {
       defaultUsername: 'cassandra',
       defaultPassword: 'cassandra'
     },
-    { 
-      id: 'mssql', 
-      name: 'Microsoft SQL Server', 
-      defaultPort: 1433, 
-      icon: '🗄️',
-      defaultUsername: 'sa',
-      defaultPassword: 'YourStrong@Passw0rd'
-    },
-    { 
-      id: 'redshift', 
-      name: 'Amazon Redshift', 
-      defaultPort: 5439, 
-      icon: '🔴',
-      defaultUsername: 'admin',
-      defaultPassword: 'admin'
-    },
   ];
 });
 
 ipcMain.handle('get-database-versions', async (event, dbType: string) => {
-  const versions: { [key: string]: string[] } = {
-    postgresql: ['16.1', '15.5', '14.10', '13.13', '12.17'],
-    mysql: ['8.0.35', '8.0.34', '8.0.33', '5.7.44', '5.6.51'],
-    mariadb: ['11.2.2', '11.1.3', '10.11.6', '10.10.7', '10.9.9'],
-    mongodb: ['7.0.4', '6.0.13', '5.0.22', '4.4.25', '4.2.25'],
-    cassandra: ['4.1.3', '4.0.11', '3.11.16', '3.0.28'],
-    mssql: ['2022', '2019', '2017', '2016'],
-    redshift: ['1.0.0', '0.9.0'],
-  };
-  
-  return versions[dbType] || [];
+  try {
+    logger.info(`Fetching available versions for ${dbType} from Homebrew`);
+    const versions = await HomebrewService.getAvailableVersions(dbType);
+    logger.info(`Found ${versions.length} versions for ${dbType}: ${versions.join(', ')}`);
+    return versions;
+  } catch (error) {
+    logger.error(`Failed to fetch versions for ${dbType}:`, error);
+    // Return fallback versions if Homebrew fails
+    const fallbackVersions: { [key: string]: string[] } = {
+      postgresql: ['16', '15', '14', '13', '12'],
+      mysql: ['8.0', '8.4', '5.7'],
+      mariadb: ['11.4', '11.8', '12.0'],
+      mongodb: ['7.0', '6.0', '5.0', '4.4'],
+      cassandra: ['5.0', '4.1', '4.0'],
+    };
+    return fallbackVersions[dbType] || [];
+  }
 });
 
 // IPC handler to check and fix database status
