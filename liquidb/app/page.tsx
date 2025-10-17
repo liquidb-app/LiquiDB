@@ -302,6 +302,25 @@ export default function DatabaseManager() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
+  const handleRefreshStatus = async (id: string) => {
+    try {
+      // @ts-ignore
+      const status = await window.electron?.checkDatabaseStatus?.(id)
+      if (status?.status) {
+        setDatabases(prev => prev.map(db => 
+          db.id === id ? { ...db, status: status.status } : db
+        ))
+        toast.info("Status refreshed", {
+          description: `Database status updated to ${status.status}`,
+        })
+      }
+    } catch (error) {
+      toast.error("Failed to refresh status", {
+        description: "Could not check database status",
+      })
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="sticky top-0 z-10">
@@ -443,9 +462,8 @@ export default function DatabaseManager() {
                       variant="outline"
                       size="sm"
                       className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-50"
-                      onClick={() => handleRestart(db.id)}
-                      disabled={db.status !== "running"}
-                      title="Restart database"
+                      onClick={() => handleRefreshStatus(db.id)}
+                      title="Refresh status"
                     >
                       <RotateCw className="h-3 w-3" />
                     </Button>
