@@ -28,6 +28,89 @@ import { AlertTriangle, Download } from "lucide-react"
 import { IconPickerDialog } from "@/components/icon-picker-dialog"
 import type { DatabaseContainer } from "@/lib/types"
 
+// Helper function to render database icons (emoji or custom image)
+const renderDatabaseIcon = (icon: string | undefined, className: string = "w-full h-full object-cover") => {
+  if (!icon) {
+    return <span className="text-lg">?</span>
+  }
+  
+  // Check if it's a custom image path (starts with file path or data URL)
+  if (icon.startsWith('/') || icon.startsWith('file://') || icon.startsWith('data:') || icon.includes('.')) {
+    return (
+      <DatabaseIcon 
+        src={icon} 
+        alt="Database icon" 
+        className={className}
+      />
+    )
+  }
+  
+  // It's an emoji, render as text
+  return <span className="text-lg leading-none">{icon}</span>
+}
+
+// Component to handle custom image loading with file:// URL conversion
+const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
+  const [imageSrc, setImageSrc] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasError, setHasError] = useState(false)
+
+  useEffect(() => {
+    const loadImage = async () => {
+      if (!src) return
+      
+      // If it's already a data URL, use it directly
+      if (src.startsWith('data:')) {
+        setImageSrc(src)
+        setIsLoading(false)
+        return
+      }
+      
+      // If it's a file:// URL, convert it to data URL
+      if (src.startsWith('file://')) {
+        try {
+          // @ts-ignore
+          const result = await window.electron?.convertFileToDataUrl?.(src)
+          if (result?.success) {
+            setImageSrc(result.dataUrl)
+          } else {
+            console.error('Failed to convert file to data URL:', result?.error)
+            setHasError(true)
+          }
+        } catch (error) {
+          console.error('Error converting file to data URL:', error)
+          setHasError(true)
+        } finally {
+          setIsLoading(false)
+        }
+      } else {
+        // For other URLs, try to load directly
+        setImageSrc(src)
+        setIsLoading(false)
+      }
+    }
+
+    loadImage()
+  }, [src])
+
+  if (isLoading) {
+    return <span className="text-lg animate-pulse">?</span>
+  }
+
+  if (hasError || !imageSrc) {
+    return <span className="text-lg">?</span>
+  }
+
+  return (
+    <img 
+      src={imageSrc} 
+      alt={alt} 
+      className={className}
+      onError={() => setHasError(true)}
+    />
+  )
+}
+
 interface DatabaseSettingsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -95,6 +178,18 @@ export function DatabaseSettingsDialog({
     }
   }
 
+  const handleCancel = () => {
+    // Reset local state to original database values
+    setName(database.name)
+    setPort(database.port.toString())
+    setUsername(database.username)
+    setPassword("")
+    setSelectedIcon(database.icon || "")
+    setAutoStart(database.autoStart || false)
+    setAutoStartConflict(null)
+    onOpenChange(false)
+  }
+
   const handleSave = () => {
     const portNum = Number.parseInt(port)
     const checkAndSave = async () => {
@@ -156,7 +251,7 @@ export function DatabaseSettingsDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleCancel}>
         <DialogContent className="sm:max-w-[500px] !top-[15vh] !translate-y-0">
           <DialogHeader>
             <DialogTitle>Database Settings</DialogTitle>
@@ -188,14 +283,14 @@ export function DatabaseSettingsDialog({
                   <Label className="text-xs">Icon</Label>
                   <button
                     onClick={() => setIconPickerOpen(true)}
-                    className="w-full flex items-center gap-3 p-3 border-2 border-dashed rounded-lg hover:border-primary hover:bg-accent transition-all duration-200 hover:scale-105"
+                    className="w-full flex items-center gap-2 p-2 border-2 border-dashed rounded-lg hover:border-primary hover:bg-accent"
                   >
-                    <div className="w-12 h-12 flex items-center justify-center bg-muted rounded-lg text-2xl">
-                      {selectedIcon || "?"}
+                    <div className="w-8 h-8 flex items-center justify-center bg-muted rounded text-lg">
+                      {renderDatabaseIcon(selectedIcon, "w-6 h-6 object-cover rounded")}
                     </div>
                     <div className="text-left flex-1">
-                      <p className="text-sm font-medium">{selectedIcon ? "Change Icon" : "Choose Icon"}</p>
-                      <p className="text-xs text-muted-foreground">Click to select emoji or upload image</p>
+                      <p className="text-xs font-medium">{selectedIcon ? "Change Icon" : "Choose Icon"}</p>
+                      <p className="text-[10px] text-muted-foreground">Click to select emoji or upload image</p>
                     </div>
                   </button>
                 </div>
@@ -332,7 +427,7 @@ export function DatabaseSettingsDialog({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)} size="sm">
+            <Button variant="outline" onClick={handleCancel} size="sm">
               Cancel
             </Button>
             <Button onClick={handleSave} size="sm">

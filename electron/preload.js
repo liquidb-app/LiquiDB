@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld("electron", {
   getDatabaseSystemInfo: (id) => ipcRenderer.invoke("get-database-system-info", id),
   saveCustomImage: (imageData) => ipcRenderer.invoke("save-custom-image", imageData),
   getSavedImages: () => ipcRenderer.invoke("get-saved-images"),
+  convertFileToDataUrl: (fileUrl) => ipcRenderer.invoke("convert-file-to-data-url", fileUrl),
   checkDatabasesFile: () => ipcRenderer.invoke("check-databases-file"),
   recreateDatabasesFile: () => ipcRenderer.invoke("recreate-databases-file"),
   isAutoLaunchEnabled: () => ipcRenderer.invoke("auto-launch:isEnabled"),

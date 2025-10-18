@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useTheme } from "next-themes"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -62,6 +62,12 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   const [deleting, setDeleting] = useState(false)
   const [autoLaunchEnabled, setAutoLaunchEnabled] = useState(false)
   const [autoLaunchLoading, setAutoLaunchLoading] = useState(false)
+  
+  // Local state for unsaved changes
+  const [localTheme, setLocalTheme] = useState(theme || "system")
+  const [localColorScheme, setLocalColorScheme] = useState("mono")
+  const [localAutoLaunchEnabled, setLocalAutoLaunchEnabled] = useState(false)
+  const [localNotifications, setLocalNotifications] = useState(true)
 
   useEffect(() => {
     setMounted(true)
@@ -93,6 +99,16 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     // Check auto-launch status
     checkAutoLaunchStatus()
   }, [])
+  
+  // Initialize local state when dialog opens
+  useEffect(() => {
+    if (open) {
+      setLocalTheme(theme || "system")
+      setLocalColorScheme(colorScheme)
+      setLocalAutoLaunchEnabled(autoLaunchEnabled)
+      setLocalNotifications(notifications)
+    }
+  }, [open, theme, colorScheme, autoLaunchEnabled, notifications])
 
   const checkAutoLaunchStatus = async () => {
     try {
@@ -179,6 +195,51 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     }
   }
 
+  const handleSave = () => {
+    // Apply theme changes
+    if (localTheme !== theme) {
+      setTheme(localTheme)
+    }
+    
+    // Apply color scheme changes
+    if (localColorScheme !== colorScheme) {
+      setColorScheme(localColorScheme)
+      localStorage.setItem("color-scheme", localColorScheme)
+      document.documentElement.setAttribute("data-color-scheme", localColorScheme)
+    }
+    
+    // Apply auto-launch changes
+    if (localAutoLaunchEnabled !== autoLaunchEnabled) {
+      handleAutoLaunchToggle(localAutoLaunchEnabled)
+    }
+    
+    // Apply notification changes
+    if (localNotifications !== notifications) {
+      setNotifications(localNotifications)
+      try {
+        if (typeof window !== 'undefined' && notifications && typeof (notifications as any).setNotificationsEnabled === 'function') {
+          (notifications as any).setNotificationsEnabled(localNotifications)
+        } else {
+          localStorage.setItem("notifications-enabled", JSON.stringify(localNotifications))
+        }
+      } catch (error) {
+        console.error("Failed to save notification setting:", error)
+        localStorage.setItem("notifications-enabled", JSON.stringify(localNotifications))
+      }
+    }
+    
+    onOpenChange(false)
+  }
+
+  const handleCancel = () => {
+    // Reset local state to current values
+    setLocalTheme(theme || "system")
+    setLocalColorScheme(colorScheme)
+    setLocalAutoLaunchEnabled(autoLaunchEnabled)
+    setLocalNotifications(notifications)
+    onOpenChange(false)
+  }
+
   const isDark = mounted && resolvedTheme === "dark"
 
   const handleDeleteAllDatabases = async () => {
@@ -210,7 +271,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleCancel}>
         <DialogContent className="sm:max-w-[500px] !top-[15vh] !translate-y-0">
           <DialogHeader>
             <DialogTitle>App Settings</DialogTitle>
@@ -228,7 +289,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
               <TabsContent value="appearance" className="space-y-4 pt-4 mt-0">
                 <div className="space-y-2">
                   <Label>Theme</Label>
-                  <Select value={theme} onValueChange={setTheme}>
+                  <Select value={localTheme} onValueChange={setLocalTheme}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -264,9 +325,9 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                     {colorSchemes.map((scheme) => (
                       <button
                         key={scheme.value}
-                        onClick={() => handleColorSchemeChange(scheme.value)}
+                        onClick={() => setLocalColorScheme(scheme.value)}
                         className={`flex flex-col items-center gap-1.5 p-2 rounded-md border-2 transition-colors ${
-                          colorScheme === scheme.value
+                          localColorScheme === scheme.value
                             ? "border-primary bg-accent"
                             : "border-border hover:border-muted-foreground"
                         }`}
@@ -290,8 +351,8 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                     </p>
                   </div>
                   <Switch 
-                    checked={autoLaunchEnabled} 
-                    onCheckedChange={handleAutoLaunchToggle}
+                    checked={localAutoLaunchEnabled} 
+                    onCheckedChange={setLocalAutoLaunchEnabled}
                     disabled={autoLaunchLoading}
                   />
                 </div>
@@ -301,7 +362,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                     <Label>Notifications</Label>
                     <p className="text-xs text-muted-foreground">Show toast notifications for database events</p>
                   </div>
-                  <Switch checked={notifications} onCheckedChange={handleNotificationToggle} />
+                  <Switch checked={localNotifications} onCheckedChange={setLocalNotifications} />
                 </div>
 
                 <div className="space-y-2">
@@ -379,6 +440,15 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
               </TabsContent>
             </div>
           </Tabs>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancel} size="sm">
+              Cancel
+            </Button>
+            <Button onClick={handleSave} size="sm">
+              Save Changes
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

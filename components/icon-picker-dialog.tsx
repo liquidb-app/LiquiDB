@@ -17,6 +17,68 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Upload, LinkIcon } from "lucide-react"
 
+// Component to handle custom image loading with file:// URL conversion
+const SavedImageIcon = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
+  const [imageSrc, setImageSrc] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasError, setHasError] = useState(false)
+
+  useEffect(() => {
+    const loadImage = async () => {
+      if (!src) return
+      
+      // If it's already a data URL, use it directly
+      if (src.startsWith('data:')) {
+        setImageSrc(src)
+        setIsLoading(false)
+        return
+      }
+      
+      // If it's a file:// URL, convert it to data URL
+      if (src.startsWith('file://')) {
+        try {
+          // @ts-ignore
+          const result = await window.electron?.convertFileToDataUrl?.(src)
+          if (result?.success) {
+            setImageSrc(result.dataUrl)
+          } else {
+            console.error('Failed to convert file to data URL:', result?.error)
+            setHasError(true)
+          }
+        } catch (error) {
+          console.error('Error converting file to data URL:', error)
+          setHasError(true)
+        } finally {
+          setIsLoading(false)
+        }
+      } else {
+        // For other URLs, try to load directly
+        setImageSrc(src)
+        setIsLoading(false)
+      }
+    }
+
+    loadImage()
+  }, [src])
+
+  if (isLoading) {
+    return <div className="w-10 h-10 bg-muted rounded animate-pulse flex items-center justify-center text-xs">...</div>
+  }
+
+  if (hasError || !imageSrc) {
+    return <div className="w-10 h-10 bg-muted rounded flex items-center justify-center text-xs">?</div>
+  }
+
+  return (
+    <img 
+      src={imageSrc} 
+      alt={alt} 
+      className={className}
+      onError={() => setHasError(true)}
+    />
+  )
+}
+
 interface IconPickerDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -255,7 +317,7 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
                             imageUrl === image.path ? "border-primary bg-accent" : "border-border"
                           }`}
                         >
-                          <img
+                          <SavedImageIcon
                             src={image.path}
                             alt={image.fileName}
                             className="w-10 h-10 object-cover rounded"

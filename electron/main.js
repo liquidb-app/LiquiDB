@@ -429,7 +429,11 @@ async function startDatabaseProcessAsync(config) {
       "--skip-grant-tables", 
       "--skip-networking=false",
       "--bind-address=127.0.0.1",
-      "--log-error=/tmp/liquidb-${id}/mysql-error.log"
+      `--log-error=/tmp/liquidb-${id}/mysql-error.log`,
+      "--basedir=/opt/homebrew",
+      "--tmpdir=/tmp",
+      "--pid-file=/tmp/liquidb-${id}/mysql.pid",
+      "--socket=/tmp/mysql-${id}.sock"
     ]
     
     // Create data directory (async)
@@ -456,6 +460,9 @@ async function startDatabaseProcessAsync(config) {
           // Directory might not exist, that's fine
         }
         await fs.mkdir(dataDir, { recursive: true })
+        
+        // Add a small delay to ensure directory is properly created
+        await new Promise(resolve => setTimeout(resolve, 100))
         
         // Use spawn instead of execSync to prevent blocking
         const { spawn } = require("child_process")
@@ -492,15 +499,30 @@ async function startDatabaseProcessAsync(config) {
         
         await new Promise((resolve, reject) => {
           const timeout = setTimeout(() => {
+            console.log(`[MySQL] Initialization timeout, killing process...`)
             initProcess.kill('SIGTERM')
             reject(new Error('MySQL initialization timed out after 30 seconds'))
           }, 30000)
           
           initProcess.on("exit", async (code) => {
             clearTimeout(timeout)
+            console.log(`[MySQL] Initialization process exited with code ${code}`)
             if (code === 0) {
               console.log(`[MySQL] Database initialized successfully`)
-              resolve()
+              // Verify the mysql directory was created
+              try {
+                const mysqlDirExists = await fs.access(`${dataDir}/mysql`).then(() => true).catch(() => false)
+                if (mysqlDirExists) {
+                  console.log(`[MySQL] Verified mysql directory exists`)
+                  resolve()
+                } else {
+                  console.error(`[MySQL] MySQL directory not found after initialization`)
+                  reject(new Error('MySQL initialization completed but mysql directory not found'))
+                }
+              } catch (verifyError) {
+                console.error(`[MySQL] Error verifying mysql directory:`, verifyError.message)
+                reject(verifyError)
+              }
             } else {
               console.error(`[MySQL] Initialization failed with code ${code}`)
               console.error(`[MySQL] Init output:`, initOutput)
@@ -676,8 +698,75 @@ async function startDatabaseProcessAsync(config) {
         sendReadyEvent()
       }
     }, 60000)
+  } else if (type === "mysql") {
+    // For MySQL, wait for startup completion
+    const sendReadyEvent = () => {
+      if (!readyEventSent && mainWindow) {
+        readyEventSent = true
+        console.log(`[MySQL] ${id} sending ready event (readyEventSent: ${readyEventSent})`)
+        
+        // Update status to running in storage
+        try {
+          const databases = storage.loadDatabases(app)
+          const dbIndex = databases.findIndex(db => db.id === id)
+          if (dbIndex >= 0) {
+            databases[dbIndex].status = 'running'
+            databases[dbIndex].pid = child.pid
+            storage.saveDatabases(app, databases)
+            console.log(`[Database] ${id} status updated to running in storage`)
+          }
+        } catch (error) {
+          console.error(`[Database] ${id} failed to update status to running in storage:`, error)
+        }
+        
+        mainWindow.webContents.send('database-status-changed', { id, status: 'running', ready: true, pid: child.pid })
+      } else {
+        console.log(`[MySQL] ${id} ready event already sent or no mainWindow (readyEventSent: ${readyEventSent}, mainWindow: ${!!mainWindow})`)
+      }
+    }
+    
+    child.stdout.on('data', (data) => {
+      const output = data.toString()
+      console.log(`[MySQL] ${id} output:`, output.trim())
+      
+      // Check for MySQL ready message
+      if (output.includes('ready for connections') || output.includes('ready to accept connections') || output.includes('mysqld: ready for connections')) {
+        console.log(`[MySQL] ${id} is ready for connections`)
+        isStartupComplete = true
+        if (startupTimeout) {
+          clearTimeout(startupTimeout)
+          startupTimeout = null
+        }
+        sendReadyEvent()
+      }
+    })
+    
+    child.stderr.on('data', (data) => {
+      const output = data.toString()
+      console.log(`[MySQL] ${id} error output:`, output.trim())
+      
+      // Check for MySQL ready message in stderr too
+      if (output.includes('ready for connections') || output.includes('ready to accept connections') || output.includes('mysqld: ready for connections')) {
+        console.log(`[MySQL] ${id} is ready for connections (from stderr)`)
+        isStartupComplete = true
+        if (startupTimeout) {
+          clearTimeout(startupTimeout)
+          startupTimeout = null
+        }
+        sendReadyEvent()
+      }
+    })
+    
+    // Set a timeout for MySQL startup (30 seconds)
+    startupTimeout = setTimeout(() => {
+      if (!isStartupComplete) {
+        console.log(`[MySQL] ${id} startup timeout - assuming ready`)
+        isStartupComplete = true
+        sendReadyEvent()
+      }
+    }, 30000)
   } else {
-    // For non-PostgreSQL databases (MySQL, MongoDB, Redis), mark as running immediately
+    // For other databases (MongoDB, Redis), mark as running immediately
     try {
       const databases = storage.loadDatabases(app)
       const dbIndex = databases.findIndex(db => db.id === id)
@@ -1977,6 +2066,58 @@ ipcMain.handle("get-saved-images", async () => {
   } catch (error) {
     console.error("[Image Get] Error getting saved images:", error)
     return { success: false, error: error.message, images: [] }
+  }
+})
+
+// IPC handler to convert file URL to data URL
+ipcMain.handle("convert-file-to-data-url", async (event, fileUrl) => {
+  try {
+    console.log(`[Image Convert] Converting file URL to data URL: ${fileUrl}`)
+    
+    // Remove file:// prefix and decode URL
+    const filePath = decodeURIComponent(fileUrl.replace('file://', ''))
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`)
+    }
+    
+    // Read file as buffer
+    const fileBuffer = fs.readFileSync(filePath)
+    
+    // Get file extension to determine MIME type
+    const ext = path.extname(filePath).toLowerCase()
+    let mimeType = 'image/png' // default
+    
+    switch (ext) {
+      case '.jpg':
+      case '.jpeg':
+        mimeType = 'image/jpeg'
+        break
+      case '.png':
+        mimeType = 'image/png'
+        break
+      case '.gif':
+        mimeType = 'image/gif'
+        break
+      case '.webp':
+        mimeType = 'image/webp'
+        break
+      case '.svg':
+        mimeType = 'image/svg+xml'
+        break
+    }
+    
+    // Convert buffer to base64
+    const base64Data = fileBuffer.toString('base64')
+    const dataUrl = `data:${mimeType};base64,${base64Data}`
+    
+    console.log(`[Image Convert] Successfully converted to data URL (${base64Data.length} chars)`)
+    return { success: true, dataUrl }
+    
+  } catch (error) {
+    console.error("[Image Convert] Error converting file to data URL:", error)
+    return { success: false, error: error.message }
   }
 })
 

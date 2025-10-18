@@ -18,6 +18,89 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { IconPickerDialog } from "@/components/icon-picker-dialog"
 import type { DatabaseContainer, DatabaseType } from "@/lib/types"
 
+// Helper function to render database icons (emoji or custom image)
+const renderDatabaseIcon = (icon: string | undefined, className: string = "w-full h-full object-cover") => {
+  if (!icon) {
+    return <span className="text-lg">?</span>
+  }
+  
+  // Check if it's a custom image path (starts with file path or data URL)
+  if (icon.startsWith('/') || icon.startsWith('file://') || icon.startsWith('data:') || icon.includes('.')) {
+    return (
+      <DatabaseIcon 
+        src={icon} 
+        alt="Database icon" 
+        className={className}
+      />
+    )
+  }
+  
+  // It's an emoji, render as text
+  return <span className="text-lg leading-none">{icon}</span>
+}
+
+// Component to handle custom image loading with file:// URL conversion
+const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
+  const [imageSrc, setImageSrc] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasError, setHasError] = useState(false)
+
+  useEffect(() => {
+    const loadImage = async () => {
+      if (!src) return
+      
+      // If it's already a data URL, use it directly
+      if (src.startsWith('data:')) {
+        setImageSrc(src)
+        setIsLoading(false)
+        return
+      }
+      
+      // If it's a file:// URL, convert it to data URL
+      if (src.startsWith('file://')) {
+        try {
+          // @ts-ignore
+          const result = await window.electron?.convertFileToDataUrl?.(src)
+          if (result?.success) {
+            setImageSrc(result.dataUrl)
+          } else {
+            console.error('Failed to convert file to data URL:', result?.error)
+            setHasError(true)
+          }
+        } catch (error) {
+          console.error('Error converting file to data URL:', error)
+          setHasError(true)
+        } finally {
+          setIsLoading(false)
+        }
+      } else {
+        // For other URLs, try to load directly
+        setImageSrc(src)
+        setIsLoading(false)
+      }
+    }
+
+    loadImage()
+  }, [src])
+
+  if (isLoading) {
+    return <span className="text-lg animate-pulse">?</span>
+  }
+
+  if (hasError || !imageSrc) {
+    return <span className="text-lg">?</span>
+  }
+
+  return (
+    <img 
+      src={imageSrc} 
+      alt={alt} 
+      className={className}
+      onError={() => setHasError(true)}
+    />
+  )
+}
+
 interface AddDatabaseDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -439,7 +522,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                       className="w-full flex items-center gap-2 p-2 border-2 border-dashed rounded-lg hover:border-primary hover:bg-accent"
                     >
                       <div className="w-8 h-8 flex items-center justify-center bg-muted rounded text-lg">
-                        {selectedIcon || "?"}
+                        {renderDatabaseIcon(selectedIcon, "w-6 h-6 object-cover rounded")}
                       </div>
                       <div className="text-left flex-1">
                         <p className="text-xs font-medium">{selectedIcon ? "Change Icon" : "Choose Icon"}</p>
@@ -579,19 +662,6 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                     : "Install & Create"
                   }
                 </Button>
-                {installMsg && (
-                  <div className="text-[10px] text-muted-foreground ml-2">
-                    <div>{installMsg}</div>
-                    {installing && (
-                      <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
-                        <div 
-                          className="bg-blue-600 h-1 rounded-full transition-all duration-300" 
-                          style={{ width: `${installProgress}%` }}
-                        ></div>
-                      </div>
-                    )}
-                  </div>
-                )}
               </>
             )}
           </DialogFooter>
@@ -603,6 +673,25 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
                   <span className="text-sm text-muted-foreground">Loading versions and stable release information...</span>
                 </div>
+              </div>
+            </div>
+          )}
+          
+          {installing && (
+            <div className="px-6 pb-4">
+              <div className="flex items-center justify-center p-3 bg-muted/30 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                  <span className="text-sm text-muted-foreground">{installMsg}</span>
+                </div>
+                {installProgress > 0 && (
+                  <div className="w-full bg-gray-200 rounded-full h-1 mt-2">
+                    <div 
+                      className="bg-blue-600 h-1 rounded-full transition-all duration-300" 
+                      style={{ width: `${installProgress}%` }}
+                    ></div>
+                  </div>
+                )}
               </div>
             </div>
           )}

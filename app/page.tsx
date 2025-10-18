@@ -17,6 +17,89 @@ import { toast } from "sonner"
 import { notifySuccess, notifyError, notifyInfo, notifyWarning } from "@/lib/notifications"
 import type { DatabaseContainer } from "@/lib/types"
 
+// Helper function to render database icons (emoji or custom image)
+const renderDatabaseIcon = (icon: string | undefined, className: string = "w-full h-full object-cover") => {
+  if (!icon) {
+    return <Database className="h-3.5 w-3.5" />
+  }
+  
+  // Check if it's a custom image path (starts with file path or data URL)
+  if (icon.startsWith('/') || icon.startsWith('file://') || icon.startsWith('data:') || icon.includes('.')) {
+    return (
+      <DatabaseIcon 
+        src={icon} 
+        alt="Database icon" 
+        className={className}
+      />
+    )
+  }
+  
+  // It's an emoji, render as text
+  return <span className="text-base leading-none">{icon}</span>
+}
+
+// Component to handle custom image loading with file:// URL conversion
+const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
+  const [imageSrc, setImageSrc] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasError, setHasError] = useState(false)
+
+  useEffect(() => {
+    const loadImage = async () => {
+      if (!src) return
+      
+      // If it's already a data URL, use it directly
+      if (src.startsWith('data:')) {
+        setImageSrc(src)
+        setIsLoading(false)
+        return
+      }
+      
+      // If it's a file:// URL, convert it to data URL
+      if (src.startsWith('file://')) {
+        try {
+          // @ts-ignore
+          const result = await window.electron?.convertFileToDataUrl?.(src)
+          if (result?.success) {
+            setImageSrc(result.dataUrl)
+          } else {
+            console.error('Failed to convert file to data URL:', result?.error)
+            setHasError(true)
+          }
+        } catch (error) {
+          console.error('Error converting file to data URL:', error)
+          setHasError(true)
+        } finally {
+          setIsLoading(false)
+        }
+      } else {
+        // For other URLs, try to load directly
+        setImageSrc(src)
+        setIsLoading(false)
+      }
+    }
+
+    loadImage()
+  }, [src])
+
+  if (isLoading) {
+    return <Database className="h-3.5 w-3.5 animate-pulse" />
+  }
+
+  if (hasError || !imageSrc) {
+    return <Database className="h-3.5 w-3.5" />
+  }
+
+  return (
+    <img 
+      src={imageSrc} 
+      alt={alt} 
+      className={className}
+      onError={() => setHasError(true)}
+    />
+  )
+}
+
 export default function DatabaseManager() {
   const [databases, setDatabases] = useState<DatabaseContainer[]>([])
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -297,6 +380,14 @@ export default function DatabaseManager() {
     let isMounted = true
 
     const load = async () => {
+      // Check if Electron is available
+      // @ts-ignore
+      if (!window.electron) {
+        console.log("[Debug] Electron not available yet, retrying in 1 second")
+        setTimeout(load, 1000)
+        return
+      }
+      
       // Check if databases.json file exists
       try {
         // @ts-ignore
@@ -636,6 +727,7 @@ export default function DatabaseManager() {
       }
     }
   }, []) // Empty dependency array is correct here
+
 
   // Clear selections when switching tabs to avoid confusion
   useEffect(() => {
@@ -1261,8 +1353,8 @@ export default function DatabaseManager() {
                       />
                     )}
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <div className="p-1 rounded bg-secondary text-base leading-none flex items-center justify-center w-7 h-7 shrink-0">
-                        {db.icon || <Database className="h-3.5 w-3.5" />}
+                      <div className="flex items-center justify-center w-7 h-7 shrink-0">
+                        {renderDatabaseIcon(db.icon, "w-7 h-7 object-cover rounded")}
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="text-sm font-semibold leading-tight truncate">{db.name}</h3>
@@ -1493,8 +1585,8 @@ export default function DatabaseManager() {
                             />
                           )}
                           <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <div className="p-1 rounded bg-secondary text-base leading-none flex items-center justify-center w-7 h-7 shrink-0">
-                              {db.icon || <Database className="h-3.5 w-3.5" />}
+                            <div className="flex items-center justify-center w-7 h-7 shrink-0">
+                              {renderDatabaseIcon(db.icon, "w-7 h-7 object-cover rounded")}
                             </div>
                             <div className="min-w-0 flex-1">
                               <h3 className="text-sm font-semibold leading-tight truncate">{db.name}</h3>
@@ -1662,8 +1754,8 @@ export default function DatabaseManager() {
                           />
                         )}
                         <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <div className="p-1 rounded bg-secondary text-base leading-none flex items-center justify-center w-7 h-7 shrink-0">
-                            {db.icon || <Database className="h-3.5 w-3.5" />}
+                          <div className="flex items-center justify-center w-7 h-7 shrink-0">
+                            {renderDatabaseIcon(db.icon, "w-7 h-7 object-cover rounded")}
                           </div>
                           <div className="min-w-0 flex-1">
                             <h3 className="text-sm font-semibold leading-tight truncate">{db.name}</h3>
