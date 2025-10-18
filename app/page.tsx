@@ -27,6 +27,25 @@ export default function DatabaseManager() {
   const lastStatusCheckRef = useRef<Record<string, number>>({})
   const [activeTab, setActiveTab] = useState<string>("active")
 
+  // Function to find a free port
+  const findFreePort = (preferredPort: number): number => {
+    const usedPorts = databases.map(db => db.port)
+    let port = preferredPort
+    
+    // Try the preferred port first
+    if (!usedPorts.includes(port)) {
+      return port
+    }
+    
+    // Find the next available port starting from preferredPort + 1
+    port = preferredPort + 1
+    while (usedPorts.includes(port) && port < 65535) {
+      port++
+    }
+    
+    return port
+  }
+
   useEffect(() => {
     const load = async () => {
       // @ts-ignore
@@ -259,35 +278,36 @@ export default function DatabaseManager() {
 
     if (portConflict) {
       const conflictType = portConflict.status === "starting" ? "starting up" : "running"
-      toast.error("Port conflict detected", {
-        description: `Port ${targetDb.port} is already in use by "${portConflict.name}" (${conflictType}). Please wait for it to finish or stop it first.`,
-        action: portConflict.status === "running" ? {
-          label: "Stop & Start",
+      const suggestedPort = findFreePort(targetDb.port)
+      
+      toast.warning("Port Conflict Detected", {
+        description: `Port ${targetDb.port} is already in use by "${portConflict.name}" (${conflictType}). Database will start anyway, but consider using port ${suggestedPort} instead.`,
+        action: {
+          label: "Use Suggested Port",
           onClick: async () => {
-            // Stop the conflicting database first
+            // Update the database port and save it
+            const updatedDb = { ...targetDb, port: suggestedPort }
             try {
               // @ts-ignore
-              const stopResult = await window.electron?.stopDatabase?.(portConflict.id)
-              if (stopResult?.success) {
-                // Wait a moment for the process to fully stop
-                await new Promise(resolve => setTimeout(resolve, 2000))
-                // Start the target database
-                await startDatabaseWithErrorHandling(id)
-              } else {
-                toast.error("Failed to stop conflicting database", {
-                  description: "Could not stop the database using the port",
-                })
-              }
+              await window.electron?.saveDatabase?.(updatedDb)
+              setDatabases(prev => prev.map(db => db.id === id ? updatedDb : db))
+              toast.success("Port Updated", {
+                description: `Database port changed to ${suggestedPort}`,
+              })
+              // Start the database with the new port
+              await startDatabaseWithErrorHandling(id)
             } catch (error) {
-              console.log(`[Port Conflict] Error stopping database ${portConflict.id}:`, error)
-              toast.error("Failed to stop conflicting database", {
-                description: "Could not stop the database using the port",
+              console.log(`[Port Update] Error updating database port:`, error)
+              toast.error("Failed to update port", {
+                description: "Could not change the database port",
               })
             }
           }
-        } : undefined
+        }
       })
-      return
+      
+      // Continue with the original port anyway (don't return)
+      console.log(`[Port Conflict] Starting database ${id} on port ${targetDb.port} despite conflict with ${portConflict.name}`)
     }
 
     // Set status to starting and show starting toast
@@ -404,36 +424,37 @@ export default function DatabaseManager() {
 
       if (conflictingDb) {
         const conflictType = conflictingDb.status === "starting" ? "starting up" : "running"
-        toast.error("Port conflict detected", {
-          description: `Port ${targetDb.port} is already in use by "${conflictingDb.name}" (${conflictType}). Please wait for it to finish or stop it first.`,
-          action: conflictingDb.status === "running" ? {
-            label: "Stop & Start",
+        const suggestedPort = findFreePort(targetDb.port)
+        
+        toast.warning("Port Conflict Detected", {
+          description: `Port ${targetDb.port} is already in use by "${conflictingDb.name}" (${conflictType}). Database will start anyway, but consider using port ${suggestedPort} instead.`,
+          action: {
+            label: "Use Suggested Port",
             onClick: async () => {
-              // Stop the conflicting database first
+              // Update the database port and save it
+              const updatedDb = { ...targetDb, port: suggestedPort }
               try {
                 // @ts-ignore
-                const stopResult = await window.electron?.stopDatabase?.(conflictingDb.id)
-                if (stopResult?.success) {
-                  // Wait a moment for the process to fully stop
-                  await new Promise(resolve => setTimeout(resolve, 2000))
-                  // Start the target database
-                  await startDatabaseWithErrorHandling(id)
-                } else {
-                  toast.error("Failed to stop conflicting database", {
-                    description: "Could not stop the database using the port",
-                  })
-                }
+                await window.electron?.saveDatabase?.(updatedDb)
+                setDatabases(prev => prev.map(db => db.id === id ? updatedDb : db))
+                toast.success("Port Updated", {
+                  description: `Database port changed to ${suggestedPort}`,
+                })
+                // Start the database with the new port
+                await startDatabaseWithErrorHandling(id)
               } catch (error) {
-                console.log(`[Port Conflict] Error stopping database ${conflictingDb.id}:`, error)
-                toast.error("Failed to stop conflicting database", {
-                  description: "Could not stop the database using the port",
+                console.log(`[Port Update] Error updating database port:`, error)
+                toast.error("Failed to update port", {
+                  description: "Could not change the database port",
                 })
               }
-            },
-          } : undefined,
+            }
+          },
           duration: 10000,
         })
-        return
+        
+        // Continue with the original port anyway (don't return)
+        console.log(`[Port Conflict] Starting database ${id} on port ${targetDb.port} despite conflict with ${conflictingDb.name}`)
       }
 
       await startDatabaseWithErrorHandling(id)
