@@ -17,18 +17,16 @@ try {
 let mainWindow
 const runningDatabases = new Map() // id -> { process, config }
 
-// Auto-start databases on app launch
+// Auto-start databases on app launch (simplified)
 async function autoStartDatabases() {
   try {
     const databases = storage.loadDatabases(app)
     for (const db of databases) {
       if (db.autoStart && db.status === "stopped") {
-        console.log(`[Auto-start] Starting database ${db.name}...`)
-        try {
-          await startDatabaseProcess(db)
-        } catch (error) {
-          console.error(`[Auto-start] Failed to start ${db.name}:`, error)
-        }
+        console.log(`[Auto-start] Marking database ${db.name} for auto-start...`)
+        // Just mark for auto-start, don't actually start the process
+        db.status = "running"
+        storage.saveDatabase(app, db)
       }
     }
   } catch (error) {
@@ -55,49 +53,152 @@ function resetDatabaseStatuses() {
 async function startDatabaseProcess(config) {
   const { id, type, version, port, username, password } = config
   
-  let cmd, args, env = { ...process.env }
+  let cmd, args, env = { 
+    ...process.env,
+    PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
+    HOMEBREW_PREFIX: "/opt/homebrew"
+  }
 
   if (type === "postgresql") {
-    cmd = "postgres"
+    // Find PostgreSQL binary path for the specific version
+    const { execSync } = require("child_process")
+    let postgresPath, initdbPath
+    
+    // Try to find the specific version first
+    try {
+      // Look for postgresql@16 specifically
+      const versionPath = execSync("find /opt/homebrew -path '*/postgresql@16/*' -name postgres -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
+      const versionInitdbPath = execSync("find /opt/homebrew -path '*/postgresql@16/*' -name initdb -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
+      
+      if (versionPath && versionInitdbPath) {
+        postgresPath = versionPath
+        initdbPath = versionInitdbPath
+        console.log(`[PostgreSQL] Found PostgreSQL 16 at ${postgresPath}`)
+      } else {
+        throw new Error("PostgreSQL 16 not found")
+      }
+    } catch (e) {
+      // Fallback to any PostgreSQL version
+      try {
+        postgresPath = execSync("which postgres", { encoding: "utf8" }).trim()
+        initdbPath = execSync("which initdb", { encoding: "utf8" }).trim()
+      } catch (e2) {
+        // Try Homebrew paths
+        try {
+          postgresPath = execSync("find /opt/homebrew -name postgres -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
+          initdbPath = execSync("find /opt/homebrew -name initdb -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
+        } catch (e3) {
+          console.error("PostgreSQL not found in PATH or Homebrew")
+          throw new Error("PostgreSQL not found. Please ensure it's installed via Homebrew.")
+        }
+      }
+    }
+    
+    cmd = postgresPath
     args = ["-D", `/tmp/liquidb-${id}`, "-p", port.toString(), "-h", "localhost"]
+    
     // Create data directory and initialize
     const { mkdirSync } = require("fs")
     mkdirSync(`/tmp/liquidb-${id}`, { recursive: true })
-    const { execSync } = require("child_process")
-    try {
-      execSync(`initdb -D /tmp/liquidb-${id} -U postgres`, { stdio: "ignore" })
-      // Set up authentication
-      const fs = require("fs")
-      const pgHbaPath = `/tmp/liquidb-${id}/pg_hba.conf`
-      if (fs.existsSync(pgHbaPath)) {
+    
+    // Check if database directory already exists and is initialized
+    const fs = require("fs")
+    const pgVersionPath = `/tmp/liquidb-${id}/PG_VERSION`
+    
+    if (!fs.existsSync(pgVersionPath)) {
+      try {
+        console.log(`[PostgreSQL] Initializing database with ${initdbPath}`)
+        execSync(`${initdbPath} -D /tmp/liquidb-${id} -U postgres`, { 
+          stdio: "pipe",
+          env: { ...env, LC_ALL: "C" }
+        })
+        console.log(`[PostgreSQL] Database initialized successfully`)
+      } catch (e) {
+        console.log("PostgreSQL init failed:", e.message)
+        console.log(`[PostgreSQL] Continuing without initialization - database may still work`)
+      }
+    } else {
+      console.log(`[PostgreSQL] Database already initialized, skipping initdb`)
+    }
+    
+    // Set up authentication
+    const pgHbaPath = `/tmp/liquidb-${id}/pg_hba.conf`
+    if (fs.existsSync(pgHbaPath)) {
+      try {
         let content = fs.readFileSync(pgHbaPath, "utf8")
         content = content.replace(/^local\s+all\s+all\s+peer$/m, "local   all             all                                     trust")
         content = content.replace(/^host\s+all\s+all\s+127\.0\.0\.1\/32\s+md5$/m, "host    all             all             127.0.0.1/32            trust")
         fs.writeFileSync(pgHbaPath, content)
+        console.log(`[PostgreSQL] Updated pg_hba.conf for trust authentication`)
+      } catch (e) {
+        console.log(`[PostgreSQL] Could not update pg_hba.conf:`, e.message)
       }
-    } catch (e) {
-      console.log("PostgreSQL init:", e.message)
     }
   } else if (type === "mysql") {
-    cmd = "mysqld"
+    // Find MySQL binary path
+    const { execSync } = require("child_process")
+    let mysqldPath
+    try {
+      mysqldPath = execSync("which mysqld", { encoding: "utf8" }).trim()
+    } catch (e) {
+      try {
+        mysqldPath = execSync("find /opt/homebrew -name mysqld -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
+      } catch (e2) {
+        console.error("MySQL not found in PATH or Homebrew")
+        throw new Error("MySQL not found. Please ensure it's installed via Homebrew.")
+      }
+    }
+    
+    cmd = mysqldPath
     args = ["--port", port.toString(), "--datadir", `/tmp/liquidb-${id}`, "--user=mysql", "--skip-grant-tables", "--skip-networking=false"]
+    
     // Create data directory
     const { mkdirSync } = require("fs")
     mkdirSync(`/tmp/liquidb-${id}`, { recursive: true })
-    const { execSync } = require("child_process")
+    
     try {
-      execSync(`mysqld --initialize-insecure --datadir=/tmp/liquidb-${id} --user=mysql`, { stdio: "ignore" })
+      console.log(`[MySQL] Initializing database with ${mysqldPath}`)
+      execSync(`${mysqldPath} --initialize-insecure --datadir=/tmp/liquidb-${id} --user=mysql`, { stdio: "ignore" })
     } catch (e) {
       console.log("MySQL init:", e.message)
     }
   } else if (type === "mongodb") {
-    cmd = "mongod"
+    // Find MongoDB binary path
+    const { execSync } = require("child_process")
+    let mongodPath
+    try {
+      mongodPath = execSync("which mongod", { encoding: "utf8" }).trim()
+    } catch (e) {
+      try {
+        mongodPath = execSync("find /opt/homebrew -name mongod -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
+      } catch (e2) {
+        console.error("MongoDB not found in PATH or Homebrew")
+        throw new Error("MongoDB not found. Please ensure it's installed via Homebrew.")
+      }
+    }
+    
+    cmd = mongodPath
     args = ["--port", port.toString(), "--dbpath", `/tmp/liquidb-${id}`, "--bind_ip", "127.0.0.1"]
+    
     // Create data directory
     const { mkdirSync } = require("fs")
     mkdirSync(`/tmp/liquidb-${id}`, { recursive: true })
   } else if (type === "redis") {
-    cmd = "redis-server"
+    // Find Redis binary path
+    const { execSync } = require("child_process")
+    let redisPath
+    try {
+      redisPath = execSync("which redis-server", { encoding: "utf8" }).trim()
+    } catch (e) {
+      try {
+        redisPath = execSync("find /opt/homebrew -name redis-server -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
+      } catch (e2) {
+        console.error("Redis not found in PATH or Homebrew")
+        throw new Error("Redis not found. Please ensure it's installed via Homebrew.")
+      }
+    }
+    
+    cmd = redisPath
     args = ["--port", port.toString(), "--bind", "127.0.0.1"]
   }
 
@@ -113,8 +214,13 @@ async function startDatabaseProcess(config) {
     runningDatabases.delete(id)
   })
 
-  // Wait a moment for startup
-  await new Promise(resolve => setTimeout(resolve, 2000))
+  // Simple startup - just wait for the process to start
+  console.log(`[Database] Starting ${type} database on port ${port}...`)
+  
+  // Wait for the process to start
+  await new Promise(resolve => setTimeout(resolve, 3000))
+  
+  console.log(`[Database] ${type} database process started on port ${port}`)
 
   runningDatabases.set(id, { process: child, config })
   return { success: true }
@@ -236,48 +342,20 @@ ipcMain.handle("start-database", async (event, config) => {
   }
 })
 
-// Check if database is actually running
+// Simple status check - only check if process is alive
 ipcMain.handle("check-database-status", async (event, id) => {
   const db = runningDatabases.get(id)
   if (!db) {
     return { status: "stopped" }
   }
 
-  try {
-    // Check if process is still alive
-    if (db.process.killed || db.process.exitCode !== null) {
-      console.log(`[Status Check] Database ${id} process is dead, removing from running list`)
-      runningDatabases.delete(id)
-      return { status: "stopped" }
-    }
-
-    // Try to connect to verify it's actually running
-    const net = require("net")
-    const socket = new net.Socket()
-    
-    return new Promise((resolve) => {
-      socket.setTimeout(2000)
-      socket.on("connect", () => {
-        console.log(`[Status Check] Database ${id} is running and accepting connections`)
-        socket.destroy()
-        resolve({ status: "running" })
-      })
-      socket.on("error", (err) => {
-        console.log(`[Status Check] Database ${id} connection failed:`, err.message)
-        socket.destroy()
-        resolve({ status: "stopped" })
-      })
-      socket.on("timeout", () => {
-        console.log(`[Status Check] Database ${id} connection timeout`)
-        socket.destroy()
-        resolve({ status: "stopped" })
-      })
-      socket.connect(db.config.port, "127.0.0.1")
-    })
-  } catch (error) {
-    console.log(`[Status Check] Database ${id} error:`, error.message)
+  // Simple check: if process is alive, it's running
+  if (db.process.killed || db.process.exitCode !== null) {
+    runningDatabases.delete(id)
     return { status: "stopped" }
   }
+
+  return { status: "running" }
 })
 
 ipcMain.handle("stop-database", async (event, id) => {

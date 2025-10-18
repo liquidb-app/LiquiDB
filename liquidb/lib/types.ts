@@ -15,4 +15,5 @@ export interface DatabaseContainer {
   createdAt: string
   icon?: string
   autoStart?: boolean
+  lastStarted?: number
 }

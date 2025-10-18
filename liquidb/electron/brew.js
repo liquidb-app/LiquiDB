@@ -69,7 +69,15 @@ function installHomebrew({ onStdout, onStderr } = {}) {
 function execBrew(args, { onStdout, onStderr } = {}) {
   return new Promise((resolve, reject) => {
     const brewPath = findBrewPath()
-    const child = spawn(brewPath, args, { stdio: "pipe" })
+    
+    // Set up environment with Homebrew paths
+    const env = {
+      ...process.env,
+      PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
+      HOMEBREW_PREFIX: "/opt/homebrew"
+    }
+    
+    const child = spawn(brewPath, args, { stdio: "pipe", env })
     let stdout = ""
     let stderr = ""
     
