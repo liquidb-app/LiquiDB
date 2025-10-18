@@ -21,6 +21,7 @@ export default function DatabaseManager() {
   const [selectedDatabase, setSelectedDatabase] = useState<DatabaseContainer | null>(null)
   const [conflictingPort, setConflictingPort] = useState<number | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [lastStatusCheck, setLastStatusCheck] = useState<Record<string, number>>({})
 
   useEffect(() => {
     const load = async () => {
@@ -51,39 +52,31 @@ export default function DatabaseManager() {
         }
         
         setDatabases(updatedDatabases)
+        
+        // Force immediate status check for all databases
+        setTimeout(async () => {
+          for (const db of updatedDatabases) {
+            try {
+              // @ts-ignore
+              const status = await window.electron?.checkDatabaseStatus?.(db.id)
+              if (status?.status && status.status !== db.status) {
+                console.log(`[App Load] Database ${db.id} is actually ${status.status}`)
+                setDatabases(prev => prev.map(d => 
+                  d.id === db.id ? { ...d, status: status.status } : d
+                ))
+              }
+            } catch (e) {
+              // Ignore errors during initial load
+            }
+          }
+        }, 1000)
       }
     }
     load()
 
-    // Check database status every 2 seconds for more responsive updates
-    const statusInterval = setInterval(async () => {
-      // @ts-ignore
-      if (window.electron?.checkDatabaseStatus) {
-        for (const db of databases) {
-          // Skip status check for databases that are installing or starting
-          if (db.status === "installing" || db.status === "starting") {
-            continue
-          }
-          
-          try {
-            // @ts-ignore
-            const status = await window.electron.checkDatabaseStatus(db.id)
-            if (status.status !== db.status) {
-              console.log(`[Status Update] Database ${db.id} status changed from ${db.status} to ${status.status}`)
-              setDatabases(prev => prev.map(d => 
-                d.id === db.id ? { ...d, status: status.status } : d
-              ))
-            }
-          } catch (e) {
-            // Database might not be running
-            console.log(`[Status Check] Error checking database ${db.id}:`, e.message)
-          }
-        }
-      }
-    }, 2000)
-
-    return () => clearInterval(statusInterval)
-  }, [databases])
+    // Disable automatic status checking to prevent loops
+    // Status will only be updated manually or during startup/stop operations
+  }, [])
 
   const handleAddDatabase = (database: DatabaseContainer) => {
     setDatabases([...databases, database])
@@ -130,52 +123,31 @@ export default function DatabaseManager() {
         return
       }
 
-      // Set status to starting first
+      // Set status to starting and record start time
       setDatabases((prev) =>
         prev.map((db) =>
-          db.id === id ? { ...db, status: "starting" as const } : db
+          db.id === id ? { ...db, status: "starting" as const, lastStarted: Date.now() } : db
         )
       )
 
-      // Actually start the database
       try {
         // @ts-ignore
         const result = await window.electron?.startDatabase?.(targetDb)
         if (result?.success) {
-          // Wait a moment for the database to fully start
-          await new Promise(resolve => setTimeout(resolve, 2000))
-          
-          // Double-check the database status
-          try {
-            // @ts-ignore
-            const statusCheck = await window.electron?.checkDatabaseStatus?.(id)
-            const finalStatus = statusCheck?.status === "running" ? "running" : "stopped"
-            
+          // Wait for database to start, then set to running
+          setTimeout(() => {
             setDatabases((prev) =>
               prev.map((db) => {
                 if (db.id === id) {
                   toast.success("Database started", {
                     description: `${db.name} is now running.`,
                   })
-                  return { ...db, status: finalStatus as const }
+                  return { ...db, status: "running" as const, lastStarted: Date.now() }
                 }
                 return db
               })
             )
-          } catch (error) {
-            // Fallback to running status if check fails
-            setDatabases((prev) =>
-              prev.map((db) => {
-                if (db.id === id) {
-                  toast.success("Database started", {
-                    description: `${db.name} is now running.`,
-                  })
-                  return { ...db, status: "running" as const }
-                }
-                return db
-              })
-            )
-          }
+          }, 3000)
         } else {
           setDatabases((prev) =>
             prev.map((db) =>
@@ -197,13 +169,13 @@ export default function DatabaseManager() {
         })
       }
     } else {
-      // Actually stop the database
+      // Stop the database
       try {
         // @ts-ignore
         const result = await window.electron?.stopDatabase?.(id)
         if (result?.success) {
-          setDatabases(
-            databases.map((db) => {
+          setDatabases((prev) =>
+            prev.map((db) => {
               if (db.id === id) {
                 toast.success("Database stopped", {
                   description: `${db.name} has been stopped.`,
@@ -211,7 +183,7 @@ export default function DatabaseManager() {
                 return { ...db, status: "stopped" as const }
               }
               return db
-            }),
+            })
           )
         } else {
           toast.error("Failed to stop database", {
@@ -307,12 +279,14 @@ export default function DatabaseManager() {
       // @ts-ignore
       const status = await window.electron?.checkDatabaseStatus?.(id)
       if (status?.status) {
+        setLastStatusCheck(prev => ({ ...prev, [id]: Date.now() }))
         setDatabases(prev => prev.map(db => 
           db.id === id ? { ...db, status: status.status } : db
         ))
         toast.info("Status refreshed", {
           description: `Database status updated to ${status.status}`,
         })
+        console.log(`[Manual Refresh] Database ${id} status: ${status.status}`)
       }
     } catch (error) {
       toast.error("Failed to refresh status", {
@@ -321,11 +295,45 @@ export default function DatabaseManager() {
     }
   }
 
+  const handleRefreshAllStatuses = async () => {
+    console.log("[Manual Refresh] Checking all database statuses...")
+    const now = Date.now()
+    for (const db of databases) {
+      try {
+        // @ts-ignore
+        const status = await window.electron?.checkDatabaseStatus?.(db.id)
+        setLastStatusCheck(prev => ({ ...prev, [db.id]: now }))
+        
+        if (status?.status && status.status !== db.status) {
+          console.log(`[Manual Refresh] Database ${db.id} status changed from ${db.status} to ${status.status}`)
+          setDatabases(prev => prev.map(d => 
+            d.id === db.id ? { ...d, status: status.status } : d
+          ))
+        }
+      } catch (e) {
+        setLastStatusCheck(prev => ({ ...prev, [db.id]: now }))
+        console.log(`[Manual Refresh] Error checking database ${db.id}:`, e.message)
+      }
+    }
+    toast.info("All statuses refreshed", {
+      description: "Database statuses have been updated",
+    })
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="sticky top-0 z-10">
         <div className="container mx-auto px-6 py-4 flex items-center justify-end">
           <div className="flex items-center gap-2">
+            <Button
+              onClick={handleRefreshAllStatuses}
+              variant="ghost"
+              size="sm"
+              className="gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+            >
+              <RotateCw className="h-4 w-4" />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
             <Button
               onClick={() => setAppSettingsOpen(true)}
               variant="ghost"
