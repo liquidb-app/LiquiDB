@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.removeAllListeners('database-status-changed')
   },
   verifyDatabaseInstance: (id) => ipcRenderer.invoke("verify-database-instance", id),
+  getDatabaseSystemInfo: (id) => ipcRenderer.invoke("get-database-system-info", id),
   saveCustomImage: (imageData) => ipcRenderer.invoke("save-custom-image", imageData),
   getSavedImages: () => ipcRenderer.invoke("get-saved-images"),
   checkDatabasesFile: () => ipcRenderer.invoke("check-databases-file"),

@@ -9,8 +9,10 @@ import { AddDatabaseDialog } from "@/components/add-database-dialog"
 import { DatabaseSettingsDialog } from "@/components/database-settings-dialog"
 import { PortConflictDialog } from "@/components/port-conflict-dialog"
 import { AppSettingsDialog } from "@/components/app-settings-dialog"
+import { InstanceInfoDialog } from "@/components/instance-info-dialog"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "sonner"
 import type { DatabaseContainer } from "@/lib/types"
 
@@ -20,6 +22,7 @@ export default function DatabaseManager() {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [appSettingsOpen, setAppSettingsOpen] = useState(false)
   const [portConflictDialogOpen, setPortConflictDialogOpen] = useState(false)
+  const [instanceInfoOpen, setInstanceInfoOpen] = useState(false)
   const [selectedDatabase, setSelectedDatabase] = useState<DatabaseContainer | null>(null)
   const [conflictingPort, setConflictingPort] = useState<number | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -222,12 +225,52 @@ export default function DatabaseManager() {
     })
   }
 
+  const getVisibleDatabases = () => {
+    switch (activeTab) {
+      case "active":
+        return databases.filter(db => db.status === "running" || db.status === "starting")
+      case "inactive":
+        return databases.filter(db => db.status === "stopped")
+      case "all":
+        return databases
+      default:
+        return []
+    }
+  }
+
   const selectAllDatabases = () => {
-    setSelectedDatabases(new Set(databases.map(db => db.id)))
+    const visibleDatabases = getVisibleDatabases()
+    setSelectedDatabases(new Set(visibleDatabases.map(db => db.id)))
   }
 
   const clearSelection = () => {
     setSelectedDatabases(new Set())
+  }
+
+  const toggleSelectAll = () => {
+    const visibleDatabases = getVisibleDatabases()
+    const visibleIds = new Set(visibleDatabases.map(db => db.id))
+    const selectedVisibleCount = Array.from(selectedDatabases).filter(id => visibleIds.has(id)).length
+    
+    if (selectedVisibleCount === visibleDatabases.length && visibleDatabases.length > 0) {
+      // All visible are selected, deselect all
+      clearSelection()
+    } else {
+      // Not all visible are selected, select all visible
+      selectAllDatabases()
+    }
+  }
+
+  const getSelectAllButtonText = () => {
+    const visibleDatabases = getVisibleDatabases()
+    const visibleIds = new Set(visibleDatabases.map(db => db.id))
+    const selectedVisibleCount = Array.from(selectedDatabases).filter(id => visibleIds.has(id)).length
+    
+    if (visibleDatabases.length === 0) {
+      return "Select All" // Button should be disabled anyway, but fallback text
+    }
+    
+    return selectedVisibleCount === visibleDatabases.length ? "Deselect All" : "Select All"
   }
 
   const handleBulkStartSelected = () => {
@@ -395,9 +438,9 @@ export default function DatabaseManager() {
                       
                       console.log(`[Status Update] Database ${db.id}: ${db.status} → ${status.status}`)
                       
-                      // Update the database status immediately
+                      // Update the database status immediately, preserving PID if provided
                       setDatabases(prev => prev.map(d => 
-                        d.id === db.id ? { ...d, status: status.status } : d
+                        d.id === db.id ? { ...d, status: status.status, pid: status.pid || d.pid } : d
                       ))
                       
                       // Notifications are handled by the real-time listener to avoid duplicates
@@ -469,6 +512,7 @@ export default function DatabaseManager() {
                       if (data.error) {
                         toast.error("Database failed to start", {
                           description: `${db.name} failed to start: ${data.error}`,
+                          id: `db-failed-start-${db.id}-${now}`, // Unique ID to prevent duplicates
                           action: {
                             label: "Retry",
                             onClick: () => startDatabaseWithErrorHandling(data.id)
@@ -477,6 +521,7 @@ export default function DatabaseManager() {
                       } else {
                         toast.error("Database failed to start", {
                           description: `${db.name} could not start properly. Please check the logs.`,
+                          id: `db-failed-start-${db.id}-${now}`, // Unique ID to prevent duplicates
                           action: {
                             label: "Retry",
                             onClick: () => startDatabaseWithErrorHandling(data.id)
@@ -488,10 +533,12 @@ export default function DatabaseManager() {
                       if (data.error) {
                         toast.error("Database crashed", {
                           description: `${db.name} stopped due to an error: ${data.error}`,
+                          id: `db-crashed-${db.id}-${now}`, // Unique ID to prevent duplicates
                         })
                       } else {
                         toast.info("Database stopped", {
                           description: `${db.name} has stopped running.`,
+                          id: `db-stopped-${db.id}-${now}`, // Unique ID to prevent duplicates
                         })
                       }
                     }
@@ -538,6 +585,20 @@ export default function DatabaseManager() {
       }
     }
   }, []) // Empty dependency array is correct here
+
+  // Clear selections when switching tabs to avoid confusion
+  useEffect(() => {
+    if (showBulkActions) {
+      const visibleDatabases = getVisibleDatabases()
+      const visibleIds = new Set(visibleDatabases.map(db => db.id))
+      const selectedVisibleCount = Array.from(selectedDatabases).filter(id => visibleIds.has(id)).length
+      
+      // If we have selections but they're not visible in the current tab, clear them
+      if (selectedDatabases.size > 0 && selectedVisibleCount === 0) {
+        setSelectedDatabases(new Set())
+      }
+    }
+  }, [activeTab, showBulkActions, selectedDatabases])
 
   const handleAddDatabase = (database: DatabaseContainer) => {
     setDatabases([...databases, database])
@@ -771,6 +832,9 @@ export default function DatabaseManager() {
               return db
             })
           )
+          toast.success("Database stopped", {
+            description: `${targetDb.name} has been stopped successfully.`,
+          })
         } else {
           // If stop failed, revert to running status
           setDatabases((prev) =>
@@ -967,41 +1031,16 @@ export default function DatabaseManager() {
 
 
   const handleDebugDatabase = async (id: string) => {
-    try {
-      console.log(`[Debug] Checking database ${id}...`)
-      
-      // @ts-ignore
-      const verification = await window.electron?.verifyDatabaseInstance?.(id)
-      console.log(`[Debug] Database ${id} verification:`, verification)
-      
-      // Show simple results
-      const description = `Running: ${verification.isRunning}, PID: ${verification.pid || 'N/A'}, Killed: ${verification.killed}, Exit Code: ${verification.exitCode}`
-      
-      toast.info("Database debug info", {
-        description,
-        duration: 5000,
-      })
-      
-      // Log results
-      console.log(`[Debug] Database ${id}:`)
-      console.log(`[Debug] - Running: ${verification.isRunning}`)
-      console.log(`[Debug] - PID: ${verification.pid}`)
-      console.log(`[Debug] - Killed: ${verification.killed}`)
-      console.log(`[Debug] - Exit Code: ${verification.exitCode}`)
-      
-      if (verification.error) {
-        console.log(`[Debug] - Error: ${verification.error}`)
-      }
-    } catch (error) {
-      console.log(`[Debug] Error checking database ${id}:`, error)
-      toast.error("Debug failed", {
-        description: "Could not check database instance",
-      })
-    }
+    const db = databases.find((d) => d.id === id)
+    if (!db) return
+    
+    setSelectedDatabase(db)
+    setInstanceInfoOpen(true)
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <TooltipProvider>
+      <div className="min-h-screen bg-background">
       <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-sm border-b border-border/50 cursor-move" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
         <div className="container mx-auto px-6 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1029,15 +1068,6 @@ export default function DatabaseManager() {
                 >
                   <Square className="mr-1 h-3 w-3" />
                   Stop All
-                </Button>
-                <Button
-                  onClick={clearSelection}
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2 text-xs cursor-pointer"
-                  style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                >
-                  Clear
                 </Button>
               </div>
             )}
@@ -1078,11 +1108,24 @@ export default function DatabaseManager() {
               className="transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
               style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             >
-              <Cog className="h-4 w-4 hover:animate-spin transition-transform duration-200" />
+              <Cog className="h-4 w-4 settings-cog" />
             </Button>
           </div>
         </div>
       </div>
+
+      {/* Select Mode Indicator */}
+      {showBulkActions && (
+        <div className="bg-primary/5 border-b border-primary/10 py-1">
+          <div className="container mx-auto px-6 flex items-center justify-center gap-1.5">
+            <div className="w-1.5 h-1.5 bg-primary/70 rounded-full"></div>
+            <span className="text-xs text-primary/80">
+              Selection mode - Click cards to select
+            </span>
+            <div className="w-1.5 h-1.5 bg-primary/70 rounded-full"></div>
+          </div>
+        </div>
+      )}
 
       <div className="container mx-auto py-3 px-4">
         {databases.length === 0 ? (
@@ -1126,14 +1169,14 @@ export default function DatabaseManager() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    {showBulkActions && (
+                    {showBulkActions && getVisibleDatabases().length > 0 && (
                       <Button
-                        onClick={selectAllDatabases}
+                        onClick={toggleSelectAll}
                         size="sm"
                         variant="outline"
                         className="h-7 px-3 text-xs"
                       >
-                        Select All
+                        {getSelectAllButtonText()}
                       </Button>
                     )}
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -1152,7 +1195,7 @@ export default function DatabaseManager() {
                 key={db.id} 
                 className={`relative overflow-hidden border-dashed ${selectedDatabases.has(db.id) ? 'ring-2 ring-primary' : ''} ${
                   showBulkActions ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''
-                }`}
+                } ${showBulkActions && !selectedDatabases.has(db.id) ? 'opacity-60' : ''}`}
                 onClick={showBulkActions ? () => toggleDatabaseSelection(db.id) : undefined}
               >
                 <CardContent className="p-3">
@@ -1290,32 +1333,44 @@ export default function DatabaseManager() {
                         )}
                       </Button>
                       {db.status !== "stopped" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-50"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleRefreshStatus(db.id)
-                          }}
-                          title="Restart database"
-                        >
-                          <RotateCw className="h-3 w-3" />
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-50"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleRefreshStatus(db.id)
+                              }}
+                            >
+                              <RotateCw className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Restart database</p>
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                       {db.status === "running" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDebugDatabase(db.id)
-                          }}
-                          title="Debug database"
-                        >
-                          <Database className="h-3 w-3" />
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDebugDatabase(db.id)
+                              }}
+                            >
+                              <Database className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Instance information</p>
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                       <Button
                         variant="outline"
@@ -1346,14 +1401,14 @@ export default function DatabaseManager() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    {showBulkActions && (
+                    {showBulkActions && getVisibleDatabases().length > 0 && (
                       <Button
-                        onClick={selectAllDatabases}
+                        onClick={toggleSelectAll}
                         size="sm"
                         variant="outline"
                         className="h-7 px-3 text-xs"
                       >
-                        Select All
+                        {getSelectAllButtonText()}
                       </Button>
                     )}
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -1370,9 +1425,9 @@ export default function DatabaseManager() {
                   .map((db) => (
                     <Card 
                       key={db.id} 
-                      className={`relative overflow-hidden border-dashed opacity-60 ${selectedDatabases.has(db.id) ? 'ring-2 ring-primary' : ''} ${
+                      className={`relative overflow-hidden border-dashed ${selectedDatabases.has(db.id) ? 'ring-2 ring-primary' : ''} ${
                         showBulkActions ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''
-                      }`}
+                      } ${selectedDatabases.has(db.id) ? '' : 'opacity-60'}`}
                       onClick={showBulkActions ? () => toggleDatabaseSelection(db.id) : undefined}
                     >
                       <CardContent className="p-3">
@@ -1476,18 +1531,25 @@ export default function DatabaseManager() {
                                 </>
                               )}
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setSelectedDatabase(db)
-                                setSettingsDialogOpen(true)
-                              }}
-                            >
-                              <Settings2 className="h-3 w-3" />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedDatabase(db)
+                                    setSettingsDialogOpen(true)
+                                  }}
+                                >
+                                  <Settings2 className="h-3 w-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Database settings</p>
+                              </TooltipContent>
+                            </Tooltip>
                           </div>
                         )}
                       </CardContent>
@@ -1502,18 +1564,18 @@ export default function DatabaseManager() {
                   <div>
                     <h2 className="text-lg font-semibold">All Databases</h2>
                     <p className="text-sm text-muted-foreground">
-                      Complete list of all databases with inactive ones shown with reduced opacity
+                      Complete list of all databases
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    {showBulkActions && (
+                    {showBulkActions && getVisibleDatabases().length > 0 && (
                       <Button
-                        onClick={selectAllDatabases}
+                        onClick={toggleSelectAll}
                         size="sm"
                         variant="outline"
                         className="h-7 px-3 text-xs"
                       >
-                        Select All
+                        {getSelectAllButtonText()}
                       </Button>
                     )}
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -1529,7 +1591,9 @@ export default function DatabaseManager() {
                   <Card 
                     key={db.id} 
                     className={`relative overflow-hidden border-dashed transition-opacity ${
-                      db.status === "stopped" ? "opacity-60" : "opacity-100"
+                      showBulkActions 
+                        ? (selectedDatabases.has(db.id) ? 'opacity-100' : 'opacity-60')
+                        : (db.status === "stopped" ? "opacity-60" : "opacity-100")
                     } ${selectedDatabases.has(db.id) ? 'ring-2 ring-primary' : ''} ${
                       showBulkActions ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''
                     }`}
@@ -1741,6 +1805,16 @@ export default function DatabaseManager() {
       )}
 
       <AppSettingsDialog open={appSettingsOpen} onOpenChange={setAppSettingsOpen} />
-    </div>
+
+      {selectedDatabase && (
+        <InstanceInfoDialog
+          open={instanceInfoOpen}
+          onOpenChange={setInstanceInfoOpen}
+          databaseId={selectedDatabase.id}
+          databaseName={selectedDatabase.name}
+        />
+      )}
+      </div>
+    </TooltipProvider>
   )
 }

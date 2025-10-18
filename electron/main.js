@@ -457,6 +457,7 @@ async function startDatabaseProcessAsync(config) {
   let isStartupComplete = false
   let startupTimeout = null
   let readyEventSent = false // Flag to prevent duplicate events
+  let stoppedEventSent = false // Flag to prevent duplicate stopped events
   
   // For PostgreSQL, listen for "ready to accept connections" message
   if (type === "postgresql") {
@@ -564,7 +565,8 @@ async function startDatabaseProcessAsync(config) {
     }
     
     // Notify the renderer process that the database has stopped
-    if (mainWindow) {
+    if (mainWindow && !stoppedEventSent) {
+      stoppedEventSent = true
       mainWindow.webContents.send('database-status-changed', { id, status: 'stopped', error: err.message, pid: null })
     }
   })
@@ -592,7 +594,8 @@ async function startDatabaseProcessAsync(config) {
     }
     
     // Notify the renderer process that the database has stopped
-    if (mainWindow) {
+    if (mainWindow && !stoppedEventSent) {
+      stoppedEventSent = true
       mainWindow.webContents.send('database-status-changed', { id, status: 'stopped', exitCode: code, pid: null })
     }
   })
@@ -840,12 +843,12 @@ async function checkDatabaseStatus(id) {
     // 3. For PostgreSQL, check if startup is complete
     if (db.config.type === "postgresql" && db.isStartupComplete && !db.isStartupComplete()) {
       console.log(`[Status Check] Database ${id} is starting (PostgreSQL not ready yet)`)
-      return { status: "starting" }
+      return { status: "starting", pid: db.process.pid }
     }
 
     // 4. Simple process check - if it exists and isn't killed, it's running
     console.log(`[Status Check] Database ${id} is running (PID: ${db.process.pid})`)
-    return { status: "running" }
+    return { status: "running", pid: db.process.pid }
   } catch (error) {
     console.log(`[Status Check] Error checking ${id}: ${error.message}`)
     return { status: "stopped" }
@@ -904,6 +907,93 @@ ipcMain.handle("verify-database-instance", async (event, id) => {
     pid: db.process.pid,
     killed: db.process.killed,
     exitCode: db.process.exitCode
+  }
+})
+
+// Get system information for a database process
+ipcMain.handle("get-database-system-info", async (event, id) => {
+  try {
+    const db = runningDatabases.get(id)
+    if (!db) {
+      return { 
+        success: false, 
+        error: "Database not running",
+        pid: null,
+        memory: null,
+        cpu: null
+      }
+    }
+    
+    const pid = db.process.pid
+    
+    // Get memory usage using ps command
+    let memoryUsage = null
+    try {
+      const { execSync } = require('child_process')
+      const psOutput = execSync(`ps -o pid,rss,vsz,pcpu,pmem,time,command -p ${pid}`, { encoding: 'utf8' })
+      const lines = psOutput.trim().split('\n')
+      if (lines.length > 1) {
+        const data = lines[1].trim().split(/\s+/)
+        if (data.length >= 6) {
+          memoryUsage = {
+            rss: parseInt(data[1]) * 1024, // Convert KB to bytes
+            vsz: parseInt(data[2]) * 1024, // Convert KB to bytes
+            cpu: parseFloat(data[3]),
+            pmem: parseFloat(data[4]),
+            time: data[5]
+          }
+        }
+      }
+    } catch (psError) {
+      console.log(`[System Info] Could not get process info for PID ${pid}:`, psError.message)
+    }
+    
+    // Get system memory info
+    let systemMemory = null
+    try {
+      const { execSync } = require('child_process')
+      const vmStatOutput = execSync('vm_stat', { encoding: 'utf8' })
+      const lines = vmStatOutput.split('\n')
+      const memoryInfo = {}
+      
+      lines.forEach(line => {
+        const match = line.match(/(\w+):\s+(\d+)/)
+        if (match) {
+          memoryInfo[match[1]] = parseInt(match[2]) * 4096 // Convert pages to bytes
+        }
+      })
+      
+      if (memoryInfo.free !== undefined && memoryInfo.active !== undefined) {
+        systemMemory = {
+          free: memoryInfo.free,
+          active: memoryInfo.active,
+          inactive: memoryInfo.inactive || 0,
+          wired: memoryInfo.wired || 0,
+          total: (memoryInfo.free + memoryInfo.active + (memoryInfo.inactive || 0) + (memoryInfo.wired || 0))
+        }
+      }
+    } catch (vmStatError) {
+      console.log(`[System Info] Could not get system memory info:`, vmStatError.message)
+    }
+    
+    return {
+      success: true,
+      pid: pid,
+      memory: memoryUsage,
+      systemMemory: systemMemory,
+      isRunning: !db.process.killed && db.process.exitCode === null,
+      killed: db.process.killed,
+      exitCode: db.process.exitCode
+    }
+  } catch (error) {
+    console.error(`[System Info] Error getting system info for database ${id}:`, error)
+    return { 
+      success: false, 
+      error: error.message,
+      pid: null,
+      memory: null,
+      cpu: null
+    }
   }
 })
 

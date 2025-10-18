@@ -29,11 +29,11 @@
   /* Added success color for start/running states */
   --success: oklch(0.55 0.15 145);
   --success-foreground: oklch(0.985 0 0);
-  --chart-1: oklch(0.4 0 0);
-  --chart-2: oklch(0.5 0 0);
-  --chart-3: oklch(0.6 0 0);
-  --chart-4: oklch(0.7 0 0);
-  --chart-5: oklch(0.8 0 0);
+  --chart-1: oklch(0.5 0.25 240);
+  --chart-2: oklch(0.5 0.25 160);
+  --chart-3: oklch(0.5 0.25 40);
+  --chart-4: oklch(0.5 0.25 290);
+  --chart-5: oklch(0.5 0.25 320);
   --radius: 0.5rem;
 }
 
@@ -98,11 +98,11 @@
   /* Added success color for dark mode */
   --success: oklch(0.6 0.15 145);
   --success-foreground: oklch(0.985 0 0);
-  --chart-1: oklch(0.6 0 0);
-  --chart-2: oklch(0.65 0 0);
-  --chart-3: oklch(0.7 0 0);
-  --chart-4: oklch(0.75 0 0);
-  --chart-5: oklch(0.8 0 0);
+  --chart-1: oklch(0.7 0.25 240);
+  --chart-2: oklch(0.7 0.25 160);
+  --chart-3: oklch(0.7 0.25 40);
+  --chart-4: oklch(0.7 0.25 290);
+  --chart-5: oklch(0.7 0.25 320);
 }
 
 /* Dark mode color schemes */
@@ -194,4 +194,71 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Custom animations */
+@keyframes spin-360 {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.settings-cog {
+  transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.settings-cog:hover {
+  animation: spin-360 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Chart styling for better visibility */
+[data-chart] .recharts-cartesian-axis-tick-text {
+  fill: hsl(var(--foreground)) !important;
+  font-size: 12px;
+}
+
+[data-chart] .recharts-cartesian-grid-line {
+  stroke: hsl(var(--muted)) !important;
+  stroke-opacity: 0.3;
+}
+
+[data-chart] .recharts-tooltip-wrapper {
+  outline: none;
+}
+
+[data-chart] .recharts-area {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+[data-chart] .recharts-line {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+/* Enhanced tooltip styling */
+[data-chart] .recharts-tooltip-wrapper {
+  outline: none;
+  z-index: 1000;
+}
+
+[data-chart] .recharts-tooltip-content {
+  background: hsl(var(--popover)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 0.5rem !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+  color: hsl(var(--popover-foreground)) !important;
+  font-size: 0.875rem !important;
+  padding: 0.625rem !important;
+}
+
+[data-chart] .recharts-tooltip-content .recharts-tooltip-label {
+  color: hsl(var(--popover-foreground)) !important;
+  font-weight: 500 !important;
+  margin-bottom: 0.25rem !important;
+}
+
+[data-chart] .recharts-tooltip-content .recharts-tooltip-item {
+  color: hsl(var(--popover-foreground)) !important;
 }
