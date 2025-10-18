@@ -151,7 +151,7 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
     if (activeTab === "emoji") {
       onSave(selectedIcon)
     } else if (activeTab === "image" && imageUrl) {
-      // Check if it's a data URL (uploaded file) or external URL
+      // Check if it's a data URL (uploaded file), file URL (saved image), or external URL
       if (imageUrl.startsWith("data:")) {
         // It's a data URL from file upload, save it locally
         setIsSaving(true)
@@ -169,6 +169,9 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
         } finally {
           setIsSaving(false)
         }
+      } else if (imageUrl.startsWith("file://")) {
+        // It's a file URL from a previously saved image, use it directly
+        onSave(imageUrl)
       } else {
         // It's an external URL, save it locally
         setIsSaving(true)
