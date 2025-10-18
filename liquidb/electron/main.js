@@ -53,6 +53,24 @@ function resetDatabaseStatuses() {
 async function startDatabaseProcess(config) {
   const { id, type, version, port, username, password } = config
   
+  // Return immediately to prevent UI freezing
+  console.log(`[Database] Starting ${type} database on port ${port}...`)
+  
+  // Use process.nextTick to defer the heavy initialization work to the next event loop
+  process.nextTick(async () => {
+    try {
+      await startDatabaseProcessAsync(config)
+    } catch (error) {
+      console.error(`[Database] Failed to start ${type} database:`, error)
+    }
+  })
+  
+  return { success: true }
+}
+
+async function startDatabaseProcessAsync(config) {
+  const { id, type, version, port, username, password } = config
+  
   let cmd, args, env = { 
     ...process.env,
     PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
@@ -60,19 +78,22 @@ async function startDatabaseProcess(config) {
   }
 
   if (type === "postgresql") {
-    // Find PostgreSQL binary path for the specific version
-    const { execSync } = require("child_process")
+    // Find PostgreSQL binary path for the specific version (async)
+    const { exec } = require("child_process")
+    const { promisify } = require("util")
+    const execAsync = promisify(exec)
+    
     let postgresPath, initdbPath
     
     // Try to find the specific version first
     try {
       // Look for postgresql@16 specifically
-      const versionPath = execSync("find /opt/homebrew -path '*/postgresql@16/*' -name postgres -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
-      const versionInitdbPath = execSync("find /opt/homebrew -path '*/postgresql@16/*' -name initdb -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
+      const { stdout: versionPath } = await execAsync("find /opt/homebrew -path '*/postgresql@16/*' -name postgres -type f 2>/dev/null | head -1")
+      const { stdout: versionInitdbPath } = await execAsync("find /opt/homebrew -path '*/postgresql@16/*' -name initdb -type f 2>/dev/null | head -1")
       
-      if (versionPath && versionInitdbPath) {
-        postgresPath = versionPath
-        initdbPath = versionInitdbPath
+      if (versionPath.trim() && versionInitdbPath.trim()) {
+        postgresPath = versionPath.trim()
+        initdbPath = versionInitdbPath.trim()
         console.log(`[PostgreSQL] Found PostgreSQL 16 at ${postgresPath}`)
       } else {
         throw new Error("PostgreSQL 16 not found")
@@ -80,13 +101,17 @@ async function startDatabaseProcess(config) {
     } catch (e) {
       // Fallback to any PostgreSQL version
       try {
-        postgresPath = execSync("which postgres", { encoding: "utf8" }).trim()
-        initdbPath = execSync("which initdb", { encoding: "utf8" }).trim()
+        const { stdout: postgresOut } = await execAsync("which postgres")
+        const { stdout: initdbOut } = await execAsync("which initdb")
+        postgresPath = postgresOut.trim()
+        initdbPath = initdbOut.trim()
       } catch (e2) {
         // Try Homebrew paths
         try {
-          postgresPath = execSync("find /opt/homebrew -name postgres -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
-          initdbPath = execSync("find /opt/homebrew -name initdb -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
+          const { stdout: postgresOut } = await execAsync("find /opt/homebrew -name postgres -type f 2>/dev/null | head -1")
+          const { stdout: initdbOut } = await execAsync("find /opt/homebrew -name initdb -type f 2>/dev/null | head -1")
+          postgresPath = postgresOut.trim()
+          initdbPath = initdbOut.trim()
         } catch (e3) {
           console.error("PostgreSQL not found in PATH or Homebrew")
           throw new Error("PostgreSQL not found. Please ensure it's installed via Homebrew.")
@@ -97,22 +122,44 @@ async function startDatabaseProcess(config) {
     cmd = postgresPath
     args = ["-D", `/tmp/liquidb-${id}`, "-p", port.toString(), "-h", "localhost"]
     
-    // Create data directory and initialize
-    const { mkdirSync } = require("fs")
-    mkdirSync(`/tmp/liquidb-${id}`, { recursive: true })
+    // Create data directory and initialize (async to prevent blocking)
+    const fs = require("fs").promises
+    const fsSync = require("fs")
+    
+    try {
+      await fs.mkdir(`/tmp/liquidb-${id}`, { recursive: true })
+    } catch (e) {
+      // Directory might already exist
+    }
     
     // Check if database directory already exists and is initialized
-    const fs = require("fs")
     const pgVersionPath = `/tmp/liquidb-${id}/PG_VERSION`
     
-    if (!fs.existsSync(pgVersionPath)) {
+    if (!fsSync.existsSync(pgVersionPath)) {
       try {
         console.log(`[PostgreSQL] Initializing database with ${initdbPath}`)
-        execSync(`${initdbPath} -D /tmp/liquidb-${id} -U postgres`, { 
-          stdio: "pipe",
-          env: { ...env, LC_ALL: "C" }
+        // Use spawn instead of execSync to prevent blocking
+        const { spawn } = require("child_process")
+        const initProcess = spawn(initdbPath, ["-D", `/tmp/liquidb-${id}`, "-U", "postgres"], {
+          env: { ...env, LC_ALL: "C" },
+          stdio: "pipe"
         })
-        console.log(`[PostgreSQL] Database initialized successfully`)
+        
+        await new Promise((resolve, reject) => {
+          initProcess.on("exit", (code) => {
+            if (code === 0) {
+              console.log(`[PostgreSQL] Database initialized successfully`)
+              resolve()
+            } else {
+              console.log("PostgreSQL init failed, continuing without initialization")
+              resolve() // Don't reject, just continue
+            }
+          })
+          initProcess.on("error", (err) => {
+            console.log("PostgreSQL init error:", err.message)
+            resolve() // Don't reject, just continue
+          })
+        })
       } catch (e) {
         console.log("PostgreSQL init failed:", e.message)
         console.log(`[PostgreSQL] Continuing without initialization - database may still work`)
@@ -121,14 +168,15 @@ async function startDatabaseProcess(config) {
       console.log(`[PostgreSQL] Database already initialized, skipping initdb`)
     }
     
-    // Set up authentication
+    // Set up authentication (async)
     const pgHbaPath = `/tmp/liquidb-${id}/pg_hba.conf`
-    if (fs.existsSync(pgHbaPath)) {
+    if (fsSync.existsSync(pgHbaPath)) {
       try {
-        let content = fs.readFileSync(pgHbaPath, "utf8")
-        content = content.replace(/^local\s+all\s+all\s+peer$/m, "local   all             all                                     trust")
-        content = content.replace(/^host\s+all\s+all\s+127\.0\.0\.1\/32\s+md5$/m, "host    all             all             127.0.0.1/32            trust")
-        fs.writeFileSync(pgHbaPath, content)
+        const content = await fs.readFile(pgHbaPath, "utf8")
+        const updatedContent = content
+          .replace(/^local\s+all\s+all\s+peer$/m, "local   all             all                                     trust")
+          .replace(/^host\s+all\s+all\s+127\.0\.0\.1\/32\s+md5$/m, "host    all             all             127.0.0.1/32            trust")
+        await fs.writeFile(pgHbaPath, updatedContent)
         console.log(`[PostgreSQL] Updated pg_hba.conf for trust authentication`)
       } catch (e) {
         console.log(`[PostgreSQL] Could not update pg_hba.conf:`, e.message)
@@ -152,13 +200,24 @@ async function startDatabaseProcess(config) {
     cmd = mysqldPath
     args = ["--port", port.toString(), "--datadir", `/tmp/liquidb-${id}`, "--user=mysql", "--skip-grant-tables", "--skip-networking=false"]
     
-    // Create data directory
-    const { mkdirSync } = require("fs")
-    mkdirSync(`/tmp/liquidb-${id}`, { recursive: true })
+    // Create data directory (async)
+    const fs = require("fs").promises
+    try {
+      await fs.mkdir(`/tmp/liquidb-${id}`, { recursive: true })
+    } catch (e) {
+      // Directory might already exist
+    }
     
     try {
       console.log(`[MySQL] Initializing database with ${mysqldPath}`)
-      execSync(`${mysqldPath} --initialize-insecure --datadir=/tmp/liquidb-${id} --user=mysql`, { stdio: "ignore" })
+      // Use spawn instead of execSync to prevent blocking
+      const { spawn } = require("child_process")
+      const initProcess = spawn(mysqldPath, ["--initialize-insecure", "--datadir=/tmp/liquidb-${id}", "--user=mysql"], { stdio: "ignore" })
+      
+      await new Promise((resolve) => {
+        initProcess.on("exit", () => resolve())
+        initProcess.on("error", () => resolve())
+      })
     } catch (e) {
       console.log("MySQL init:", e.message)
     }
@@ -180,9 +239,13 @@ async function startDatabaseProcess(config) {
     cmd = mongodPath
     args = ["--port", port.toString(), "--dbpath", `/tmp/liquidb-${id}`, "--bind_ip", "127.0.0.1"]
     
-    // Create data directory
-    const { mkdirSync } = require("fs")
-    mkdirSync(`/tmp/liquidb-${id}`, { recursive: true })
+    // Create data directory (async)
+    const fs = require("fs").promises
+    try {
+      await fs.mkdir(`/tmp/liquidb-${id}`, { recursive: true })
+    } catch (e) {
+      // Directory might already exist
+    }
   } else if (type === "redis") {
     // Find Redis binary path
     const { execSync } = require("child_process")
@@ -214,16 +277,8 @@ async function startDatabaseProcess(config) {
     runningDatabases.delete(id)
   })
 
-  // Simple startup - just wait for the process to start
-  console.log(`[Database] Starting ${type} database on port ${port}...`)
-  
-  // Wait for the process to start
-  await new Promise(resolve => setTimeout(resolve, 3000))
-  
-  console.log(`[Database] ${type} database process started on port ${port}`)
-
   runningDatabases.set(id, { process: child, config })
-  return { success: true }
+  console.log(`[Database] ${type} database process started on port ${port}`)
 }
 
 function createWindow() {

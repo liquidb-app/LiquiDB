@@ -134,20 +134,18 @@ export default function DatabaseManager() {
         // @ts-ignore
         const result = await window.electron?.startDatabase?.(targetDb)
         if (result?.success) {
-          // Wait for database to start, then set to running
-          setTimeout(() => {
-            setDatabases((prev) =>
-              prev.map((db) => {
-                if (db.id === id) {
-                  toast.success("Database started", {
-                    description: `${db.name} is now running.`,
-                  })
-                  return { ...db, status: "running" as const, lastStarted: Date.now() }
-                }
-                return db
-              })
-            )
-          }, 3000)
+          // Immediately set to running since the process is starting
+          setDatabases((prev) =>
+            prev.map((db) => {
+              if (db.id === id) {
+                toast.success("Database started", {
+                  description: `${db.name} is now running.`,
+                })
+                return { ...db, status: "running" as const, lastStarted: Date.now() }
+              }
+              return db
+            })
+          )
         } else {
           setDatabases((prev) =>
             prev.map((db) =>
