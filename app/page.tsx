@@ -837,22 +837,24 @@ export default function DatabaseManager() {
                         <RotateCw className="h-3 w-3" />
                       </Button>
                     )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
-                      onClick={() => handleDebugDatabase(db.id)}
-                      title="Debug database"
-                    >
-                      <Database className="h-3 w-3" />
-                    </Button>
+                    {db.status === "running" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
+                        onClick={() => handleDebugDatabase(db.id)}
+                        title="Debug database"
+                      >
+                        <Database className="h-3 w-3" />
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
                       className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
                       onClick={() => handleSettings(db)}
                     >
-                      <SettingsIcon className="h-3 w-3" />
+                      <Settings2 className="h-3 w-3" />
                     </Button>
                   </div>
                 </CardContent>
@@ -953,22 +955,13 @@ export default function DatabaseManager() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-6 w-6 p-0 transition-all duration-200 hover:scale-105 active:scale-95"
+                            className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
                             onClick={() => {
                               setSelectedDatabase(db)
                               setSettingsDialogOpen(true)
                             }}
                           >
                             <Settings2 className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 w-6 p-0 transition-all duration-200 hover:scale-105 active:scale-95"
-                            onClick={() => handleDebugDatabase(db.id)}
-                            title="Debug database status"
-                          >
-                            <Database className="h-3 w-3" />
                           </Button>
                         </div>
                       </CardContent>
@@ -1121,22 +1114,24 @@ export default function DatabaseManager() {
                             <RotateCw className="h-3 w-3" />
                           </Button>
                         )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
-                          onClick={() => handleDebugDatabase(db.id)}
-                          title="Debug database"
-                        >
-                          <Database className="h-3 w-3" />
-                        </Button>
+                        {db.status === "running" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
+                            onClick={() => handleDebugDatabase(db.id)}
+                            title="Debug database"
+                          >
+                            <Database className="h-3 w-3" />
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
                           className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
                           onClick={() => handleSettings(db)}
                         >
-                          <SettingsIcon className="h-3 w-3" />
+                          <Settings2 className="h-3 w-3" />
                         </Button>
                       </div>
                     </CardContent>
