@@ -11,7 +11,7 @@ import { Monitor, Moon, Sun, Github, ExternalLink, Globe, Ban, Trash2, AlertTria
 import { Button } from "@/components/ui/button"
 import { BannedPortsDialog } from "./banned-ports-dialog"
 import { toast } from "sonner"
-import { notifications } from "@/lib/notifications"
+import { notifications, notifySuccess, notifyError, notifyInfo, notifyWarning } from "@/lib/notifications"
 
 interface AppSettingsDialogProps {
   open: boolean
@@ -136,11 +136,11 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
         const result = await window.electron?.enableAutoLaunch?.()
         if (result?.success) {
           setAutoLaunchEnabled(true)
-          toast.success("Auto-launch enabled", {
+          notifySuccess("Auto-launch enabled", {
             description: "LiquiDB will now start automatically when you log in.",
           })
         } else {
-          toast.error("Failed to enable auto-launch", {
+          notifyError("Failed to enable auto-launch", {
             description: result?.error || "Please check system permissions.",
           })
         }
@@ -149,17 +149,17 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
         const result = await window.electron?.disableAutoLaunch?.()
         if (result?.success) {
           setAutoLaunchEnabled(false)
-          toast.success("Auto-launch disabled", {
+          notifySuccess("Auto-launch disabled", {
             description: "LiquiDB will no longer start automatically.",
           })
         } else {
-          toast.error("Failed to disable auto-launch", {
+          notifyError("Failed to disable auto-launch", {
             description: result?.error || "Please check system permissions.",
           })
         }
       }
     } catch (error) {
-      toast.error("Failed to update auto-launch setting", {
+      notifyError("Failed to update auto-launch setting", {
         description: "Could not connect to system service.",
       })
     } finally {
@@ -266,7 +266,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
       // @ts-ignore
       const result = await window.electron?.deleteAllDatabases?.()
       if (result?.success) {
-        toast.success("All databases deleted", {
+        notifySuccess("All databases deleted", {
           description: "All databases and their data have been permanently removed.",
         })
         setDeleteConfirmOpen(false)
@@ -274,12 +274,12 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
         // Reload the page to refresh the database list
         window.location.reload()
       } else {
-        toast.error("Failed to delete databases", {
+        notifyError("Failed to delete databases", {
           description: result?.error || "Unknown error occurred",
         })
       }
     } catch (error) {
-      toast.error("Failed to delete databases", {
+      notifyError("Failed to delete databases", {
         description: "Could not connect to database service",
       })
     } finally {

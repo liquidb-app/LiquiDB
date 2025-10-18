@@ -747,7 +747,7 @@ export default function DatabaseManager() {
     setDatabases([...databases, database])
     setAddDialogOpen(false)
     setActiveTab("all") // Switch to All Databases tab to show the new database
-    toast.success("Database added", {
+    notifySuccess("Database added", {
       description: `${database.name} has been added successfully.`,
     })
   }
@@ -758,7 +758,7 @@ export default function DatabaseManager() {
 
     // Check if database is already starting
     if (targetDb.status === "starting") {
-      toast.warning("Database already starting", {
+      notifyWarning("Database already starting", {
         description: `${targetDb.name} is already in the process of starting.`,
       })
       return
@@ -775,7 +775,7 @@ export default function DatabaseManager() {
       const conflictType = portConflict.status === "starting" ? "starting up" : "running"
       const suggestedPort = findFreePort(targetDb.port)
       
-      toast.warning("Port Conflict Detected", {
+      notifyWarning("Port Conflict Detected", {
         description: `Port ${targetDb.port} is already in use by "${portConflict.name}" (${conflictType}). Database will start anyway, but consider using port ${suggestedPort} instead.`,
         action: {
           label: "Use Suggested Port",
@@ -786,14 +786,14 @@ export default function DatabaseManager() {
               // @ts-ignore
               await window.electron?.saveDatabase?.(updatedDb)
               setDatabases(prev => prev.map(db => db.id === id ? updatedDb : db))
-              toast.success("Port Updated", {
+              notifySuccess("Port Updated", {
                 description: `Database port changed to ${suggestedPort}`,
               })
               // Start the database with the new port
               await startDatabaseWithErrorHandling(id)
             } catch (error) {
               console.log(`[Port Update] Error updating database port:`, error)
-              toast.error("Failed to update port", {
+              notifyError("Failed to update port", {
                 description: "Could not change the database port",
               })
             }
@@ -812,7 +812,7 @@ export default function DatabaseManager() {
       )
     )
 
-    toast.info("Starting database", {
+    notifyInfo("Starting database", {
       description: `${targetDb.name} is starting up...`,
       duration: 3000,
     })
@@ -832,7 +832,7 @@ export default function DatabaseManager() {
             prev.map((db) => {
               if (db.id === id && db.status === "starting") {
                 console.log(`[Database] ${targetDb.name} startup timeout after 60 seconds`)
-                toast.error("Database start timeout", {
+                notifyError("Database start timeout", {
                   description: `${targetDb.name} took too long to start. Please check the logs.`,
                   action: {
                     label: "Retry",
@@ -868,7 +868,7 @@ export default function DatabaseManager() {
           errorDescription = `${targetDb.name}: Database software not found. Please install ${targetDb.type} first.`
         }
         
-        toast.error("Failed to start database", {
+        notifyError("Failed to start database", {
           description: errorDescription,
           action: {
             label: "Retry",
@@ -896,7 +896,7 @@ export default function DatabaseManager() {
         }
       }
       
-      toast.error("Failed to start database", {
+      notifyError("Failed to start database", {
         description: `${targetDb.name}: ${errorDescription}`,
         action: {
           label: "Retry",
@@ -921,7 +921,7 @@ export default function DatabaseManager() {
         const conflictType = conflictingDb.status === "starting" ? "starting up" : "running"
         const suggestedPort = findFreePort(targetDb.port)
         
-        toast.warning("Port Conflict Detected", {
+        notifyWarning("Port Conflict Detected", {
           description: `Port ${targetDb.port} is already in use by "${conflictingDb.name}" (${conflictType}). Database will start anyway, but consider using port ${suggestedPort} instead.`,
           action: {
             label: "Use Suggested Port",
@@ -932,14 +932,14 @@ export default function DatabaseManager() {
                 // @ts-ignore
                 await window.electron?.saveDatabase?.(updatedDb)
                 setDatabases(prev => prev.map(db => db.id === id ? updatedDb : db))
-                toast.success("Port Updated", {
+                notifySuccess("Port Updated", {
                   description: `Database port changed to ${suggestedPort}`,
                 })
                 // Start the database with the new port
                 await startDatabaseWithErrorHandling(id)
               } catch (error) {
                 console.log(`[Port Update] Error updating database port:`, error)
-                toast.error("Failed to update port", {
+                notifyError("Failed to update port", {
                   description: "Could not change the database port",
                 })
               }
@@ -985,7 +985,7 @@ export default function DatabaseManager() {
               db.id === id ? { ...db, status: "running" as const } : db
             )
           )
-          toast.error("Failed to stop database", {
+          notifyError("Failed to stop database", {
             description: result?.error || "Unknown error occurred",
           })
         }
@@ -996,7 +996,7 @@ export default function DatabaseManager() {
             db.id === id ? { ...db, status: "running" as const } : db
           )
         )
-        toast.error("Failed to stop database", {
+        notifyError("Failed to stop database", {
           description: "Could not connect to database service",
         })
       }
@@ -1007,7 +1007,7 @@ export default function DatabaseManager() {
     const db = databases.find((d) => d.id === id)
     if (!db || db.status !== "running") return
 
-    toast.info("Restarting database", {
+    notifyInfo("Restarting database", {
       description: `${db.name} is restarting...`,
     })
 
@@ -1023,13 +1023,13 @@ export default function DatabaseManager() {
         // Start the database again - this will trigger the real-time listener notifications
         await startDatabaseWithErrorHandling(id)
       } else {
-        toast.error("Failed to restart database", {
+        notifyError("Failed to restart database", {
           description: "Could not stop the database for restart",
         })
       }
     } catch (error) {
       console.log(`[Restart] Error restarting database ${id}:`, error)
-      toast.error("Failed to restart database", {
+      notifyError("Failed to restart database", {
         description: "Could not restart the database",
       })
     }
@@ -1045,7 +1045,7 @@ export default function DatabaseManager() {
     setDatabases(databases.filter((d) => d.id !== id))
     setSelectedDatabase(null)
     setSettingsDialogOpen(false)
-    toast.error("Database removed", {
+    notifyError("Database removed", {
       description: `${db?.name} has been removed.`,
     })
   }
@@ -1078,7 +1078,7 @@ export default function DatabaseManager() {
     if (portChanged && wasRunning) {
       setSettingsDialogOpen(false)
       
-      toast.info("Port changed - restarting database", {
+      notifyInfo("Port changed - restarting database", {
         description: `${updatedDatabase.name} is restarting with the new port ${updatedDatabase.port}.`,
       })
 
@@ -1099,19 +1099,19 @@ export default function DatabaseManager() {
           // Start the database with the new port
           await startDatabaseWithErrorHandling(updatedDatabase.id)
         } else {
-          toast.error("Failed to restart database", {
+          notifyError("Failed to restart database", {
             description: "Could not stop the database for port change",
           })
         }
       } catch (error) {
         console.log(`[Port Change] Error restarting database ${updatedDatabase.id}:`, error)
-        toast.error("Failed to restart database", {
+        notifyError("Failed to restart database", {
           description: "Could not restart the database with new port",
         })
       }
     } else {
       setSettingsDialogOpen(false)
-      toast.success("Settings updated", {
+      notifySuccess("Settings updated", {
         description: `${updatedDatabase.name} has been updated.`,
       })
     }
@@ -1125,7 +1125,7 @@ export default function DatabaseManager() {
   const handleCopyContainerId = (containerId: string, dbId: string) => {
     navigator.clipboard.writeText(containerId)
     setCopiedId(dbId)
-    toast.success("Copied to clipboard", {
+    notifySuccess("Copied to clipboard", {
       description: "Container ID copied successfully.",
     })
     setTimeout(() => setCopiedId(null), 2000)
@@ -1143,7 +1143,7 @@ export default function DatabaseManager() {
 
     // If database is running or starting, restart it
     if (db.status === "running" || db.status === "starting") {
-      toast.info("Restarting database", {
+      notifyInfo("Restarting database", {
         description: `${db.name} is restarting...`,
       })
 
@@ -1159,13 +1159,13 @@ export default function DatabaseManager() {
           // Start the database again - this will trigger the real-time listener notifications
           await startDatabaseWithErrorHandling(id)
         } else {
-          toast.error("Failed to restart database", {
+          notifyError("Failed to restart database", {
             description: "Could not stop the database for restart",
           })
         }
       } catch (error) {
         console.log(`[Restart] Error restarting database ${id}:`, error)
-        toast.error("Failed to restart database", {
+        notifyError("Failed to restart database", {
           description: "Could not restart the database",
         })
       }
