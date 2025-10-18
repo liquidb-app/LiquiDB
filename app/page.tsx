@@ -46,8 +46,51 @@ export default function DatabaseManager() {
     return port
   }
 
+  const checkDatabasesFileExists = async () => {
+    try {
+      // @ts-ignore
+      const fileCheck = await window.electron?.checkDatabasesFile?.()
+      if (fileCheck && !fileCheck.exists) {
+        console.log("[Storage] databases.json file missing during runtime, clearing dashboard")
+        setDatabases([])
+        
+        // Recreate the file
+        // @ts-ignore
+        const recreateResult = await window.electron?.recreateDatabasesFile?.()
+        if (recreateResult?.success) {
+          console.log("[Storage] Recreated databases.json file")
+        }
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error("[Storage] Error checking databases file:", error)
+      return false
+    }
+  }
+
   useEffect(() => {
     const load = async () => {
+      // Check if databases.json file exists
+      try {
+        // @ts-ignore
+        const fileCheck = await window.electron?.checkDatabasesFile?.()
+        if (fileCheck && !fileCheck.exists) {
+          console.log("[Storage] databases.json file missing, clearing dashboard")
+          setDatabases([])
+          
+          // Recreate the file
+          // @ts-ignore
+          const recreateResult = await window.electron?.recreateDatabasesFile?.()
+          if (recreateResult?.success) {
+            console.log("[Storage] Recreated databases.json file")
+          }
+          return
+        }
+      } catch (error) {
+        console.error("[Storage] Error checking databases file:", error)
+      }
+      
       // @ts-ignore
       if (window.electron?.getDatabases) {
         // @ts-ignore
@@ -98,6 +141,9 @@ export default function DatabaseManager() {
         const startStatusMonitoring = () => {
           const statusCheckInterval = setInterval(async () => {
             try {
+              // Check if databases.json file still exists
+              await checkDatabasesFileExists()
+              
               // Get current database list
               const currentDatabases = databases
               const databasesToCheck = currentDatabases.filter(db => 
@@ -695,13 +741,14 @@ export default function DatabaseManager() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="sticky top-0 z-10">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-end">
+      <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-sm border-b border-border/50 cursor-move" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+        <div className="container mx-auto px-6 py-2 flex items-center justify-end">
           <div className="flex items-center gap-2">
             <Button
               onClick={() => setAddDialogOpen(true)}
               size="sm"
-              className="transition-all duration-200 hover:scale-105 active:scale-95"
+              className="transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             >
               <Plus className="mr-1.5 h-4 w-4" />
               Add Database
@@ -710,7 +757,8 @@ export default function DatabaseManager() {
               onClick={() => setAppSettingsOpen(true)}
               variant="ghost"
               size="sm"
-              className="transition-all duration-200 hover:scale-105 active:scale-95"
+              className="transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             >
               <Cog className="h-4 w-4 hover:animate-spin transition-transform duration-200" />
             </Button>

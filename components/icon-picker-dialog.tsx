@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -71,12 +71,60 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
   const [selectedIcon, setSelectedIcon] = useState(currentIcon)
   const [imageUrl, setImageUrl] = useState("")
   const [activeTab, setActiveTab] = useState<"emoji" | "image">("emoji")
+  const [savedImages, setSavedImages] = useState<Array<{fileName: string, path: string, created: Date}>>([])
+  const [isSaving, setIsSaving] = useState(false)
 
-  const handleSave = () => {
+  // Load saved images when dialog opens
+  useEffect(() => {
+    if (open && window.electron?.getSavedImages) {
+      window.electron.getSavedImages().then((result) => {
+        if (result.success) {
+          setSavedImages(result.images)
+        }
+      })
+    }
+  }, [open])
+
+  const handleSave = async () => {
     if (activeTab === "emoji") {
       onSave(selectedIcon)
     } else if (activeTab === "image" && imageUrl) {
-      onSave(imageUrl)
+      // Check if it's a data URL (uploaded file) or external URL
+      if (imageUrl.startsWith("data:")) {
+        // It's a data URL from file upload, save it locally
+        setIsSaving(true)
+        try {
+          const result = await window.electron?.saveCustomImage({ dataUrl: imageUrl })
+          if (result?.success) {
+            onSave(result.imagePath)
+          } else {
+            console.error("Failed to save image:", result?.error)
+            onSave(imageUrl) // Fallback to original data URL
+          }
+        } catch (error) {
+          console.error("Error saving image:", error)
+          onSave(imageUrl) // Fallback to original data URL
+        } finally {
+          setIsSaving(false)
+        }
+      } else {
+        // It's an external URL, save it locally
+        setIsSaving(true)
+        try {
+          const result = await window.electron?.saveCustomImage({ imageUrl })
+          if (result?.success) {
+            onSave(result.imagePath)
+          } else {
+            console.error("Failed to save image:", result?.error)
+            onSave(imageUrl) // Fallback to original URL
+          }
+        } catch (error) {
+          console.error("Error saving image:", error)
+          onSave(imageUrl) // Fallback to original URL
+        } finally {
+          setIsSaving(false)
+        }
+      }
     }
     onOpenChange(false)
   }
@@ -186,6 +234,37 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
                     <span className="text-sm text-muted-foreground">Image preview</span>
                   </div>
                 )}
+
+                {savedImages.length > 0 && (
+                  <>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">Saved Images</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2 max-h-32 overflow-y-auto">
+                      {savedImages.map((image) => (
+                        <button
+                          key={image.fileName}
+                          onClick={() => setImageUrl(image.path)}
+                          className={`w-12 h-12 flex items-center justify-center border-2 rounded-lg hover:bg-accent transition-all duration-200 hover:scale-110 ${
+                            imageUrl === image.path ? "border-primary bg-accent" : "border-border"
+                          }`}
+                        >
+                          <img
+                            src={image.path}
+                            alt={image.fileName}
+                            className="w-10 h-10 object-cover rounded"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </TabsContent>
           </Tabs>
@@ -195,8 +274,8 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
           <Button variant="outline" onClick={() => onOpenChange(false)} size="sm">
             Cancel
           </Button>
-          <Button onClick={handleSave} size="sm" disabled={!selectedIcon && !imageUrl}>
-            Save Icon
+          <Button onClick={handleSave} size="sm" disabled={(!selectedIcon && !imageUrl) || isSaving}>
+            {isSaving ? "Saving..." : "Save Icon"}
           </Button>
         </DialogFooter>
       </DialogContent>

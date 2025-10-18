@@ -26,27 +26,59 @@ interface AddDatabaseDialogProps {
 const DATABASE_CONFIGS = {
   postgresql: {
     defaultPort: 5432,
-    versions: ["16", "15", "14", "13"],
+    brewPackage: "postgresql",
     icon: "🐘",
   },
   mysql: {
     defaultPort: 3306,
-    versions: ["8.0", "5.7", "5.6"],
+    brewPackage: "mysql",
     icon: "🐬",
   },
   mongodb: {
     defaultPort: 27017,
-    versions: ["7.0", "6.0", "5.0"],
+    brewPackage: "mongodb-community",
     icon: "🍃",
   },
   redis: {
     defaultPort: 6379,
-    versions: ["7.2", "7.0", "6.2"],
+    brewPackage: "redis",
     icon: "🔴",
   },
 }
 
 const DEFAULT_ICONS = ["🐘", "🐬", "🍃", "🔴", "💾", "🗄️", "📊", "🔷", "🟦", "🟪", "🟩", "🟨", "🟧", "🟥"]
+
+// Function to determine if a version should be marked as "stable"
+function getStableVersion(databaseType: string, versions: string[], currentIndex: number, dynamicStableVersions: string[] = []): boolean {
+  const currentVersion = versions[currentIndex]
+  if (!currentVersion) return false
+  
+  // Extract major version for comparison
+  const majorVersion = currentVersion.split('.')[0] + '.' + (currentVersion.split('.')[1] || '0')
+  
+  // Use dynamic stable versions if available, otherwise fallback to hardcoded
+  const stableMajorVersions = dynamicStableVersions.length > 0 
+    ? dynamicStableVersions 
+    : getFallbackStableVersions(databaseType)
+  
+  const isStable = stableMajorVersions.some(stable => majorVersion.startsWith(stable))
+  
+  // Debug logging
+  console.log(`[Stable Check] ${databaseType} ${currentVersion} (${majorVersion}) - Stable versions: [${stableMajorVersions.join(', ')}] - Is stable: ${isStable}`)
+  
+  return isStable
+}
+
+// Fallback stable versions for when dynamic fetching fails
+function getFallbackStableVersions(databaseType: string): string[] {
+  const fallbackStable = {
+    postgresql: ['16', '15'],
+    mysql: ['8.4', '8.0'],
+    mongodb: ['8.2', '8.0'],
+    redis: ['7.2', '7.0']
+  }
+  return fallbackStable[databaseType as keyof typeof fallbackStable] || []
+}
 
 // Generate shorter, unique IDs and names
 const generateShortId = (): string => {
@@ -85,12 +117,100 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
   const [installProgress, setInstallProgress] = useState<number>(0)
   const [canStart, setCanStart] = useState(false)
   const [forceUpdate, setForceUpdate] = useState(0)
+  const [availableVersions, setAvailableVersions] = useState<Array<{majorVersion: string, fullVersion: string, packageName: string}>>([])
+  const [loadingVersions, setLoadingVersions] = useState(false)
+  const [stableVersions, setStableVersions] = useState<string[]>([])
+
+  // Function to fetch available versions from Homebrew
+  const fetchVersions = async (databaseType: DatabaseType) => {
+    setLoadingVersions(true)
+    try {
+      const brewPackage = DATABASE_CONFIGS[databaseType].brewPackage
+      
+      // Fetch both versions and stable versions in parallel
+      const [versionDetails, stableVersionsData] = await Promise.all([
+        // @ts-ignore
+        window.electron?.getBrewVersions?.(brewPackage) || Promise.resolve([]),
+        // @ts-ignore
+        window.electron?.getStableVersions?.(databaseType) || Promise.resolve([])
+      ])
+      
+      // Set stable versions
+      setStableVersions(stableVersionsData)
+      
+      if (versionDetails && versionDetails.length > 0) {
+        // Remove duplicates based on fullVersion
+        const uniqueVersions = versionDetails.filter((versionDetail, index, self) => 
+          index === self.findIndex(v => v.fullVersion === versionDetail.fullVersion)
+        )
+        setAvailableVersions(uniqueVersions)
+        // Set the latest version as default
+        setVersion(uniqueVersions[0].fullVersion)
+      } else {
+        // Fallback to hardcoded versions if brew fails
+        const fallbackVersions = getFallbackVersionDetails(databaseType)
+        setAvailableVersions(fallbackVersions)
+        setVersion(fallbackVersions[0].fullVersion)
+      }
+    } catch (error) {
+      console.error(`Failed to fetch versions for ${databaseType}:`, error)
+      // Fallback to hardcoded versions
+      const fallbackVersions = getFallbackVersionDetails(databaseType)
+      setAvailableVersions(fallbackVersions)
+      setVersion(fallbackVersions[0].fullVersion)
+    } finally {
+      setLoadingVersions(false)
+    }
+  }
+
+  // Fallback versions for when brew is unavailable
+  const getFallbackVersions = (databaseType: DatabaseType): string[] => {
+    const fallbackVersions = {
+      postgresql: ["16", "15", "14", "13"],
+      mysql: ["8.0", "5.7", "5.6"],
+      mongodb: ["7.0", "6.0", "5.0"],
+      redis: ["7.2", "7.0", "6.2"],
+    }
+    return fallbackVersions[databaseType] || ["latest"]
+  }
+
+  // Fallback version details for when brew is unavailable
+  const getFallbackVersionDetails = (databaseType: DatabaseType): Array<{majorVersion: string, fullVersion: string, packageName: string}> => {
+    const fallbackDetails = {
+      postgresql: [
+        { majorVersion: "16", fullVersion: "16.1", packageName: "postgresql@16" },
+        { majorVersion: "15", fullVersion: "15.5", packageName: "postgresql@15" },
+        { majorVersion: "14", fullVersion: "14.10", packageName: "postgresql@14" },
+        { majorVersion: "13", fullVersion: "13.13", packageName: "postgresql@13" },
+        { majorVersion: "12", fullVersion: "12.17", packageName: "postgresql@12" }
+      ],
+      mysql: [
+        { majorVersion: "8.0", fullVersion: "8.0.35", packageName: "mysql@8.0" },
+        { majorVersion: "5.7", fullVersion: "5.7.44", packageName: "mysql@5.7" },
+        { majorVersion: "5.6", fullVersion: "5.6.51", packageName: "mysql@5.6" }
+      ],
+      mongodb: [
+        { majorVersion: "8.2", fullVersion: "8.2.1", packageName: "mongodb-community@8.2" },
+        { majorVersion: "8.0", fullVersion: "8.0.4", packageName: "mongodb-community@8.0" },
+        { majorVersion: "7.0", fullVersion: "7.0.14", packageName: "mongodb-community@7.0" },
+        { majorVersion: "6.0", fullVersion: "6.0.20", packageName: "mongodb-community@6.0" },
+        { majorVersion: "5.0", fullVersion: "5.0.30", packageName: "mongodb-community@5.0" }
+      ],
+      redis: [
+        { majorVersion: "7.2", fullVersion: "7.2.4", packageName: "redis@7.2" },
+        { majorVersion: "7.0", fullVersion: "7.0.15", packageName: "redis@7.0" },
+        { majorVersion: "6.2", fullVersion: "6.2.14", packageName: "redis@6.2" }
+      ]
+    }
+    return fallbackDetails[databaseType] || [{ majorVersion: "latest", fullVersion: "latest", packageName: databaseType }]
+  }
 
   const handleTypeSelect = (type: DatabaseType) => {
     setSelectedType(type)
     setPort(DATABASE_CONFIGS[type].defaultPort.toString())
-    setVersion(DATABASE_CONFIGS[type].versions[0])
     setSelectedIcon(DATABASE_CONFIGS[type].icon)
+    // Fetch versions dynamically
+    fetchVersions(type)
     
     // Set default credentials based on database type
     if (type === "postgresql") {
@@ -182,8 +302,13 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       
       setInstallProgress(60)
       setInstallMsg(`Installing ${selectedType} ${version} via Homebrew…`)
+      
+      // Find the version details to get the major version for installation
+      const versionDetail = availableVersions.find(v => v.fullVersion === version)
+      const majorVersion = versionDetail?.majorVersion || version.split('.').slice(0, 2).join('.')
+      
       // @ts-ignore
-      const installResult = await window.electron?.brewInstallDb?.({ dbType: selectedType, version })
+      const installResult = await window.electron?.brewInstallDb?.({ dbType: selectedType, version: majorVersion })
       
       setInstallProgress(100)
       if (installResult?.alreadyInstalled || installResult?.stdout?.includes("already installed")) {
@@ -270,7 +395,12 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                   <button
                     key={type}
                     onClick={() => handleTypeSelect(type)}
-                    className="flex flex-col items-center justify-center p-4 border-2 border-border rounded-lg hover:border-foreground hover:bg-accent transition-colors"
+                    disabled={loadingVersions}
+                    className={`flex flex-col items-center justify-center p-4 border-2 border-border rounded-lg transition-colors ${
+                      loadingVersions 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : 'hover:border-foreground hover:bg-accent'
+                    }`}
                   >
                     <span className="text-3xl mb-2">{DATABASE_CONFIGS[type].icon}</span>
                     <span className="font-semibold capitalize text-sm">{type}</span>
@@ -281,11 +411,12 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                 ))}
               </div>
             ) : (
-              <Tabs defaultValue="basic" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="basic">Basic</TabsTrigger>
-                  <TabsTrigger value="advanced">Advanced</TabsTrigger>
-                </TabsList>
+              <div className="space-y-4">
+                <Tabs defaultValue="basic" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="basic">Basic</TabsTrigger>
+                    <TabsTrigger value="advanced">Advanced</TabsTrigger>
+                  </TabsList>
                 <TabsContent value="basic" className="space-y-3 pt-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="name" className="text-xs">
@@ -316,18 +447,53 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="version" className="text-xs">
-                      Version
+                      Version {loadingVersions && <span className="text-muted-foreground">(Loading...)</span>}
                     </Label>
-                    <Select value={version} onValueChange={setVersion}>
+                    <Select value={version} onValueChange={setVersion} disabled={loadingVersions}>
                       <SelectTrigger id="version" className="h-8 text-sm">
-                        <SelectValue />
+                        <SelectValue placeholder={loadingVersions ? "Loading versions..." : "Select version"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {DATABASE_CONFIGS[selectedType].versions.map((v) => (
-                          <SelectItem key={v} value={v}>
-                            {v}
+                        {loadingVersions ? (
+                          <SelectItem value="loading" disabled>
+                            Loading versions...
                           </SelectItem>
-                        ))}
+                        ) : (
+                          (() => {
+                            // First filter out duplicates
+                            const uniqueVersions = availableVersions.filter((versionDetail, index, self) => 
+                              index === self.findIndex(v => v.fullVersion === versionDetail.fullVersion)
+                            )
+                            
+                            // Then map with correct index references
+                            return uniqueVersions.map((versionDetail, index) => {
+                              // Determine tags for each version
+                              const isNewest = index === 0
+                              // Use the filtered list for stable check since we're working with the filtered data
+                              const isStable = getStableVersion(selectedType, uniqueVersions.map(v => v.fullVersion), index, stableVersions)
+                              
+                              return (
+                                <SelectItem key={`${versionDetail.fullVersion}-${versionDetail.majorVersion}-${index}`} value={versionDetail.fullVersion}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono">{versionDetail.fullVersion}</span>
+                                    <div className="flex gap-1">
+                                      {isNewest && (
+                                        <span className="text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full font-medium">
+                                          newest
+                                        </span>
+                                      )}
+                                      {isStable && (
+                                        <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full font-medium">
+                                          stable
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </SelectItem>
+                              )
+                            })
+                          })()
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -375,17 +541,34 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                   </div>
                 </TabsContent>
               </Tabs>
+              </div>
             )}
           </div>
 
           <DialogFooter>
             {step === "config" && (
               <>
-                <Button variant="outline" onClick={() => setStep("type")} size="sm">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setStep("type")} 
+                  size="sm"
+                  className="mr-auto"
+                >
                   Back
                 </Button>
-                <Button onClick={handleSubmit} size="sm" disabled={installing}>
-                  {installing ? "Installing..." : canStart ? "Create Database" : "Install & Create"}
+                <Button 
+                  onClick={handleSubmit} 
+                  size="sm" 
+                  disabled={installing || loadingVersions}
+                >
+                  {installing 
+                    ? "Installing..." 
+                    : loadingVersions 
+                    ? "Loading versions..." 
+                    : canStart 
+                    ? "Create Database" 
+                    : "Install & Create"
+                  }
                 </Button>
                 {installMsg && (
                   <div className="text-[10px] text-muted-foreground ml-2">
@@ -403,6 +586,17 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
               </>
             )}
           </DialogFooter>
+          
+          {loadingVersions && (
+            <div className="px-6 pb-4">
+              <div className="flex items-center justify-center p-3 bg-muted/30 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                  <span className="text-sm text-muted-foreground">Loading versions and stable release information...</span>
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
