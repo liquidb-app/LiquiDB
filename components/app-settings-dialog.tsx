@@ -187,20 +187,31 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   }
 
   const handleNotificationToggle = (enabled: boolean) => {
+    console.log("[App Settings] Notification toggle clicked, enabled:", enabled)
+    setLocalNotifications(enabled)
     setNotifications(enabled)
     
     // Check if we're in a browser environment
     if (typeof window !== 'undefined') {
       if (notifications && typeof (notifications as any).setNotificationsEnabled === 'function') {
-        (notifications as any).setNotificationsEnabled(enabled)
+        console.log("[App Settings] Notification manager available, updating...")
+        ;(notifications as any).setNotificationsEnabled(enabled)
+        
+        // Force reload the setting to ensure it's updated
+        if (typeof (notifications as any).reloadNotificationSetting === 'function') {
+          console.log("[App Settings] Reloading notification setting...")
+          ;(notifications as any).reloadNotificationSetting()
+        }
         
         // Show a notification about the setting change (this will respect the new setting)
         if (enabled) {
-          (notifications as any).success("Notifications enabled", {
+          console.log("[App Settings] Showing enabled notification")
+          ;(notifications as any).success("Notifications enabled", {
             description: "You'll now receive toast notifications for database events.",
           })
         } else {
           // Use direct toast for this one since we want to show it even when disabling
+          console.log("[App Settings] Showing disabled notification")
           toast.info("Notifications disabled", {
             description: "Toast notifications are now disabled.",
           })
@@ -209,6 +220,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
         console.warn("Notification manager not available, using localStorage fallback")
         try {
           localStorage.setItem("notifications-enabled", JSON.stringify(enabled))
+          console.log("[App Settings] Saved to localStorage:", enabled)
         } catch (error) {
           console.error("Failed to save notification setting:", error)
         }
