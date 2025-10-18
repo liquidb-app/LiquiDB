@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld("electron", {
   brewIsInstalled: () => ipcRenderer.invoke("brew:isInstalled"),
   brewInstall: () => ipcRenderer.invoke("brew:install"),
   brewGetVersions: (dbType) => ipcRenderer.invoke("brew:getVersions", dbType),
+  getBrewVersions: (packageName) => ipcRenderer.invoke("get-brew-versions", packageName),
+  getStableVersions: (databaseType) => ipcRenderer.invoke("get-stable-versions", databaseType),
   brewInstallDb: (opts) => ipcRenderer.invoke("brew:installDb", opts),
   getBannedPorts: () => ipcRenderer.invoke("ports:getBanned"),
   setBannedPorts: (ports) => ipcRenderer.invoke("ports:setBanned", ports),
@@ -25,6 +27,10 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.removeAllListeners('database-status-changed')
   },
   verifyDatabaseInstance: (id) => ipcRenderer.invoke("verify-database-instance", id),
+  saveCustomImage: (imageData) => ipcRenderer.invoke("save-custom-image", imageData),
+  getSavedImages: () => ipcRenderer.invoke("get-saved-images"),
+  checkDatabasesFile: () => ipcRenderer.invoke("check-databases-file"),
+  recreateDatabasesFile: () => ipcRenderer.invoke("recreate-databases-file"),
   platform: process.platform,
   isElectron: true,
 })

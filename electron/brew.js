@@ -170,10 +170,25 @@ async function getDatabaseVersions(dbType) {
 }
 
 function formulaFor(dbType, version) {
-  if (dbType === "postgresql") return `postgresql@${version}`
-  if (dbType === "mysql") return `mysql@${version}`
-  if (dbType === "mongodb") return `mongodb-community@${version}`
-  if (dbType === "redis") return version ? `redis@${version}` : "redis"
+  // Extract major version for Homebrew formulas
+  const getMajorVersion = (version) => {
+    if (!version) return ""
+    // For versions like "9.4.0", extract "9.4"
+    // For versions like "8.0.35", extract "8.0"
+    // For versions like "16.1", extract "16"
+    const parts = version.split('.')
+    if (parts.length >= 2) {
+      return `${parts[0]}.${parts[1]}`
+    }
+    return parts[0]
+  }
+  
+  const majorVersion = getMajorVersion(version)
+  
+  if (dbType === "postgresql") return `postgresql@${majorVersion}`
+  if (dbType === "mysql") return `mysql@${majorVersion}`
+  if (dbType === "mongodb") return `mongodb-community@${majorVersion}`
+  if (dbType === "redis") return version ? `redis@${majorVersion}` : "redis"
   return ""
 }
 

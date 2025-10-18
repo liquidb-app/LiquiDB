@@ -7,6 +7,8 @@ const os = require("os")
 const { exec } = require("child_process")
 const brew = require("./brew")
 const storage = require("./storage")
+const https = require("https")
+const http = require("http")
 let keytar
 try {
   keytar = require("keytar")
@@ -40,10 +42,11 @@ function resetDatabaseStatuses() {
     const databases = storage.loadDatabases(app)
     const updatedDatabases = databases.map(db => ({
       ...db,
-      status: "stopped"
+      status: "stopped",
+      pid: null
     }))
     storage.saveDatabases(app, updatedDatabases)
-    console.log("[App Start] Reset all database statuses to stopped")
+    console.log("[App Start] Reset all database statuses to stopped and cleared PIDs")
   } catch (error) {
     console.error("[App Start] Error resetting database statuses:", error)
   }
@@ -278,6 +281,21 @@ async function startDatabaseProcessAsync(config) {
       if (!readyEventSent && mainWindow) {
         readyEventSent = true
         console.log(`[PostgreSQL] ${id} sending ready event (readyEventSent: ${readyEventSent})`)
+        
+        // Update status to running in storage
+        try {
+          const databases = storage.loadDatabases(app)
+          const dbIndex = databases.findIndex(db => db.id === id)
+          if (dbIndex >= 0) {
+            databases[dbIndex].status = 'running'
+            databases[dbIndex].pid = child.pid
+            storage.saveDatabases(app, databases)
+            console.log(`[Database] ${id} status updated to running in storage`)
+          }
+        } catch (error) {
+          console.error(`[Database] ${id} failed to update status to running in storage:`, error)
+        }
+        
         mainWindow.webContents.send('database-status-changed', { id, status: 'running', ready: true, pid: child.pid })
       } else {
         console.log(`[PostgreSQL] ${id} ready event already sent or no mainWindow (readyEventSent: ${readyEventSent}, mainWindow: ${!!mainWindow})`)
@@ -324,6 +342,20 @@ async function startDatabaseProcessAsync(config) {
         sendReadyEvent()
       }
     }, 60000)
+  } else {
+    // For non-PostgreSQL databases (MySQL, MongoDB, Redis), mark as running immediately
+    try {
+      const databases = storage.loadDatabases(app)
+      const dbIndex = databases.findIndex(db => db.id === id)
+      if (dbIndex >= 0) {
+        databases[dbIndex].status = 'running'
+        databases[dbIndex].pid = child.pid
+        storage.saveDatabases(app, databases)
+        console.log(`[Database] ${id} status updated to running in storage (non-PostgreSQL)`)
+      }
+    } catch (error) {
+      console.error(`[Database] ${id} failed to update status to running in storage:`, error)
+    }
   }
   
   child.on("error", (err) => {
@@ -333,6 +365,21 @@ async function startDatabaseProcessAsync(config) {
       clearTimeout(startupTimeout)
       startupTimeout = null
     }
+    
+    // Update database in storage to clear PID and update status
+    try {
+      const databases = storage.loadDatabases(app)
+      const dbIndex = databases.findIndex(db => db.id === id)
+      if (dbIndex >= 0) {
+        databases[dbIndex].status = 'stopped'
+        databases[dbIndex].pid = null
+        storage.saveDatabases(app, databases)
+        console.log(`[Database] ${id} status updated to stopped in storage`)
+      }
+    } catch (error) {
+      console.error(`[Database] ${id} failed to update storage:`, error)
+    }
+    
     // Notify the renderer process that the database has stopped
     if (mainWindow) {
       mainWindow.webContents.send('database-status-changed', { id, status: 'stopped', error: err.message, pid: null })
@@ -346,6 +393,21 @@ async function startDatabaseProcessAsync(config) {
       clearTimeout(startupTimeout)
       startupTimeout = null
     }
+    
+    // Update database in storage to clear PID and update status
+    try {
+      const databases = storage.loadDatabases(app)
+      const dbIndex = databases.findIndex(db => db.id === id)
+      if (dbIndex >= 0) {
+        databases[dbIndex].status = 'stopped'
+        databases[dbIndex].pid = null
+        storage.saveDatabases(app, databases)
+        console.log(`[Database] ${id} status updated to stopped in storage`)
+      }
+    } catch (error) {
+      console.error(`[Database] ${id} failed to update storage:`, error)
+    }
+    
     // Notify the renderer process that the database has stopped
     if (mainWindow) {
       mainWindow.webContents.send('database-status-changed', { id, status: 'stopped', exitCode: code, pid: null })
@@ -355,6 +417,20 @@ async function startDatabaseProcessAsync(config) {
   // Add to running map immediately - we'll let the process events handle cleanup
   runningDatabases.set(id, { process: child, config, isStartupComplete: () => isStartupComplete })
   console.log(`[Database] ${type} database process started (PID: ${child.pid})`)
+  
+  // Save PID and starting status to storage
+  try {
+    const databases = storage.loadDatabases(app)
+    const dbIndex = databases.findIndex(db => db.id === id)
+    if (dbIndex >= 0) {
+      databases[dbIndex].status = 'starting'
+      databases[dbIndex].pid = child.pid
+      storage.saveDatabases(app, databases)
+      console.log(`[Database] ${id} PID ${child.pid} and starting status saved to storage`)
+    }
+  } catch (error) {
+    console.error(`[Database] ${id} failed to save PID to storage:`, error)
+  }
 }
 
 function createWindow() {
@@ -431,6 +507,25 @@ app.on("before-quit", () => {
     }
   }
   runningDatabases.clear()
+  
+  // Clear all PIDs from storage when app quits
+  try {
+    const databases = storage.loadDatabases(app)
+    let updated = false
+    for (const db of databases) {
+      if (db.pid !== null) {
+        db.status = 'stopped'
+        db.pid = null
+        updated = true
+      }
+    }
+    if (updated) {
+      storage.saveDatabases(app, databases)
+      console.log("[App Quit] Cleared all PIDs from storage")
+    }
+  } catch (error) {
+    console.error("[App Quit] Failed to clear PIDs from storage:", error)
+  }
 })
 
 // Handle app termination
@@ -443,6 +538,26 @@ process.on("SIGINT", () => {
       console.error(`[App Quit] Error stopping database ${id}:`, error)
     }
   }
+  
+  // Clear all PIDs from storage
+  try {
+    const databases = storage.loadDatabases(app)
+    let updated = false
+    for (const db of databases) {
+      if (db.pid !== null) {
+        db.status = 'stopped'
+        db.pid = null
+        updated = true
+      }
+    }
+    if (updated) {
+      storage.saveDatabases(app, databases)
+      console.log("[App Quit] Cleared all PIDs from storage (SIGINT)")
+    }
+  } catch (error) {
+    console.error("[App Quit] Failed to clear PIDs from storage (SIGINT):", error)
+  }
+  
   process.exit(0)
 })
 
@@ -455,6 +570,26 @@ process.on("SIGTERM", () => {
       console.error(`[App Quit] Error stopping database ${id}:`, error)
     }
   }
+  
+  // Clear all PIDs from storage
+  try {
+    const databases = storage.loadDatabases(app)
+    let updated = false
+    for (const db of databases) {
+      if (db.pid !== null) {
+        db.status = 'stopped'
+        db.pid = null
+        updated = true
+      }
+    }
+    if (updated) {
+      storage.saveDatabases(app, databases)
+      console.log("[App Quit] Cleared all PIDs from storage (SIGTERM)")
+    }
+  } catch (error) {
+    console.error("[App Quit] Failed to clear PIDs from storage (SIGTERM):", error)
+  }
+  
   process.exit(0)
 })
 
@@ -548,6 +683,21 @@ ipcMain.handle("stop-database", async (event, id) => {
   try {
     db.process.kill("SIGTERM")
     runningDatabases.delete(id)
+    
+    // Update database in storage to clear PID and update status
+    try {
+      const databases = storage.loadDatabases(app)
+      const dbIndex = databases.findIndex(db => db.id === id)
+      if (dbIndex >= 0) {
+        databases[dbIndex].status = 'stopped'
+        databases[dbIndex].pid = null
+        storage.saveDatabases(app, databases)
+        console.log(`[Database] ${id} status updated to stopped in storage (manual stop)`)
+      }
+    } catch (error) {
+      console.error(`[Database] ${id} failed to update storage (manual stop):`, error)
+    }
+    
     return { success: true }
   } catch (error) {
     console.error("Failed to stop database:", error)
@@ -573,6 +723,405 @@ ipcMain.handle("verify-database-instance", async (event, id) => {
     exitCode: db.process.exitCode
   }
 })
+
+// Function to fetch stable version information from official sources
+async function getStableVersionsFromOfficialSources(databaseType) {
+  try {
+    console.log(`[Stable Versions] Fetching stable versions for ${databaseType}`)
+    
+    const stableVersions = {
+      postgresql: [],
+      mysql: [],
+      mongodb: [],
+      redis: []
+    }
+    
+    // Fetch PostgreSQL stable versions
+    if (databaseType === 'postgresql') {
+      try {
+        const response = await fetch('https://www.postgresql.org/support/versioning/')
+        const html = await response.text()
+        // Parse HTML to extract supported versions (this is a simplified approach)
+        // In a real implementation, you'd want to use a proper HTML parser
+        const versionMatches = html.match(/PostgreSQL (\d+\.\d+)/g)
+        if (versionMatches) {
+          stableVersions.postgresql = versionMatches
+            .map(match => match.replace('PostgreSQL ', ''))
+            .filter(version => {
+              const major = parseInt(version.split('.')[0])
+              return major >= 15 // Only include versions 15+ as stable
+            })
+        }
+      } catch (error) {
+        console.log(`[Stable Versions] Error fetching PostgreSQL versions:`, error.message)
+        // Fallback to known stable versions
+        stableVersions.postgresql = ['16', '15']
+      }
+    }
+    
+    // Fetch MySQL stable versions
+    if (databaseType === 'mysql') {
+      try {
+        const response = await fetch('https://dev.mysql.com/doc/relnotes/mysql/8.4/en/')
+        const html = await response.text()
+        // Check if 8.4 is available and stable
+        if (html.includes('8.4')) {
+          stableVersions.mysql = ['8.4', '8.0']
+        } else {
+          stableVersions.mysql = ['8.0']
+        }
+      } catch (error) {
+        console.log(`[Stable Versions] Error fetching MySQL versions:`, error.message)
+        stableVersions.mysql = ['8.4', '8.0']
+      }
+    }
+    
+    // Fetch MongoDB stable versions
+    if (databaseType === 'mongodb') {
+      try {
+        const response = await fetch('https://www.mongodb.com/docs/manual/release-notes/')
+        const html = await response.text()
+        // Extract version numbers from release notes
+        const versionMatches = html.match(/MongoDB (\d+\.\d+)/g)
+        if (versionMatches) {
+          stableVersions.mongodb = versionMatches
+            .map(match => match.replace('MongoDB ', ''))
+            .filter(version => {
+              const major = parseInt(version.split('.')[0])
+              return major >= 8 // Only include versions 8+ as stable
+            })
+            .slice(0, 2) // Take only the latest 2 stable versions
+        }
+      } catch (error) {
+        console.log(`[Stable Versions] Error fetching MongoDB versions:`, error.message)
+        stableVersions.mongodb = ['8.2', '8.0']
+      }
+    }
+    
+    // Fetch Redis stable versions
+    if (databaseType === 'redis') {
+      try {
+        const response = await fetch('https://redis.io/docs/about/releases/')
+        const html = await response.text()
+        // Extract version numbers from releases page
+        const versionMatches = html.match(/Redis (\d+\.\d+)/g)
+        if (versionMatches) {
+          stableVersions.redis = versionMatches
+            .map(match => match.replace('Redis ', ''))
+            .filter(version => {
+              const major = parseInt(version.split('.')[0])
+              return major >= 7 // Only include versions 7+ as stable
+            })
+            .slice(0, 2) // Take only the latest 2 stable versions
+        }
+      } catch (error) {
+        console.log(`[Stable Versions] Error fetching Redis versions:`, error.message)
+        stableVersions.redis = ['7.2', '7.0']
+      }
+    }
+    
+    console.log(`[Stable Versions] Found stable versions for ${databaseType}:`, stableVersions[databaseType])
+    return stableVersions[databaseType] || []
+    
+  } catch (error) {
+    console.log(`[Stable Versions] Error fetching stable versions for ${databaseType}:`, error.message)
+    // Return fallback stable versions
+    const fallbackStable = {
+      postgresql: ['16', '15'],
+      mysql: ['8.4', '8.0'],
+      mongodb: ['8.2', '8.0'],
+      redis: ['7.2', '7.0']
+    }
+    return fallbackStable[databaseType] || []
+  }
+}
+
+ipcMain.handle("get-stable-versions", async (event, databaseType) => {
+  return await getStableVersionsFromOfficialSources(databaseType)
+})
+
+ipcMain.handle("get-brew-versions", async (event, packageName) => {
+  try {
+    console.log(`[Brew] Fetching detailed versions for ${packageName}`)
+    
+    // Special handling for MongoDB - check the MongoDB tap for available versions
+    if (packageName === "mongodb-community") {
+      return await getMongoDBVersions()
+    }
+    
+    // Get detailed version information with full version numbers
+    const result = await new Promise((resolve) => {
+      const versionDetails = []
+      let completedCalls = 0
+      const totalCalls = 2
+      
+      const checkComplete = () => {
+        completedCalls++
+        if (completedCalls === totalCalls) {
+          // Sort versions (newest first)
+          const sortedVersions = versionDetails.sort((a, b) => {
+            return compareVersions(b.fullVersion, a.fullVersion)
+          })
+          
+          console.log(`[Brew] Found ${sortedVersions.length} detailed versions for ${packageName}:`, sortedVersions)
+          resolve(sortedVersions.length > 0 ? sortedVersions : getFallbackVersionDetails(packageName))
+        }
+      }
+      
+      // Get versioned packages with full version info
+      exec(`brew search --formula "^${packageName}@"`, (error, stdout, stderr) => {
+        if (!error && stdout) {
+          try {
+            const lines = stdout.trim().split('\n').filter(line => line.trim())
+            const packagePromises = []
+            
+            for (const line of lines) {
+              const match = line.match(new RegExp(`^${packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}@(.+)$`))
+              if (match) {
+                const majorVersion = match[1]
+                const fullPackageName = `${packageName}@${majorVersion}`
+                
+                // Get full version details for each package
+                packagePromises.push(
+                  new Promise((resolve) => {
+                    exec(`brew info ${fullPackageName} --json`, (infoError, infoStdout) => {
+                      if (!infoError && infoStdout) {
+                        try {
+                          const info = JSON.parse(infoStdout)
+                          if (info && info.length > 0) {
+                            const fullVersion = info[0].versions?.stable || info[0].version
+                            if (fullVersion) {
+                              resolve({
+                                majorVersion,
+                                fullVersion,
+                                packageName: fullPackageName
+                              })
+                            } else {
+                              resolve(null)
+                            }
+                          } else {
+                            resolve(null)
+                          }
+                        } catch (parseError) {
+                          console.log(`[Brew] Error parsing version info for ${fullPackageName}:`, parseError.message)
+                          resolve(null)
+                        }
+                      } else {
+                        resolve(null)
+                      }
+                    })
+                  })
+                )
+              }
+            }
+            
+            // Wait for all package info to be fetched
+            Promise.all(packagePromises).then((results) => {
+              results.forEach(result => {
+                if (result) {
+                  versionDetails.push(result)
+                }
+              })
+              checkComplete()
+            })
+          } catch (parseError) {
+            console.log(`[Brew] Error parsing search results:`, parseError.message)
+            checkComplete()
+          }
+        } else {
+          checkComplete()
+        }
+      })
+      
+      // Get main package version
+      exec(`brew info ${packageName} --json`, (infoError, infoStdout) => {
+        if (!infoError && infoStdout) {
+          try {
+            const info = JSON.parse(infoStdout)
+            if (info && info.length > 0) {
+              const fullVersion = info[0].versions?.stable || info[0].version
+              if (fullVersion) {
+                // Extract major version from full version
+                const majorVersion = fullVersion.split('.').slice(0, 2).join('.')
+                const existingVersion = versionDetails.find(v => v.majorVersion === majorVersion)
+                if (!existingVersion) {
+                  versionDetails.push({
+                    majorVersion,
+                    fullVersion,
+                    packageName: packageName
+                  })
+                }
+              }
+            }
+          } catch (parseError) {
+            console.log(`[Brew] Error parsing main package version:`, parseError.message)
+          }
+        }
+        checkComplete()
+      })
+    })
+    
+    return result
+  } catch (error) {
+    console.log(`[Brew] Failed to fetch versions for ${packageName}:`, error.message)
+    return getFallbackVersionDetails(packageName)
+  }
+})
+
+// Special function to get MongoDB versions (optimized)
+async function getMongoDBVersions() {
+  try {
+    console.log(`[Brew] Fetching detailed MongoDB versions`)
+    
+    // Fast MongoDB version fetching with full version details
+    const versions = await new Promise((resolve) => {
+      // Use a single command to get MongoDB versions quickly
+      exec(`brew search mongodb/brew/mongodb-community`, (error, stdout, stderr) => {
+        if (error) {
+          console.log(`[Brew] Error searching MongoDB versions:`, error.message)
+          resolve(getFallbackVersionDetails("mongodb-community"))
+          return
+        }
+        
+        try {
+          const lines = stdout.trim().split('\n').filter(line => line.trim())
+          const mongoPackages = []
+          
+          // Extract versioned package names from mongodb-community@x.x.x format
+          for (const line of lines) {
+            const match = line.match(/mongodb-community@([0-9.]+)/)
+            if (match) {
+              mongoPackages.push(`mongodb/brew/mongodb-community@${match[1]}`)
+            }
+          }
+          
+          // Get full version details for each MongoDB package
+          const getMongoVersionDetails = async (packages) => {
+            const versionDetails = []
+            
+            for (const pkg of packages) {
+              try {
+                const versionInfo = await new Promise((resolve) => {
+                  exec(`brew info ${pkg} --json`, (infoError, infoStdout) => {
+                    if (!infoError && infoStdout) {
+                      try {
+                        const info = JSON.parse(infoStdout)
+                        if (info && info.length > 0) {
+                          const fullVersion = info[0].versions?.stable || info[0].version
+                          if (fullVersion) {
+                            const majorVersion = pkg.match(/mongodb-community@([0-9.]+)/)[1]
+                            resolve({
+                              majorVersion,
+                              fullVersion,
+                              packageName: pkg
+                            })
+                          } else {
+                            resolve(null)
+                          }
+                        } else {
+                          resolve(null)
+                        }
+                      } catch (parseError) {
+                        console.log(`[Brew] Error parsing MongoDB version info for ${pkg}:`, parseError.message)
+                        resolve(null)
+                      }
+                    } else {
+                      resolve(null)
+                    }
+                  })
+                })
+                
+                if (versionInfo) {
+                  versionDetails.push(versionInfo)
+                }
+              } catch (err) {
+                console.log(`[Brew] Error getting MongoDB version for ${pkg}:`, err.message)
+              }
+            }
+            
+            return versionDetails
+          }
+          
+          // Get full version details for all MongoDB packages
+          getMongoVersionDetails(mongoPackages).then((versionDetails) => {
+            // Sort versions (newest first)
+            const sortedVersions = versionDetails.sort((a, b) => {
+              return compareVersions(b.fullVersion, a.fullVersion)
+            })
+            
+            console.log(`[Brew] Found ${sortedVersions.length} detailed MongoDB versions:`, sortedVersions)
+            resolve(sortedVersions.length > 0 ? sortedVersions : getFallbackVersionDetails("mongodb-community"))
+          })
+        } catch (parseError) {
+          console.log(`[Brew] Error parsing MongoDB versions:`, parseError.message)
+          resolve(getFallbackVersionDetails("mongodb-community"))
+        }
+      })
+    })
+    
+    return versions
+  } catch (error) {
+    console.log(`[Brew] Failed to fetch MongoDB versions:`, error.message)
+    return getFallbackVersionDetails("mongodb-community")
+  }
+}
+
+// Helper function to compare semantic versions
+function compareVersions(a, b) {
+  const aParts = a.split('.').map(Number)
+  const bParts = b.split('.').map(Number)
+  
+  for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+    const aPart = aParts[i] || 0
+    const bPart = bParts[i] || 0
+    if (aPart !== bPart) {
+      return aPart - bPart
+    }
+  }
+  return 0
+}
+
+// Helper function to get fallback versions
+function getFallbackVersions(packageName) {
+  const fallbackVersions = {
+    postgresql: ["16.1", "15.5", "14.10", "13.13", "12.17"],
+    mysql: ["8.0.35", "5.7.44", "5.6.51"],
+    "mongodb-community": ["8.2.1", "8.0.4", "7.0.14", "6.0.20", "5.0.30"],
+    redis: ["7.2.4", "7.0.15", "6.2.14"],
+  }
+  return fallbackVersions[packageName] || ["latest"]
+}
+
+// Helper function to get fallback version details with full version info
+function getFallbackVersionDetails(packageName) {
+  const fallbackDetails = {
+    postgresql: [
+      { majorVersion: "16", fullVersion: "16.1", packageName: "postgresql@16" },
+      { majorVersion: "15", fullVersion: "15.5", packageName: "postgresql@15" },
+      { majorVersion: "14", fullVersion: "14.10", packageName: "postgresql@14" },
+      { majorVersion: "13", fullVersion: "13.13", packageName: "postgresql@13" },
+      { majorVersion: "12", fullVersion: "12.17", packageName: "postgresql@12" }
+    ],
+    mysql: [
+      { majorVersion: "8.0", fullVersion: "8.0.35", packageName: "mysql@8.0" },
+      { majorVersion: "5.7", fullVersion: "5.7.44", packageName: "mysql@5.7" },
+      { majorVersion: "5.6", fullVersion: "5.6.51", packageName: "mysql@5.6" }
+    ],
+    "mongodb-community": [
+      { majorVersion: "8.2", fullVersion: "8.2.1", packageName: "mongodb-community@8.2" },
+      { majorVersion: "8.0", fullVersion: "8.0.4", packageName: "mongodb-community@8.0" },
+      { majorVersion: "7.0", fullVersion: "7.0.14", packageName: "mongodb-community@7.0" },
+      { majorVersion: "6.0", fullVersion: "6.0.20", packageName: "mongodb-community@6.0" },
+      { majorVersion: "5.0", fullVersion: "5.0.30", packageName: "mongodb-community@5.0" }
+    ],
+    redis: [
+      { majorVersion: "7.2", fullVersion: "7.2.4", packageName: "redis@7.2" },
+      { majorVersion: "7.0", fullVersion: "7.0.15", packageName: "redis@7.0" },
+      { majorVersion: "6.2", fullVersion: "6.2.14", packageName: "redis@6.2" }
+    ]
+  }
+  return fallbackDetails[packageName] || [{ majorVersion: "latest", fullVersion: "latest", packageName: packageName }]
+}
 
 ipcMain.handle("check-port", async (event, port) => {
   const portNum = Number(port)
@@ -793,5 +1342,161 @@ ipcMain.handle("db:deleteAll", async (event) => {
   } catch (error) {
     console.error("[Delete All] Error deleting all databases:", error)
     return { success: false, error: error.message }
+  }
+})
+
+// Image saving functionality
+function getImagesDirectory() {
+  const dataDir = app.getPath("userData")
+  const imagesDir = path.join(dataDir, "images")
+  if (!fs.existsSync(imagesDir)) {
+    fs.mkdirSync(imagesDir, { recursive: true })
+  }
+  return imagesDir
+}
+
+function generateImageFileName(originalUrl, dataUrl) {
+  const timestamp = Date.now()
+  let extension = "png" // default
+  
+  if (originalUrl) {
+    // Try to get extension from URL
+    const urlMatch = originalUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i)
+    if (urlMatch) {
+      extension = urlMatch[1].toLowerCase()
+    }
+  } else if (dataUrl) {
+    // Try to get extension from data URL
+    const dataUrlMatch = dataUrl.match(/data:image\/([^;]+)/)
+    if (dataUrlMatch) {
+      extension = dataUrlMatch[1].toLowerCase()
+    }
+  }
+  
+  return `custom-icon-${timestamp}.${extension}`
+}
+
+function downloadImageFromUrl(url) {
+  return new Promise((resolve, reject) => {
+    const protocol = url.startsWith("https:") ? https : http
+    
+    protocol.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to download image: ${response.statusCode}`))
+        return
+      }
+      
+      const chunks = []
+      response.on("data", (chunk) => chunks.push(chunk))
+      response.on("end", () => {
+        const buffer = Buffer.concat(chunks)
+        resolve(buffer)
+      })
+    }).on("error", (error) => {
+      reject(error)
+    })
+  })
+}
+
+function saveDataUrlToFile(dataUrl, filePath) {
+  return new Promise((resolve, reject) => {
+    try {
+      // Remove data URL prefix (e.g., "data:image/png;base64,")
+      const base64Data = dataUrl.replace(/^data:image\/[a-z]+;base64,/, "")
+      const buffer = Buffer.from(base64Data, "base64")
+      fs.writeFile(filePath, buffer, (error) => {
+        if (error) {
+          reject(error)
+        } else {
+          resolve()
+        }
+      })
+    } catch (error) {
+      reject(error)
+    }
+  })
+}
+
+// IPC handler to save custom image
+ipcMain.handle("save-custom-image", async (event, { imageUrl, dataUrl }) => {
+  try {
+    console.log("[Image Save] Saving custom image...")
+    
+    const imagesDir = getImagesDirectory()
+    const fileName = generateImageFileName(imageUrl, dataUrl)
+    const filePath = path.join(imagesDir, fileName)
+    
+    if (imageUrl) {
+      // Download image from URL
+      console.log(`[Image Save] Downloading image from URL: ${imageUrl}`)
+      const imageBuffer = await downloadImageFromUrl(imageUrl)
+      fs.writeFileSync(filePath, imageBuffer)
+    } else if (dataUrl) {
+      // Save data URL to file
+      console.log(`[Image Save] Saving data URL to file: ${fileName}`)
+      await saveDataUrlToFile(dataUrl, filePath)
+    } else {
+      throw new Error("No image URL or data URL provided")
+    }
+    
+    // Return the relative path that can be used in the app
+    const relativePath = `file://${filePath}`
+    console.log(`[Image Save] Image saved successfully: ${relativePath}`)
+    return { success: true, imagePath: relativePath, fileName }
+    
+  } catch (error) {
+    console.error("[Image Save] Error saving custom image:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+// IPC handler to get saved images
+ipcMain.handle("get-saved-images", async () => {
+  try {
+    const imagesDir = getImagesDirectory()
+    const files = fs.readdirSync(imagesDir)
+    const imageFiles = files.filter(file => 
+      /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file)
+    )
+    
+    const images = imageFiles.map(file => ({
+      fileName: file,
+      path: `file://${path.join(imagesDir, file)}`,
+      created: fs.statSync(path.join(imagesDir, file)).birthtime
+    }))
+    
+    // Sort by creation date (newest first)
+    images.sort((a, b) => b.created - a.created)
+    
+    console.log(`[Image Get] Found ${images.length} saved images`)
+    return { success: true, images }
+    
+  } catch (error) {
+    console.error("[Image Get] Error getting saved images:", error)
+    return { success: false, error: error.message, images: [] }
+  }
+})
+
+// IPC handler to check if databases.json exists
+ipcMain.handle("check-databases-file", async () => {
+  try {
+    const exists = storage.checkDatabasesFileExists(app)
+    console.log(`[Storage Check] databases.json exists: ${exists}`)
+    return { success: true, exists }
+  } catch (error) {
+    console.error("[Storage Check] Error checking databases file:", error)
+    return { success: false, error: error.message, exists: false }
+  }
+})
+
+// IPC handler to recreate databases.json if missing
+ipcMain.handle("recreate-databases-file", async () => {
+  try {
+    const recreated = storage.recreateDatabasesFile(app)
+    console.log(`[Storage Recreate] databases.json recreated: ${recreated}`)
+    return { success: true, recreated }
+  } catch (error) {
+    console.error("[Storage Recreate] Error recreating databases file:", error)
+    return { success: false, error: error.message, recreated: false }
   }
 })

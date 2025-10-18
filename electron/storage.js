@@ -49,12 +49,29 @@ function deleteAllDatabases(app) {
   return true
 }
 
+function checkDatabasesFileExists(app) {
+  const file = getDatabasesFile(app)
+  return fs.existsSync(file)
+}
+
+function recreateDatabasesFile(app) {
+  const file = getDatabasesFile(app)
+  if (!fs.existsSync(file)) {
+    saveDatabases(app, [])
+    console.log("[Storage] Recreated missing databases.json file")
+    return true
+  }
+  return false
+}
+
 module.exports = {
   loadDatabases,
   saveDatabases,
   upsertDatabase,
   deleteDatabase,
   deleteAllDatabases,
+  checkDatabasesFileExists,
+  recreateDatabasesFile,
 }
 
 
