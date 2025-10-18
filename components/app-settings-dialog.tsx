@@ -11,6 +11,7 @@ import { Monitor, Moon, Sun, Github, ExternalLink, Globe, Ban, Trash2, AlertTria
 import { Button } from "@/components/ui/button"
 import { BannedPortsDialog } from "./banned-ports-dialog"
 import { toast } from "sonner"
+import { notifications } from "@/lib/notifications"
 
 interface AppSettingsDialogProps {
   open: boolean
@@ -59,18 +60,123 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   const [bannedPortsOpen, setBannedPortsOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [autoLaunchEnabled, setAutoLaunchEnabled] = useState(false)
+  const [autoLaunchLoading, setAutoLaunchLoading] = useState(false)
 
   useEffect(() => {
     setMounted(true)
     const saved = localStorage.getItem("color-scheme") || "mono"
     setColorScheme(saved)
     document.documentElement.setAttribute("data-color-scheme", saved)
+    
+    // Load notification setting
+    try {
+      // Check if we're in a browser environment
+      if (typeof window !== 'undefined') {
+        if (notifications && typeof (notifications as any).areNotificationsEnabled === 'function') {
+          const enabled = (notifications as any).areNotificationsEnabled()
+          setNotifications(enabled)
+        } else {
+          // Fallback to localStorage directly
+          const saved = localStorage.getItem("notifications-enabled")
+          setNotifications(saved !== null ? JSON.parse(saved) : true)
+        }
+      } else {
+        // Server-side rendering, default to enabled
+        setNotifications(true)
+      }
+    } catch (error) {
+      console.error("Failed to load notification setting:", error)
+      setNotifications(true) // Default to enabled
+    }
+    
+    // Check auto-launch status
+    checkAutoLaunchStatus()
   }, [])
+
+  const checkAutoLaunchStatus = async () => {
+    try {
+      // @ts-ignore
+      const enabled = await window.electron?.isAutoLaunchEnabled?.()
+      setAutoLaunchEnabled(enabled || false)
+    } catch (error) {
+      console.error("Failed to check auto-launch status:", error)
+    }
+  }
+
+  const handleAutoLaunchToggle = async (enabled: boolean) => {
+    setAutoLaunchLoading(true)
+    try {
+      if (enabled) {
+        // @ts-ignore
+        const result = await window.electron?.enableAutoLaunch?.()
+        if (result?.success) {
+          setAutoLaunchEnabled(true)
+          toast.success("Auto-launch enabled", {
+            description: "LiquiDB will now start automatically when you log in.",
+          })
+        } else {
+          toast.error("Failed to enable auto-launch", {
+            description: result?.error || "Please check system permissions.",
+          })
+        }
+      } else {
+        // @ts-ignore
+        const result = await window.electron?.disableAutoLaunch?.()
+        if (result?.success) {
+          setAutoLaunchEnabled(false)
+          toast.success("Auto-launch disabled", {
+            description: "LiquiDB will no longer start automatically.",
+          })
+        } else {
+          toast.error("Failed to disable auto-launch", {
+            description: result?.error || "Please check system permissions.",
+          })
+        }
+      }
+    } catch (error) {
+      toast.error("Failed to update auto-launch setting", {
+        description: "Could not connect to system service.",
+      })
+    } finally {
+      setAutoLaunchLoading(false)
+    }
+  }
 
   const handleColorSchemeChange = (value: string) => {
     setColorScheme(value)
     localStorage.setItem("color-scheme", value)
     document.documentElement.setAttribute("data-color-scheme", value)
+  }
+
+  const handleNotificationToggle = (enabled: boolean) => {
+    setNotifications(enabled)
+    
+    // Check if we're in a browser environment
+    if (typeof window !== 'undefined') {
+      if (notifications && typeof (notifications as any).setNotificationsEnabled === 'function') {
+        (notifications as any).setNotificationsEnabled(enabled)
+        
+        // Show a notification about the setting change (this will respect the new setting)
+        if (enabled) {
+          (notifications as any).success("Notifications enabled", {
+            description: "You'll now receive toast notifications for database events.",
+          })
+        } else {
+          // Use direct toast for this one since we want to show it even when disabling
+          toast.info("Notifications disabled", {
+            description: "Toast notifications are now disabled.",
+          })
+        }
+      } else {
+        console.warn("Notification manager not available, using localStorage fallback")
+        try {
+          localStorage.setItem("notifications-enabled", JSON.stringify(enabled))
+        } catch (error) {
+          console.error("Failed to save notification setting:", error)
+        }
+      }
+    }
   }
 
   const isDark = mounted && resolvedTheme === "dark"
@@ -178,17 +284,24 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Launch at startup</Label>
-                    <p className="text-xs text-muted-foreground">Start LiquiDB when you log in</p>
+                    <p className="text-xs text-muted-foreground">
+                      Start LiquiDB when you log in
+                      {autoLaunchLoading && " (Updating...)"}
+                    </p>
                   </div>
-                  <Switch checked={autoStart} onCheckedChange={setAutoStart} />
+                  <Switch 
+                    checked={autoLaunchEnabled} 
+                    onCheckedChange={handleAutoLaunchToggle}
+                    disabled={autoLaunchLoading}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Notifications</Label>
-                    <p className="text-xs text-muted-foreground">Show system notifications for database events</p>
+                    <p className="text-xs text-muted-foreground">Show toast notifications for database events</p>
                   </div>
-                  <Switch checked={notifications} onCheckedChange={setNotifications} />
+                  <Switch checked={notifications} onCheckedChange={handleNotificationToggle} />
                 </div>
 
                 <div className="space-y-2">

@@ -34,6 +34,7 @@ interface DatabaseSettingsDialogProps {
   database: DatabaseContainer
   onUpdate: (database: DatabaseContainer) => void
   onDelete: (id: string) => void
+  allDatabases?: DatabaseContainer[]
 }
 
 const DEFAULT_ICONS = ["🐘", "🐬", "🍃", "🔴", "💾", "🗄️", "📊", "🔷", "🟦", "🟪", "🟩", "🟨", "🟧", "🟥"]
@@ -44,6 +45,7 @@ export function DatabaseSettingsDialog({
   database,
   onUpdate,
   onDelete,
+  allDatabases = [],
 }: DatabaseSettingsDialogProps) {
   const [name, setName] = useState(database.name)
   const [port, setPort] = useState(database.port.toString())
@@ -53,6 +55,7 @@ export function DatabaseSettingsDialog({
   const [selectedIcon, setSelectedIcon] = useState(database.icon || "")
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [iconPickerOpen, setIconPickerOpen] = useState(false)
+  const [autoStartConflict, setAutoStartConflict] = useState<string | null>(null)
 
   useEffect(() => {
     setName(database.name)
@@ -60,7 +63,37 @@ export function DatabaseSettingsDialog({
     setUsername(database.username)
     setPassword("") // Don't show existing password
     setSelectedIcon(database.icon || "")
+    setAutoStart(database.autoStart || false)
+    setAutoStartConflict(null)
   }, [database])
+
+  // Check for port conflicts when enabling auto-start
+  const checkAutoStartPortConflict = (enableAutoStart: boolean) => {
+    if (!enableAutoStart) {
+      setAutoStartConflict(null)
+      return true
+    }
+
+    const conflictingDb = allDatabases.find(db => 
+      db.id !== database.id && 
+      db.port === database.port && 
+      db.autoStart
+    )
+
+    if (conflictingDb) {
+      setAutoStartConflict(conflictingDb.name)
+      return false
+    }
+
+    setAutoStartConflict(null)
+    return true
+  }
+
+  const handleAutoStartToggle = (enabled: boolean) => {
+    if (checkAutoStartPortConflict(enabled)) {
+      setAutoStart(enabled)
+    }
+  }
 
   const handleSave = () => {
     const portNum = Number.parseInt(port)
@@ -92,6 +125,7 @@ export function DatabaseSettingsDialog({
         username,
         password: password || database.password, // Keep existing password if not changed
         icon: selectedIcon,
+        autoStart,
       }
       // @ts-ignore
       if (window.electron?.saveDatabase) {
@@ -181,8 +215,18 @@ export function DatabaseSettingsDialog({
                   <div className="space-y-0.5">
                     <Label className="text-xs">Auto-start on boot</Label>
                     <p className="text-xs text-muted-foreground">Start this database automatically</p>
+                    {autoStartConflict && (
+                      <p className="text-xs text-destructive flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Port conflict with "{autoStartConflict}" - change port first
+                      </p>
+                    )}
                   </div>
-                  <Switch checked={autoStart} onCheckedChange={setAutoStart} />
+                  <Switch 
+                    checked={autoStart} 
+                    onCheckedChange={handleAutoStartToggle}
+                    disabled={autoStartConflict !== null}
+                  />
                 </div>
               </TabsContent>
 
@@ -209,6 +253,23 @@ export function DatabaseSettingsDialog({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="h-8 text-sm"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs">Auto-start on boot</Label>
+                    <p className="text-xs text-muted-foreground">Start this database when LiquiDB launches</p>
+                    {autoStartConflict && (
+                      <p className="text-xs text-destructive flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Port conflict with "{autoStartConflict}" - change port first
+                      </p>
+                    )}
+                  </div>
+                  <Switch 
+                    checked={autoStart} 
+                    onCheckedChange={handleAutoStartToggle}
+                    disabled={autoStartConflict !== null}
                   />
                 </div>
                 <div className="rounded-lg bg-muted p-3">

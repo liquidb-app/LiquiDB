@@ -81,6 +81,7 @@
     "@radix-ui/react-toggle-group": "1.1.1",
     "@radix-ui/react-tooltip": "1.1.6",
     "@vercel/analytics": "1.5.0",
+    "auto-launch": "^5.0.6",
     "autoprefixer": "^10.4.20",
     "child_process": "1.0.2",
     "class-variance-authority": "^0.7.1",

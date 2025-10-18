@@ -32,6 +32,13 @@ contextBridge.exposeInMainWorld("electron", {
   getSavedImages: () => ipcRenderer.invoke("get-saved-images"),
   checkDatabasesFile: () => ipcRenderer.invoke("check-databases-file"),
   recreateDatabasesFile: () => ipcRenderer.invoke("recreate-databases-file"),
+  isAutoLaunchEnabled: () => ipcRenderer.invoke("auto-launch:isEnabled"),
+  enableAutoLaunch: () => ipcRenderer.invoke("auto-launch:enable"),
+  disableAutoLaunch: () => ipcRenderer.invoke("auto-launch:disable"),
+  
+  // Auto-start port conflict events
+  onAutoStartPortConflicts: (callback) => ipcRenderer.on("auto-start-port-conflicts", callback),
+  onAutoStartCompleted: (callback) => ipcRenderer.on("auto-start-completed", callback),
   platform: process.platform,
   isElectron: true,
 })

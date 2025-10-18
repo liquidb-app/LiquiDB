@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { IconPickerDialog } from "@/components/icon-picker-dialog"
 import type { DatabaseContainer, DatabaseType } from "@/lib/types"
@@ -109,6 +110,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
   const [password, setPassword] = useState("")
   const [selectedIcon, setSelectedIcon] = useState("")
   const [iconPickerOpen, setIconPickerOpen] = useState(false)
+  const [autoStart, setAutoStart] = useState(false)
   const [bannedPorts, setBannedPorts] = useState<number[]>([])
   const [portError, setPortError] = useState<string>("")
   const [checkingPort, setCheckingPort] = useState(false)
@@ -344,7 +346,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       password,
       createdAt: new Date().toISOString(),
       icon: selectedIcon,
-      autoStart: false,
+      autoStart,
     }
     
     // Persist via Electron (secure password via keychain)
@@ -538,6 +540,13 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                       onChange={(e) => setPassword(e.target.value)}
                       className="h-8 text-sm"
                     />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-xs">Auto-start on boot</Label>
+                      <p className="text-xs text-muted-foreground">Start this database when LiquiDB launches</p>
+                    </div>
+                    <Switch checked={autoStart} onCheckedChange={setAutoStart} />
                   </div>
                 </TabsContent>
               </Tabs>

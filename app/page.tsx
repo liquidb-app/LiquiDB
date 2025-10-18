@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "sonner"
+import { notifySuccess, notifyError, notifyInfo, notifyWarning } from "@/lib/notifications"
 import type { DatabaseContainer } from "@/lib/types"
 
 export default function DatabaseManager() {
@@ -78,7 +79,7 @@ export default function DatabaseManager() {
     console.log(`[Bulk Start] Starting ${databaseIds.length} databases`)
     
     // Show initial toast
-    toast.info("Starting Multiple Databases", {
+    notifyInfo("Starting Multiple Databases", {
       description: `Starting ${databaseIds.length} databases...`,
       duration: 3000,
     })
@@ -135,17 +136,17 @@ export default function DatabaseManager() {
 
     // Show result toast
     if (failed === 0) {
-      toast.success("Bulk Start Initiated", {
+      notifySuccess("Bulk Start Initiated", {
         description: `Starting ${successful} databases. Status updates will appear as they complete.`,
         duration: 4000,
       })
     } else if (successful === 0) {
-      toast.error("Failed to Start Databases", {
+      notifyError("Failed to Start Databases", {
         description: `Failed to initiate start for all ${failed} databases`,
         duration: 5000,
       })
     } else {
-      toast.warning("Partial Success", {
+      notifyWarning("Partial Success", {
         description: `Initiated start for ${successful} databases, failed to start ${failed}`,
         duration: 5000,
       })
@@ -158,7 +159,7 @@ export default function DatabaseManager() {
     console.log(`[Bulk Stop] Stopping ${databaseIds.length} databases`)
     
     // Show initial toast
-    toast.info("Stopping Multiple Databases", {
+    notifyInfo("Stopping Multiple Databases", {
       description: `Stopping ${databaseIds.length} databases...`,
       duration: 3000,
     })
@@ -194,17 +195,17 @@ export default function DatabaseManager() {
 
     // Show result toast
     if (failed === 0) {
-      toast.success("All Databases Stopped", {
+      notifySuccess("All Databases Stopped", {
         description: `Successfully stopped ${successful} databases`,
         duration: 4000,
       })
     } else if (successful === 0) {
-      toast.error("Failed to Stop Databases", {
+      notifyError("Failed to Stop Databases", {
         description: `Failed to stop all ${failed} databases`,
         duration: 5000,
       })
     } else {
-      toast.warning("Partial Success", {
+      notifyWarning("Partial Success", {
         description: `Stopped ${successful} databases, failed to stop ${failed}`,
         duration: 5000,
       })
@@ -510,7 +511,7 @@ export default function DatabaseManager() {
                     if (db.status === "starting") {
                       // Database was starting but failed
                       if (data.error) {
-                        toast.error("Database failed to start", {
+                        notifyError("Database failed to start", {
                           description: `${db.name} failed to start: ${data.error}`,
                           id: `db-failed-start-${db.id}-${now}`, // Unique ID to prevent duplicates
                           action: {
@@ -519,7 +520,7 @@ export default function DatabaseManager() {
                           }
                         })
                       } else {
-                        toast.error("Database failed to start", {
+                        notifyError("Database failed to start", {
                           description: `${db.name} could not start properly. Please check the logs.`,
                           id: `db-failed-start-${db.id}-${now}`, // Unique ID to prevent duplicates
                           action: {
@@ -531,12 +532,12 @@ export default function DatabaseManager() {
                     } else if (db.status === "running") {
                       // Database was running but crashed
                       if (data.error) {
-                        toast.error("Database crashed", {
+                        notifyError("Database crashed", {
                           description: `${db.name} stopped due to an error: ${data.error}`,
                           id: `db-crashed-${db.id}-${now}`, // Unique ID to prevent duplicates
                         })
                       } else {
-                        toast.info("Database stopped", {
+                        notifyInfo("Database stopped", {
                           description: `${db.name} has stopped running.`,
                           id: `db-stopped-${db.id}-${now}`, // Unique ID to prevent duplicates
                         })
@@ -549,12 +550,12 @@ export default function DatabaseManager() {
                     // Database was starting and is now running
                     console.log(`[Notification] Showing success notification for database ${db.id} (${db.name}) - Event Key: ${eventKey}`)
                     if (data.ready) {
-                      toast.success("Database ready", {
+                      notifySuccess("Database ready", {
                         description: `${db.name} is now running and ready to accept connections.`,
                         id: `db-ready-${db.id}-${now}`, // Unique ID to prevent duplicates
                       })
                     } else {
-                      toast.success("Database started", {
+                      notifySuccess("Database started", {
                         description: `${db.name} is now running.`,
                         id: `db-started-${db.id}-${now}`, // Unique ID to prevent duplicates
                       })
@@ -568,6 +569,56 @@ export default function DatabaseManager() {
           })
         }
       }
+    }
+    
+    // Set up auto-start port conflict listener
+    // @ts-ignore
+    if (window.electron?.onAutoStartPortConflicts) {
+      console.log(`[Listener Setup] Setting up auto-start port conflicts listener`)
+      // @ts-ignore
+      window.electron.onAutoStartPortConflicts((event, data) => {
+        if (!isMounted) return
+        
+        console.log(`[Auto-start] Port conflicts detected:`, data.conflicts)
+        
+        // Show notification for each port conflict
+        data.conflicts.forEach((conflict: any) => {
+          notifyWarning("Auto-start Port Conflict Resolved", {
+            description: `${conflict.databaseName} port changed from ${conflict.originalPort} to ${conflict.newPort} due to conflict with ${conflict.conflictingDatabase}`,
+            duration: 8000,
+          })
+        })
+      })
+    }
+    
+    // Set up auto-start completion listener
+    // @ts-ignore
+    if (window.electron?.onAutoStartCompleted) {
+      console.log(`[Listener Setup] Setting up auto-start completion listener`)
+      // @ts-ignore
+      window.electron.onAutoStartCompleted((event, data) => {
+        if (!isMounted) return
+        
+        console.log(`[Auto-start] Auto-start completed:`, data)
+        
+        // Show summary notification
+        if (data.portConflicts > 0) {
+          notifyInfo("Auto-start Completed with Port Conflicts", {
+            description: `${data.successful} databases started, ${data.failed} failed, ${data.portConflicts} port conflicts resolved`,
+            duration: 6000,
+          })
+        } else if (data.failed > 0) {
+          notifyWarning("Auto-start Completed with Issues", {
+            description: `${data.successful} databases started, ${data.failed} failed`,
+            duration: 6000,
+          })
+        } else if (data.successful > 0) {
+          notifySuccess("Auto-start Completed", {
+            description: `Successfully started ${data.successful} databases`,
+            duration: 4000,
+          })
+        }
+      })
     }
     
     load()
@@ -832,7 +883,7 @@ export default function DatabaseManager() {
               return db
             })
           )
-          toast.success("Database stopped", {
+          notifySuccess("Database stopped", {
             description: `${targetDb.name} has been stopped successfully.`,
           })
         } else {
@@ -1792,6 +1843,7 @@ export default function DatabaseManager() {
           database={selectedDatabase}
           onUpdate={handleUpdateDatabase}
           onDelete={handleDelete}
+          allDatabases={databases}
         />
       )}
 

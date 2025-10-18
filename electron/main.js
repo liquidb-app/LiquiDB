@@ -9,6 +9,7 @@ const brew = require("./brew")
 const storage = require("./storage")
 const https = require("https")
 const http = require("http")
+const AutoLaunch = require("auto-launch")
 let keytar
 try {
   keytar = require("keytar")
@@ -18,6 +19,20 @@ try {
 
 let mainWindow
 const runningDatabases = new Map() // id -> { process, config }
+
+// Auto-launch configuration
+let autoLauncher
+try {
+  autoLauncher = new AutoLaunch({
+    name: 'LiquiDB',
+    path: process.execPath,
+    isHidden: true
+  })
+  console.log("[Auto-launch] Auto-launch module initialized successfully")
+} catch (error) {
+  console.error("[Auto-launch] Failed to initialize auto-launch module:", error)
+  autoLauncher = null
+}
 
 // Alternative MySQL initialization method
 async function alternativeMySQLInit(mysqldPath, dataDir, env) {
@@ -91,20 +106,154 @@ async function alternativeMySQLInit(mysqldPath, dataDir, env) {
   })
 }
 
+// Helper function to find a free port for auto-start conflicts
+function findFreePortForAutoStart(port, usedPorts) {
+  let newPort = port + 1
+  while (usedPorts.includes(newPort) && newPort < 65535) {
+    newPort++
+  }
+  return newPort
+}
+
 // Auto-start databases on app launch (simplified)
 async function autoStartDatabases() {
   try {
     const databases = storage.loadDatabases(app)
-    for (const db of databases) {
-      if (db.autoStart && db.status === "stopped") {
-        console.log(`[Auto-start] Marking database ${db.name} for auto-start...`)
-        // Just mark for auto-start, don't actually start the process
-        db.status = "running"
-        storage.saveDatabase(app, db)
+    const autoStartDatabases = databases.filter(db => db.autoStart && db.status === "stopped")
+    
+    if (autoStartDatabases.length === 0) {
+      console.log("[Auto-start] No databases configured for auto-start")
+      return
+    }
+    
+    console.log(`[Auto-start] Found ${autoStartDatabases.length} databases to auto-start:`, 
+      autoStartDatabases.map(db => `${db.name} (${db.type})`).join(", "))
+    
+    // Check for port conflicts among auto-start databases
+    const portConflicts = []
+    const usedPorts = []
+    const databasesToStart = []
+    
+    for (const db of autoStartDatabases) {
+      if (usedPorts.includes(db.port)) {
+        // Port conflict detected
+        const conflictingDb = databasesToStart.find(d => d.port === db.port)
+        portConflicts.push({
+          database: db,
+          conflictingDatabase: conflictingDb,
+          suggestedPort: findFreePortForAutoStart(db.port, usedPorts)
+        })
+        console.warn(`[Auto-start] Port conflict detected: ${db.name} (port ${db.port}) conflicts with ${conflictingDb.name}`)
+      } else {
+        usedPorts.push(db.port)
+        databasesToStart.push(db)
       }
     }
+    
+    // Handle port conflicts
+    if (portConflicts.length > 0) {
+      console.log(`[Auto-start] Found ${portConflicts.length} port conflicts, resolving automatically`)
+      
+      for (const conflict of portConflicts) {
+        const { database, suggestedPort } = conflict
+        console.log(`[Auto-start] Resolving conflict: ${database.name} port changed from ${database.port} to ${suggestedPort}`)
+        
+        // Update the database port in storage
+        try {
+          const updatedDb = { ...database, port: suggestedPort }
+          const allDatabases = storage.loadDatabases(app)
+          const dbIndex = allDatabases.findIndex(d => d.id === database.id)
+          if (dbIndex >= 0) {
+            allDatabases[dbIndex] = updatedDb
+            storage.saveDatabases(app, allDatabases)
+            console.log(`[Auto-start] Updated ${database.name} port to ${suggestedPort} in storage`)
+          }
+          
+          // Add to databases to start with updated port
+          databasesToStart.push(updatedDb)
+          usedPorts.push(suggestedPort)
+        } catch (error) {
+          console.error(`[Auto-start] Failed to update port for ${database.name}:`, error)
+          // Skip this database if port update fails
+        }
+      }
+      
+      // Notify frontend about port conflicts and resolutions
+      if (mainWindow) {
+        mainWindow.webContents.send('auto-start-port-conflicts', {
+          conflicts: portConflicts.map(c => ({
+            databaseName: c.database.name,
+            originalPort: c.database.port,
+            newPort: c.suggestedPort,
+            conflictingDatabase: c.conflictingDatabase.name
+          }))
+        })
+      }
+    }
+    
+    let successCount = 0
+    let failureCount = 0
+    let skippedCount = 0
+    
+    for (const db of databasesToStart) {
+      try {
+        console.log(`[Auto-start] Starting database ${db.name} (${db.type}) on port ${db.port}...`)
+        
+        // Send initial "starting" status to frontend before starting the process
+        if (mainWindow) {
+          mainWindow.webContents.send('database-status-changed', { 
+            id: db.id, 
+            status: 'starting', 
+            pid: null 
+          })
+          console.log(`[Auto-start] Sent initial starting status for ${db.name} to frontend`)
+        }
+        
+        // Start the database process
+        const result = await startDatabaseProcessAsync(db)
+        
+        if (result && result.success) {
+          console.log(`[Auto-start] Successfully started ${db.name}`)
+          successCount++
+          
+          // Verify the database is actually running by checking the running databases map
+          setTimeout(() => {
+            if (runningDatabases.has(db.id)) {
+              console.log(`[Auto-start] Verified ${db.name} is running (PID: ${runningDatabases.get(db.id).process.pid})`)
+            } else {
+              console.warn(`[Auto-start] Warning: ${db.name} may not be running despite successful start`)
+            }
+          }, 2000) // Check after 2 seconds
+        } else {
+          console.error(`[Auto-start] Failed to start ${db.name}:`, result ? result.error : "No result returned")
+          failureCount++
+        }
+      } catch (error) {
+        console.error(`[Auto-start] Error starting database ${db.name}:`, error)
+        failureCount++
+      }
+      
+      // Add a small delay between starts to avoid overwhelming the system
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+    
+    // Count skipped databases (those with unresolvable port conflicts)
+    skippedCount = autoStartDatabases.length - databasesToStart.length
+    
+    console.log(`[Auto-start] Auto-start process completed: ${successCount} successful, ${failureCount} failed, ${skippedCount} skipped due to port conflicts`)
+    
+    // Send summary to frontend
+    if (mainWindow) {
+      mainWindow.webContents.send('auto-start-completed', {
+        total: autoStartDatabases.length,
+        successful: successCount,
+        failed: failureCount,
+        skipped: skippedCount,
+        portConflicts: portConflicts.length
+      })
+    }
   } catch (error) {
-    console.error("[Auto-start] Error loading databases:", error)
+    console.error("[Auto-start] Error in auto-start process:", error)
   }
 }
 
@@ -146,11 +295,12 @@ async function startDatabaseProcess(config) {
 async function startDatabaseProcessAsync(config) {
   const { id, type, version, port, username, password } = config
   
-  let cmd, args, env = { 
-    ...process.env,
-    PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
-    HOMEBREW_PREFIX: "/opt/homebrew"
-  }
+  try {
+    let cmd, args, env = { 
+      ...process.env,
+      PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
+      HOMEBREW_PREFIX: "/opt/homebrew"
+    }
 
   if (type === "postgresql") {
     // Find PostgreSQL binary path for the specific version (async)
@@ -617,6 +767,24 @@ async function startDatabaseProcessAsync(config) {
   } catch (error) {
     console.error(`[Database] ${id} failed to save PID to storage:`, error)
   }
+  
+  // Notify the renderer process that the database is starting
+  if (mainWindow) {
+    mainWindow.webContents.send('database-status-changed', { 
+      id, 
+      status: 'starting', 
+      pid: child.pid 
+    })
+    console.log(`[Database] ${id} starting status sent to frontend`)
+  }
+  
+  // Return success result for auto-start functionality
+  return { success: true }
+  
+  } catch (error) {
+    console.error(`[Database] ${id} failed to start:`, error)
+    return { success: false, error: error.message }
+  }
 }
 
 function createWindow() {
@@ -662,11 +830,73 @@ function createWindow() {
   })
 }
 
+// Auto-launch IPC handlers
+ipcMain.handle("auto-launch:isEnabled", async () => {
+  try {
+    if (!autoLauncher) {
+      console.warn("[Auto-launch] Auto-launcher not available")
+      return false
+    }
+    return await autoLauncher.isEnabled()
+  } catch (error) {
+    console.error("[Auto-launch] Error checking if enabled:", error)
+    return false
+  }
+})
+
+ipcMain.handle("auto-launch:enable", async () => {
+  try {
+    if (!autoLauncher) {
+      console.warn("[Auto-launch] Auto-launcher not available")
+      return { success: false, error: "Auto-launch module not available" }
+    }
+    await autoLauncher.enable()
+    console.log("[Auto-launch] Enabled startup launch")
+    return { success: true }
+  } catch (error) {
+    console.error("[Auto-launch] Error enabling:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle("auto-launch:disable", async () => {
+  try {
+    if (!autoLauncher) {
+      console.warn("[Auto-launch] Auto-launcher not available")
+      return { success: false, error: "Auto-launch module not available" }
+    }
+    await autoLauncher.disable()
+    console.log("[Auto-launch] Disabled startup launch")
+    return { success: true }
+  } catch (error) {
+    console.error("[Auto-launch] Error disabling:", error)
+    return { success: false, error: error.message }
+  }
+})
+
 app.whenReady().then(() => {
+  console.log("[App] App is ready, initializing...")
+  console.log("[Auto-launch] Auto-launcher available:", !!autoLauncher)
   resetDatabaseStatuses()
   createWindow()
-  // Auto-start databases after a short delay
-  setTimeout(autoStartDatabases, 2000)
+  // Auto-start databases after a short delay to ensure mainWindow is ready
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      console.log("[Auto-start] MainWindow is ready, starting auto-start process")
+      autoStartDatabases()
+    } else {
+      console.warn("[Auto-start] MainWindow not ready, delaying auto-start")
+      // Retry after another 2 seconds
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          console.log("[Auto-start] MainWindow ready on retry, starting auto-start process")
+          autoStartDatabases()
+        } else {
+          console.error("[Auto-start] MainWindow still not ready, skipping auto-start")
+        }
+      }, 2000)
+    }
+  }, 2000)
 })
 
 app.on("window-all-closed", () => {
