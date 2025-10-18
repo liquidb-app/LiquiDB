@@ -278,7 +278,7 @@ async function startDatabaseProcessAsync(config) {
       if (!readyEventSent && mainWindow) {
         readyEventSent = true
         console.log(`[PostgreSQL] ${id} sending ready event (readyEventSent: ${readyEventSent})`)
-        mainWindow.webContents.send('database-status-changed', { id, status: 'running', ready: true })
+        mainWindow.webContents.send('database-status-changed', { id, status: 'running', ready: true, pid: child.pid })
       } else {
         console.log(`[PostgreSQL] ${id} ready event already sent or no mainWindow (readyEventSent: ${readyEventSent}, mainWindow: ${!!mainWindow})`)
       }
@@ -335,7 +335,7 @@ async function startDatabaseProcessAsync(config) {
     }
     // Notify the renderer process that the database has stopped
     if (mainWindow) {
-      mainWindow.webContents.send('database-status-changed', { id, status: 'stopped', error: err.message })
+      mainWindow.webContents.send('database-status-changed', { id, status: 'stopped', error: err.message, pid: null })
     }
   })
 
@@ -348,7 +348,7 @@ async function startDatabaseProcessAsync(config) {
     }
     // Notify the renderer process that the database has stopped
     if (mainWindow) {
-      mainWindow.webContents.send('database-status-changed', { id, status: 'stopped', exitCode: code })
+      mainWindow.webContents.send('database-status-changed', { id, status: 'stopped', exitCode: code, pid: null })
     }
   })
 

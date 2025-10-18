@@ -16,4 +16,5 @@ export interface DatabaseContainer {
   icon?: string
   autoStart?: boolean
   lastStarted?: number
+  pid?: number
 }

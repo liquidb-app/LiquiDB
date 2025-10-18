@@ -141,11 +141,14 @@ export default function DatabaseManager() {
         if (window.electron?.onDatabaseStatusChanged) {
           console.log(`[Listener Setup] Setting up database status listener`)
           // @ts-ignore
-          window.electron.onDatabaseStatusChanged((data: { id: string, status: string, error?: string, exitCode?: number, ready?: boolean }) => {
+          window.electron.onDatabaseStatusChanged((data: { id: string, status: string, error?: string, exitCode?: number, ready?: boolean, pid?: number }) => {
             console.log(`[Real-time Status] Database ${data.id} status changed to ${data.status}${data.ready ? ' (ready)' : ''}`)
             
             // Create a simple event key to prevent duplicate processing
-            const eventKey = `${data.id}-${data.status}-${data.ready ? 'ready' : 'not-ready'}`
+            // For stopped events, use a simpler key to prevent duplicates from error/exit events
+            const eventKey = data.status === 'stopped' 
+              ? `${data.id}-stopped` 
+              : `${data.id}-${data.status}-${data.ready ? 'ready' : 'not-ready'}`
             
             // Check if we've already processed this exact event in the last 5 seconds (synchronous check)
             const now = Date.now()
@@ -168,7 +171,7 @@ export default function DatabaseManager() {
             // Update database status immediately
             setDatabases(prev => {
               const updated = prev.map(db => 
-                db.id === data.id ? { ...db, status: data.status as any } : db
+                db.id === data.id ? { ...db, status: data.status as any, pid: data.pid } : db
               )
               
               // Show notifications only for actual status changes
@@ -561,23 +564,43 @@ export default function DatabaseManager() {
   }
 
   const handleRefreshStatus = async (id: string) => {
-    try {
-      // @ts-ignore
-      const status = await window.electron?.checkDatabaseStatus?.(id)
-      if (status?.status) {
-        setLastStatusCheck(prev => ({ ...prev, [id]: Date.now() }))
-        setDatabases(prev => prev.map(db => 
-          db.id === id ? { ...db, status: status.status } : db
-        ))
-        toast.info("Status refreshed", {
-          description: `Database status updated to ${status.status}`,
-        })
-        console.log(`[Manual Refresh] Database ${id} status: ${status.status}`)
-      }
-    } catch (error) {
-      toast.error("Failed to refresh status", {
-        description: "Could not check database status",
+    const db = databases.find((d) => d.id === id)
+    if (!db) return
+
+    // If database is not running, start it instead of restarting
+    if (db.status === "stopped") {
+      await startDatabaseWithErrorHandling(id)
+      return
+    }
+
+    // If database is running or starting, restart it
+    if (db.status === "running" || db.status === "starting") {
+      toast.info("Restarting database", {
+        description: `${db.name} is restarting...`,
       })
+
+      try {
+        // Stop the database first
+        // @ts-ignore
+        const stopResult = await window.electron?.stopDatabase?.(id)
+        
+        if (stopResult?.success) {
+          // Wait a moment for the process to fully stop
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          
+          // Start the database again - this will trigger the real-time listener notifications
+          await startDatabaseWithErrorHandling(id)
+        } else {
+          toast.error("Failed to restart database", {
+            description: "Could not stop the database for restart",
+          })
+        }
+      } catch (error) {
+        console.log(`[Restart] Error restarting database ${id}:`, error)
+        toast.error("Failed to restart database", {
+          description: "Could not restart the database",
+        })
+      }
     }
   }
 
@@ -658,14 +681,18 @@ export default function DatabaseManager() {
           </Card>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="active" className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                Active Databases
+                Active
+              </TabsTrigger>
+              <TabsTrigger value="inactive" className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                Inactive
               </TabsTrigger>
               <TabsTrigger value="all" className="flex items-center gap-2">
                 <Database className="h-4 w-4" />
-                All Databases
+                All
               </TabsTrigger>
             </TabsList>
             
@@ -735,6 +762,12 @@ export default function DatabaseManager() {
                         )}
                       </div>
                     </div>
+                    {(db.status === "running" || db.status === "starting") && db.pid && (
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground">PID</span>
+                        <span className="font-mono font-medium text-green-600">{db.pid}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between text-[11px] gap-2">
                       <span className="text-muted-foreground">Container</span>
                       <div className="flex items-center gap-1 min-w-0">
@@ -793,15 +826,17 @@ export default function DatabaseManager() {
                         </>
                       )}
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-50"
-                      onClick={() => handleRefreshStatus(db.id)}
-                      title="Refresh status"
-                    >
-                      <RotateCw className="h-3 w-3" />
-                    </Button>
+                    {db.status !== "stopped" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-50"
+                        onClick={() => handleRefreshStatus(db.id)}
+                        title="Restart database"
+                      >
+                        <RotateCw className="h-3 w-3" />
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -822,6 +857,122 @@ export default function DatabaseManager() {
                   </div>
                 </CardContent>
               </Card>
+                  ))}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="inactive" className="mt-6">
+              <div className="mb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold">Inactive Databases</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Databases that are currently stopped
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                    <span className="font-medium">{databases.filter(db => db.status === "stopped").length}</span>
+                    <span>Inactive</span>
+                  </div>
+                </div>
+              </div>
+              <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {databases
+                  .filter(db => db.status === "stopped")
+                  .map((db) => (
+                    <Card key={db.id} className="relative overflow-hidden border-dashed opacity-60">
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <div className="p-1 rounded bg-secondary text-base leading-none flex items-center justify-center w-7 h-7 shrink-0">
+                              {db.icon || <Database className="h-3.5 w-3.5" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h3 className="text-sm font-semibold leading-tight truncate">{db.name}</h3>
+                              <p className="text-[10px] text-muted-foreground leading-tight">
+                                {db.type} {db.version}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] px-1.5 py-0 h-4 shrink-0 bg-muted text-muted-foreground"
+                          >
+                            {db.status}
+                          </Badge>
+                        </div>
+
+                        <div className="space-y-1 mb-2">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground">Port</span>
+                            <div className="flex items-center gap-1">
+                              <span className="font-mono font-medium">{db.port}</span>
+                              {databases.some(otherDb => 
+                                otherDb.id !== db.id && 
+                                otherDb.port === db.port && 
+                                (otherDb.status === "running" || otherDb.status === "starting")
+                              ) && (
+                                <span className="text-yellow-500 text-[10px]" title="Port in use by another database">
+                                  ⚠️
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] gap-2">
+                            <span className="text-muted-foreground">Container</span>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="font-mono text-[10px] truncate max-w-[90px]">{db.containerId}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-4 w-4 p-0 shrink-0 transition-all duration-200 hover:scale-125 active:scale-90"
+                                onClick={() => handleCopyContainerId(db.containerId, db.id)}
+                              >
+                                {copiedId === db.id ? (
+                                  <Check className="h-3 w-3 text-green-500" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 h-6 text-[11px] transition-all duration-200 hover:scale-105 active:scale-95 border-success/50 text-success hover:bg-success hover:text-success-foreground"
+                            onClick={() => handleStartStop(db.id)}
+                            disabled={db.status === "installing" || db.status === "starting"}
+                          >
+                            <Play className="mr-1 h-3 w-3" />
+                            Start
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 w-6 p-0 transition-all duration-200 hover:scale-105 active:scale-95"
+                            onClick={() => {
+                              setSelectedDatabase(db)
+                              setSettingsDialogOpen(true)
+                            }}
+                          >
+                            <Settings2 className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 w-6 p-0 transition-all duration-200 hover:scale-105 active:scale-95"
+                            onClick={() => handleDebugDatabase(db.id)}
+                            title="Debug database status"
+                          >
+                            <Database className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                   ))}
               </div>
             </TabsContent>
@@ -895,6 +1046,12 @@ export default function DatabaseManager() {
                             )}
                           </div>
                         </div>
+                        {(db.status === "running" || db.status === "starting") && db.pid && (
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground">PID</span>
+                            <span className="font-mono font-medium text-green-600">{db.pid}</span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between text-[11px] gap-2">
                           <span className="text-muted-foreground">Container</span>
                           <div className="flex items-center gap-1 min-w-0">
@@ -953,15 +1110,17 @@ export default function DatabaseManager() {
                             </>
                           )}
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-50"
-                          onClick={() => handleRefreshStatus(db.id)}
-                          title="Refresh status"
-                        >
-                          <RotateCw className="h-3 w-3" />
-                        </Button>
+                        {db.status !== "stopped" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-50"
+                            onClick={() => handleRefreshStatus(db.id)}
+                            title="Restart database"
+                          >
+                            <RotateCw className="h-3 w-3" />
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"

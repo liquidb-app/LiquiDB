@@ -48,6 +48,25 @@ const DATABASE_CONFIGS = {
 
 const DEFAULT_ICONS = ["🐘", "🐬", "🍃", "🔴", "💾", "🗄️", "📊", "🔷", "🟦", "🟪", "🟩", "🟨", "🟧", "🟥"]
 
+// Generate shorter, unique IDs and names
+const generateShortId = (): string => {
+  const timestamp = Date.now().toString(36) // Base36 for shorter representation
+  const random = Math.random().toString(36).substring(2, 6) // 4 random chars
+  return `${timestamp}${random}`
+}
+
+const generateShortName = (type: DatabaseType): string => {
+  const typeMap = {
+    postgresql: "pg",
+    mysql: "my",
+    mongodb: "mongo",
+    redis: "redis"
+  }
+  const shortType = typeMap[type]
+  const timestamp = Date.now().toString(36).substring(-4) // Last 4 chars of timestamp
+  return `${shortType}-${timestamp}`
+}
+
 export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDialogProps) {
   const [step, setStep] = useState<"type" | "config">("type")
   const [selectedType, setSelectedType] = useState<DatabaseType>("postgresql")
@@ -189,13 +208,13 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       return
     }
     const database: DatabaseContainer = {
-      id: `db-${Date.now()}`,
-      name: name || `${selectedType}-${Date.now()}`,
+      id: generateShortId(),
+      name: name || generateShortName(selectedType),
       type: selectedType,
       version,
       port: Number.parseInt(port),
       status: "stopped", // Create with stopped status since installation is complete
-      containerId: `container-${Date.now()}`,
+      containerId: generateShortId(),
       username,
       password,
       createdAt: new Date().toISOString(),
