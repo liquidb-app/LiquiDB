@@ -19,6 +19,78 @@ try {
 let mainWindow
 const runningDatabases = new Map() // id -> { process, config }
 
+// Alternative MySQL initialization method
+async function alternativeMySQLInit(mysqldPath, dataDir, env) {
+  console.log(`[MySQL Alt] Trying alternative initialization...`)
+  
+  // Try with different arguments
+  const { spawn } = require("child_process")
+  const initProcess = spawn(mysqldPath, [
+    "--initialize-insecure", 
+    `--datadir=${dataDir}`,
+    `--log-error=${dataDir}/mysql-alt-init.log`,
+    "--skip-log-bin",
+    "--skip-innodb",
+    "--default-storage-engine=MyISAM"
+  ], { 
+    stdio: "pipe",
+    env: { 
+      ...env,
+      MYSQL_HOME: "/opt/homebrew"
+    }
+  })
+  
+  let initOutput = ""
+  let initError = ""
+  
+  initProcess.stdout.on("data", (data) => {
+    const output = data.toString()
+    initOutput += output
+    console.log(`[MySQL Alt Init] ${output.trim()}`)
+  })
+  
+  initProcess.stderr.on("data", (data) => {
+    const error = data.toString()
+    initError += error
+    console.error(`[MySQL Alt Init Error] ${error.trim()}`)
+  })
+  
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      initProcess.kill('SIGTERM')
+      reject(new Error('Alternative MySQL initialization timed out'))
+    }, 30000)
+    
+    initProcess.on("exit", async (code) => {
+      clearTimeout(timeout)
+      if (code === 0) {
+        console.log(`[MySQL Alt] Alternative initialization successful`)
+        resolve()
+      } else {
+        console.error(`[MySQL Alt] Alternative initialization failed with code ${code}`)
+        console.error(`[MySQL Alt] Output:`, initOutput)
+        console.error(`[MySQL Alt] Error:`, initError)
+        
+        // Try to read the error log
+        try {
+          const logContent = await fs.readFile(`${dataDir}/mysql-alt-init.log`, 'utf8')
+          console.error(`[MySQL Alt] Error log:`, logContent)
+        } catch (logError) {
+          console.log(`[MySQL Alt] Could not read error log`)
+        }
+        
+        reject(new Error(`Alternative MySQL initialization failed with exit code ${code}`))
+      }
+    })
+    
+    initProcess.on("error", (error) => {
+      clearTimeout(timeout)
+      console.error(`[MySQL Alt] Process error:`, error)
+      reject(error)
+    })
+  })
+}
+
 // Auto-start databases on app launch (simplified)
 async function autoStartDatabases() {
   try {
@@ -201,7 +273,14 @@ async function startDatabaseProcessAsync(config) {
     }
     
     cmd = mysqldPath
-    args = ["--port", port.toString(), "--datadir", `/tmp/liquidb-${id}`, "--user=mysql", "--skip-grant-tables", "--skip-networking=false"]
+    args = [
+      "--port", port.toString(), 
+      "--datadir", `/tmp/liquidb-${id}`, 
+      "--skip-grant-tables", 
+      "--skip-networking=false",
+      "--bind-address=127.0.0.1",
+      "--log-error=/tmp/liquidb-${id}/mysql-error.log"
+    ]
     
     // Create data directory (async)
     const fs = require("fs").promises
@@ -211,18 +290,105 @@ async function startDatabaseProcessAsync(config) {
       // Directory might already exist
     }
     
-    try {
-      console.log(`[MySQL] Initializing database with ${mysqldPath}`)
-      // Use spawn instead of execSync to prevent blocking
-      const { spawn } = require("child_process")
-      const initProcess = spawn(mysqldPath, ["--initialize-insecure", "--datadir=/tmp/liquidb-${id}", "--user=mysql"], { stdio: "ignore" })
-      
-      await new Promise((resolve) => {
-        initProcess.on("exit", () => resolve())
-        initProcess.on("error", () => resolve())
-      })
-    } catch (e) {
-      console.log("MySQL init:", e.message)
+    // Initialize MySQL database if it doesn't exist
+    const dataDir = `/tmp/liquidb-${id}`
+    const mysqlDataExists = await fs.access(`${dataDir}/mysql`).then(() => true).catch(() => false)
+    
+    if (!mysqlDataExists) {
+      try {
+        console.log(`[MySQL] Initializing database with ${mysqldPath}`)
+        console.log(`[MySQL] Data directory: ${dataDir}`)
+        
+        // Ensure data directory is empty and has proper permissions
+        try {
+          await fs.rmdir(dataDir, { recursive: true })
+        } catch (e) {
+          // Directory might not exist, that's fine
+        }
+        await fs.mkdir(dataDir, { recursive: true })
+        
+        // Use spawn instead of execSync to prevent blocking
+        const { spawn } = require("child_process")
+        const initProcess = spawn(mysqldPath, [
+          "--initialize-insecure", 
+          `--datadir=${dataDir}`,
+          `--log-error=${dataDir}/mysql-init.log`,
+          "--basedir=/opt/homebrew",
+          "--tmpdir=/tmp"
+        ], { 
+          stdio: "pipe",
+          env: { 
+            ...env,
+            MYSQL_HOME: "/opt/homebrew",
+            MYSQL_UNIX_PORT: `/tmp/mysql-${id}.sock`
+          },
+          cwd: "/opt/homebrew"
+        })
+        
+        let initOutput = ""
+        let initError = ""
+        
+        initProcess.stdout.on("data", (data) => {
+          const output = data.toString()
+          initOutput += output
+          console.log(`[MySQL Init] ${output.trim()}`)
+        })
+        
+        initProcess.stderr.on("data", (data) => {
+          const error = data.toString()
+          initError += error
+          console.error(`[MySQL Init Error] ${error.trim()}`)
+        })
+        
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            initProcess.kill('SIGTERM')
+            reject(new Error('MySQL initialization timed out after 30 seconds'))
+          }, 30000)
+          
+          initProcess.on("exit", async (code) => {
+            clearTimeout(timeout)
+            if (code === 0) {
+              console.log(`[MySQL] Database initialized successfully`)
+              resolve()
+            } else {
+              console.error(`[MySQL] Initialization failed with code ${code}`)
+              console.error(`[MySQL] Init output:`, initOutput)
+              console.error(`[MySQL] Init error:`, initError)
+              
+              // Try to read the error log for more details
+              try {
+                const logContent = await fs.readFile(`${dataDir}/mysql-init.log`, 'utf8')
+                console.error(`[MySQL] Error log content:`, logContent)
+              } catch (logError) {
+                console.log(`[MySQL] Could not read error log:`, logError.message)
+              }
+              
+              // Try alternative initialization method
+              console.log(`[MySQL] Attempting alternative initialization method...`)
+              try {
+                await alternativeMySQLInit(mysqldPath, dataDir, env)
+                console.log(`[MySQL] Alternative initialization successful`)
+                resolve()
+              } catch (altError) {
+                console.error(`[MySQL] Alternative initialization also failed:`, altError.message)
+                reject(new Error(`MySQL initialization failed with exit code ${code}. Both standard and alternative methods failed.`))
+              }
+            }
+          })
+          
+          initProcess.on("error", (error) => {
+            clearTimeout(timeout)
+            console.error(`[MySQL] Initialization process error:`, error)
+            reject(error)
+          })
+        })
+      } catch (e) {
+        console.error(`[MySQL] Initialization error:`, e.message)
+        throw new Error(`MySQL initialization failed: ${e.message}`)
+      }
+    } else {
+      console.log(`[MySQL] Database already initialized, skipping initialization`)
     }
   } else if (type === "mongodb") {
     // Find MongoDB binary path
@@ -264,8 +430,25 @@ async function startDatabaseProcessAsync(config) {
       }
     }
     
+    // Create data directory for Redis
+    const fs = require("fs").promises
+    const redisDataDir = `/tmp/liquidb-${id}`
+    try {
+      await fs.mkdir(redisDataDir, { recursive: true })
+    } catch (e) {
+      // Directory might already exist
+    }
+    
     cmd = redisPath
-    args = ["--port", port.toString(), "--bind", "127.0.0.1"]
+    args = [
+      "--port", port.toString(), 
+      "--bind", "127.0.0.1",
+      "--dir", redisDataDir,
+      "--dbfilename", `dump-${id}.rdb`,
+      "--save", "900 1", // Save after 900 seconds if at least 1 key changed
+      "--save", "300 10", // Save after 300 seconds if at least 10 keys changed
+      "--save", "60 10000" // Save after 60 seconds if at least 10000 keys changed
+    ]
   }
 
   const child = spawn(cmd, args, { env, detached: false })

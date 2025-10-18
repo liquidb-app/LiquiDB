@@ -38,4 +38,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# database files
+dump.rdb
+*.rdb
+
 /.cursor
