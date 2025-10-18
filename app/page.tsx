@@ -1184,7 +1184,7 @@ export default function DatabaseManager() {
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background">
-      <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-sm border-b border-border/50 cursor-move" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border/50 cursor-move" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
         <div className="container mx-auto px-6 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {selectedDatabases.size > 0 && (
@@ -1289,7 +1289,7 @@ export default function DatabaseManager() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="active" className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div className="w-2 h-2 bg-success rounded-full"></div>
                 Active
               </TabsTrigger>
               <TabsTrigger value="inactive" className="flex items-center gap-2">
@@ -1323,7 +1323,7 @@ export default function DatabaseManager() {
                       </Button>
                     )}
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <div className="w-2 h-2 bg-success rounded-full"></div>
                       <span className="font-medium">{databases.filter(db => db.status === "running" || db.status === "starting").length}</span>
                       <span>Active</span>
                     </div>
@@ -1369,11 +1369,11 @@ export default function DatabaseManager() {
                         db.status === "running"
                           ? "bg-success text-success-foreground hover:bg-success/90"
                           : db.status === "starting"
-                          ? "bg-blue-500 text-white hover:bg-blue-600"
+                          ? "bg-status-starting text-status-starting-foreground hover:opacity-90"
                           : db.status === "stopping"
-                          ? "bg-orange-500 text-white hover:bg-orange-600"
+                          ? "bg-status-stopping text-status-stopping-foreground hover:opacity-90"
                           : db.status === "installing"
-                          ? "bg-yellow-500 text-white hover:bg-yellow-600"
+                          ? "bg-status-installing text-status-installing-foreground hover:opacity-90"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
@@ -1385,13 +1385,13 @@ export default function DatabaseManager() {
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="text-muted-foreground">Port</span>
                       <div className="flex items-center gap-1">
-                        <span className="font-mono font-medium">{db.port}</span>
+                        <span className="font-mono font-medium text-success">{db.port}</span>
                         {databases.some(otherDb => 
                           otherDb.id !== db.id && 
                           otherDb.port === db.port && 
                           (otherDb.status === "running" || otherDb.status === "starting")
                         ) && (
-                          <span className="text-yellow-500 text-[10px]" title="Port in use by another database">
+                          <span className="text-warning text-[10px]" title="Port in use by another database">
                             ⚠️
                           </span>
                         )}
@@ -1400,7 +1400,7 @@ export default function DatabaseManager() {
                     {(db.status === "running" || db.status === "starting") && db.pid && (
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-muted-foreground">PID</span>
-                        <span className="font-mono font-medium text-green-600">{db.pid}</span>
+                        <span className="font-mono font-medium text-success">{db.pid}</span>
                       </div>
                     )}
                     <div className="flex items-center justify-between text-[11px] gap-2">
@@ -1417,7 +1417,7 @@ export default function DatabaseManager() {
                           }}
                         >
                           {copiedId === db.id ? (
-                            <Check className="h-3 w-3 text-green-500" />
+                            <Check className="h-3 w-3 text-success" />
                           ) : (
                             <Copy className="h-3 w-3" />
                           )}
@@ -1599,7 +1599,7 @@ export default function DatabaseManager() {
                             variant="secondary"
                             className={`text-[10px] px-1.5 py-0 h-4 shrink-0 ${
                               db.status === "stopping"
-                                ? "bg-orange-500 text-white hover:bg-orange-600"
+                                ? "bg-status-stopping text-status-stopping-foreground hover:opacity-90"
                                 : "bg-muted text-muted-foreground"
                             }`}
                           >
@@ -1611,13 +1611,13 @@ export default function DatabaseManager() {
                           <div className="flex items-center justify-between text-[11px]">
                             <span className="text-muted-foreground">Port</span>
                             <div className="flex items-center gap-1">
-                              <span className="font-mono font-medium">{db.port}</span>
+                              <span className="font-mono font-medium text-success">{db.port}</span>
                               {databases.some(otherDb => 
                                 otherDb.id !== db.id && 
                                 otherDb.port === db.port && 
                                 (otherDb.status === "running" || otherDb.status === "starting")
                               ) && (
-                                <span className="text-yellow-500 text-[10px]" title="Port in use by another database">
+                                <span className="text-warning text-[10px]" title="Port in use by another database">
                                   ⚠️
                                 </span>
                               )}
@@ -1637,7 +1637,7 @@ export default function DatabaseManager() {
                                 }}
                               >
                                 {copiedId === db.id ? (
-                                  <Check className="h-3 w-3 text-green-500" />
+                                  <Check className="h-3 w-3 text-success" />
                                 ) : (
                                   <Copy className="h-3 w-3" />
                                 )}
@@ -1770,11 +1770,11 @@ export default function DatabaseManager() {
                             db.status === "running"
                               ? "bg-success text-success-foreground hover:bg-success/90"
                               : db.status === "starting"
-                              ? "bg-blue-500 text-white hover:bg-blue-600"
+                              ? "bg-status-starting text-status-starting-foreground hover:opacity-90"
                               : db.status === "stopping"
-                              ? "bg-orange-500 text-white hover:bg-orange-600"
+                              ? "bg-status-stopping text-status-stopping-foreground hover:opacity-90"
                               : db.status === "installing"
-                              ? "bg-yellow-500 text-white hover:bg-yellow-600"
+                              ? "bg-status-installing text-status-installing-foreground hover:opacity-90"
                               : "bg-muted text-muted-foreground"
                           }`}
                         >
@@ -1786,13 +1786,13 @@ export default function DatabaseManager() {
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="text-muted-foreground">Port</span>
                           <div className="flex items-center gap-1">
-                            <span className="font-mono font-medium">{db.port}</span>
+                            <span className="font-mono font-medium text-success">{db.port}</span>
                             {databases.some(otherDb => 
                               otherDb.id !== db.id && 
                               otherDb.port === db.port && 
                               (otherDb.status === "running" || otherDb.status === "starting")
                             ) && (
-                              <span className="text-yellow-500 text-[10px]" title="Port in use by another database">
+                              <span className="text-warning text-[10px]" title="Port in use by another database">
                                 ⚠️
                               </span>
                             )}
@@ -1801,7 +1801,7 @@ export default function DatabaseManager() {
                         {(db.status === "running" || db.status === "starting") && db.pid && (
                           <div className="flex items-center justify-between text-[11px]">
                             <span className="text-muted-foreground">PID</span>
-                            <span className="font-mono font-medium text-green-600">{db.pid}</span>
+                            <span className="font-mono font-medium text-success">{db.pid}</span>
                           </div>
                         )}
                         <div className="flex items-center justify-between text-[11px] gap-2">
@@ -1818,7 +1818,7 @@ export default function DatabaseManager() {
                               }}
                             >
                               {copiedId === db.id ? (
-                                <Check className="h-3 w-3 text-green-500" />
+                                <Check className="h-3 w-3 text-success" />
                               ) : (
                                 <Copy className="h-3 w-3" />
                               )}

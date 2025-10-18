@@ -29,6 +29,21 @@
   /* Added success color for start/running states */
   --success: oklch(0.55 0.15 145);
   --success-foreground: oklch(0.985 0 0);
+  /* Added warning color for warnings */
+  --warning: oklch(0.65 0.15 60);
+  --warning-foreground: oklch(0.985 0 0);
+  /* Added info color for info states */
+  --info: oklch(0.55 0.15 240);
+  --info-foreground: oklch(0.985 0 0);
+  /* Added status colors */
+  --status-running: oklch(0.55 0.15 145);
+  --status-running-foreground: oklch(0.985 0 0);
+  --status-starting: oklch(0.55 0.15 240);
+  --status-starting-foreground: oklch(0.985 0 0);
+  --status-stopping: oklch(0.65 0.15 40);
+  --status-stopping-foreground: oklch(0.985 0 0);
+  --status-installing: oklch(0.7 0.15 60);
+  --status-installing-foreground: oklch(0.145 0 0);
   --chart-1: oklch(0.5 0.25 240);
   --chart-2: oklch(0.5 0.25 160);
   --chart-3: oklch(0.5 0.25 40);
@@ -98,6 +113,21 @@
   /* Added success color for dark mode */
   --success: oklch(0.6 0.15 145);
   --success-foreground: oklch(0.985 0 0);
+  /* Added warning color for dark mode */
+  --warning: oklch(0.7 0.15 60);
+  --warning-foreground: oklch(0.145 0 0);
+  /* Added info color for dark mode */
+  --info: oklch(0.6 0.15 240);
+  --info-foreground: oklch(0.985 0 0);
+  /* Added status colors for dark mode */
+  --status-running: oklch(0.6 0.15 145);
+  --status-running-foreground: oklch(0.985 0 0);
+  --status-starting: oklch(0.6 0.15 240);
+  --status-starting-foreground: oklch(0.985 0 0);
+  --status-stopping: oklch(0.7 0.15 40);
+  --status-stopping-foreground: oklch(0.145 0 0);
+  --status-installing: oklch(0.75 0.15 60);
+  --status-installing-foreground: oklch(0.145 0 0);
   --chart-1: oklch(0.7 0.25 240);
   --chart-2: oklch(0.7 0.25 160);
   --chart-3: oklch(0.7 0.25 40);
@@ -165,6 +195,21 @@
   /* Added success color to theme */
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  /* Added warning color to theme */
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  /* Added info color to theme */
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  /* Added status colors to theme */
+  --color-status-running: var(--status-running);
+  --color-status-running-foreground: var(--status-running-foreground);
+  --color-status-starting: var(--status-starting);
+  --color-status-starting-foreground: var(--status-starting-foreground);
+  --color-status-stopping: var(--status-stopping);
+  --color-status-stopping-foreground: var(--status-stopping-foreground);
+  --color-status-installing: var(--status-installing);
+  --color-status-installing-foreground: var(--status-installing-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

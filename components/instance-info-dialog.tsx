@@ -337,12 +337,12 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                         <div 
                           className="bg-primary h-2 rounded-full transition-all duration-300"
                           style={{ 
-                            width: `${((systemInfo.systemMemory.total - systemInfo.systemMemory.free) / systemInfo.systemMemory.total * 100).toFixed(1)}%` 
+                            width: `${(systemInfo.systemMemory.active / systemInfo.systemMemory.total * 100).toFixed(1)}%` 
                           }}
                         />
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        {((systemInfo.systemMemory.total - systemInfo.systemMemory.free) / systemInfo.systemMemory.total * 100).toFixed(1)}% used
+                        {(systemInfo.systemMemory.active / systemInfo.systemMemory.total * 100).toFixed(1)}% used
                       </div>
                     </div>
                   </CardContent>

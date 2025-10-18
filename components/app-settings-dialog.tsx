@@ -68,6 +68,10 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   const [localColorScheme, setLocalColorScheme] = useState("mono")
   const [localAutoLaunchEnabled, setLocalAutoLaunchEnabled] = useState(false)
   const [localNotifications, setLocalNotifications] = useState(true)
+  
+  // Store original values for revert functionality
+  const [originalTheme, setOriginalTheme] = useState(theme || "system")
+  const [originalColorScheme, setOriginalColorScheme] = useState("mono")
 
   useEffect(() => {
     setMounted(true)
@@ -107,6 +111,10 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
       setLocalColorScheme(colorScheme)
       setLocalAutoLaunchEnabled(autoLaunchEnabled)
       setLocalNotifications(notifications)
+      
+      // Store original values for revert functionality
+      setOriginalTheme(theme || "system")
+      setOriginalColorScheme(colorScheme)
     }
   }, [open, theme, colorScheme, autoLaunchEnabled, notifications])
 
@@ -165,6 +173,19 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     document.documentElement.setAttribute("data-color-scheme", value)
   }
 
+  // Preview handlers that apply changes immediately
+  const handleThemePreview = (newTheme: string) => {
+    setLocalTheme(newTheme)
+    setTheme(newTheme) // Apply immediately for preview
+  }
+
+  const handleColorSchemePreview = (newColorScheme: string) => {
+    setLocalColorScheme(newColorScheme)
+    setColorScheme(newColorScheme) // Apply immediately for preview
+    localStorage.setItem("color-scheme", newColorScheme)
+    document.documentElement.setAttribute("data-color-scheme", newColorScheme)
+  }
+
   const handleNotificationToggle = (enabled: boolean) => {
     setNotifications(enabled)
     
@@ -196,17 +217,8 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   }
 
   const handleSave = () => {
-    // Apply theme changes
-    if (localTheme !== theme) {
-      setTheme(localTheme)
-    }
-    
-    // Apply color scheme changes
-    if (localColorScheme !== colorScheme) {
-      setColorScheme(localColorScheme)
-      localStorage.setItem("color-scheme", localColorScheme)
-      document.documentElement.setAttribute("data-color-scheme", localColorScheme)
-    }
+    // Theme and color scheme changes are already applied for preview
+    // Just ensure they're persisted (they already are from the preview handlers)
     
     // Apply auto-launch changes
     if (localAutoLaunchEnabled !== autoLaunchEnabled) {
@@ -232,9 +244,15 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   }
 
   const handleCancel = () => {
-    // Reset local state to current values
-    setLocalTheme(theme || "system")
-    setLocalColorScheme(colorScheme)
+    // Revert theme and color scheme to original values
+    setTheme(originalTheme)
+    setColorScheme(originalColorScheme)
+    localStorage.setItem("color-scheme", originalColorScheme)
+    document.documentElement.setAttribute("data-color-scheme", originalColorScheme)
+    
+    // Reset local state to original values
+    setLocalTheme(originalTheme)
+    setLocalColorScheme(originalColorScheme)
     setLocalAutoLaunchEnabled(autoLaunchEnabled)
     setLocalNotifications(notifications)
     onOpenChange(false)
@@ -289,7 +307,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
               <TabsContent value="appearance" className="space-y-4 pt-4 mt-0">
                 <div className="space-y-2">
                   <Label>Theme</Label>
-                  <Select value={localTheme} onValueChange={setLocalTheme}>
+                  <Select value={localTheme} onValueChange={handleThemePreview}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -325,7 +343,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                     {colorSchemes.map((scheme) => (
                       <button
                         key={scheme.value}
-                        onClick={() => setLocalColorScheme(scheme.value)}
+                        onClick={() => handleColorSchemePreview(scheme.value)}
                         className={`flex flex-col items-center gap-1.5 p-2 rounded-md border-2 transition-colors ${
                           localColorScheme === scheme.value
                             ? "border-primary bg-accent"
