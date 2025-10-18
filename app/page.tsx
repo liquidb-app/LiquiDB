@@ -541,12 +541,66 @@ export default function DatabaseManager() {
     setSettingsDialogOpen(true)
   }
 
-  const handleUpdateDatabase = (updatedDatabase: DatabaseContainer) => {
+  const handleUpdateDatabase = async (updatedDatabase: DatabaseContainer) => {
+    const originalDatabase = databases.find(db => db.id === updatedDatabase.id)
+    if (!originalDatabase) return
+
+    // Check if port has changed and database is running
+    const portChanged = originalDatabase.port !== updatedDatabase.port
+    const wasRunning = originalDatabase.status === "running" || originalDatabase.status === "starting"
+    
+    // Update the database in state
     setDatabases(databases.map((db) => (db.id === updatedDatabase.id ? updatedDatabase : db)))
-    setSettingsDialogOpen(false)
-    toast.success("Settings updated", {
-      description: `${updatedDatabase.name} has been updated.`,
-    })
+    
+    // Save the updated database to Electron storage
+    try {
+      // @ts-ignore
+      await window.electron?.saveDatabase?.(updatedDatabase)
+    } catch (error) {
+      console.log(`[Port Change] Error saving database ${updatedDatabase.id}:`, error)
+    }
+    
+    // If port changed and database was running, restart it
+    if (portChanged && wasRunning) {
+      setSettingsDialogOpen(false)
+      
+      toast.info("Port changed - restarting database", {
+        description: `${updatedDatabase.name} is restarting with the new port ${updatedDatabase.port}.`,
+      })
+
+      try {
+        // Stop the database first
+        // @ts-ignore
+        const stopResult = await window.electron?.stopDatabase?.(updatedDatabase.id)
+        
+        if (stopResult?.success) {
+          // Update database status to stopped immediately to prevent port conflicts
+          setDatabases(prev => prev.map(db => 
+            db.id === updatedDatabase.id ? { ...updatedDatabase, status: "stopped" } : db
+          ))
+          
+          // Wait a moment for the process to fully stop
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          
+          // Start the database with the new port
+          await startDatabaseWithErrorHandling(updatedDatabase.id)
+        } else {
+          toast.error("Failed to restart database", {
+            description: "Could not stop the database for port change",
+          })
+        }
+      } catch (error) {
+        console.log(`[Port Change] Error restarting database ${updatedDatabase.id}:`, error)
+        toast.error("Failed to restart database", {
+          description: "Could not restart the database with new port",
+        })
+      }
+    } else {
+      setSettingsDialogOpen(false)
+      toast.success("Settings updated", {
+        description: `${updatedDatabase.name} has been updated.`,
+      })
+    }
   }
 
   const handleResolvePortConflict = (newPort: number) => {

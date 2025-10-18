@@ -65,21 +65,24 @@ export function DatabaseSettingsDialog({
   const handleSave = () => {
     const portNum = Number.parseInt(port)
     const checkAndSave = async () => {
-      // @ts-ignore
-      if (window.electron?.checkPort) {
+      // Only check port availability if the port has changed
+      if (portNum !== database.port) {
         // @ts-ignore
-        const res = await window.electron.checkPort(portNum)
-        if (!res?.available) {
-          alert(
-            res?.reason === "banned"
-              ? "This port is banned in settings. Choose another."
-              : res?.reason === "privileged"
-                ? "Privileged port (<1024) not allowed."
-                : res?.reason === "invalid_range"
-                  ? "Port must be between 1 and 65535."
-                  : "Port is in use or unavailable."
-          )
-          return
+        if (window.electron?.checkPort) {
+          // @ts-ignore
+          const res = await window.electron.checkPort(portNum)
+          if (!res?.available) {
+            alert(
+              res?.reason === "banned"
+                ? "This port is banned in settings. Choose another."
+                : res?.reason === "privileged"
+                  ? "Privileged port (<1024) not allowed."
+                  : res?.reason === "invalid_range"
+                    ? "Port must be between 1 and 65535."
+                    : "Port is in use or unavailable."
+            )
+            return
+          }
         }
       }
       const updated = {
