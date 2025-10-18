@@ -1217,24 +1217,26 @@ export default function DatabaseManager() {
           </div>
           
           <div className="flex items-center gap-2">
-            <Button
-              onClick={() => {
-                setShowBulkActions(!showBulkActions)
-                if (showBulkActions) {
-                  // Clear selection when exiting selection mode
-                  setSelectedDatabases(new Set())
-                }
-              }}
-              size="sm"
-              variant={showBulkActions ? "default" : "ghost"}
-              className={`transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${
-                showBulkActions ? "bg-primary text-primary-foreground" : ""
-              }`}
-              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-              title={showBulkActions ? "Exit selection mode" : "Select multiple databases"}
-            >
-              <Grid3X3 className={`h-4 w-4 transition-transform duration-200 ${showBulkActions ? 'rotate-12' : ''}`} />
-            </Button>
+            {databases.length > 0 && (
+              <Button
+                onClick={() => {
+                  setShowBulkActions(!showBulkActions)
+                  if (showBulkActions) {
+                    // Clear selection when exiting selection mode
+                    setSelectedDatabases(new Set())
+                  }
+                }}
+                size="sm"
+                variant={showBulkActions ? "default" : "ghost"}
+                className={`transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${
+                  showBulkActions ? "bg-primary text-primary-foreground" : ""
+                }`}
+                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                title={showBulkActions ? "Exit selection mode" : "Select multiple databases"}
+              >
+                <Grid3X3 className={`h-4 w-4 transition-transform duration-200 ${showBulkActions ? 'rotate-12' : ''}`} />
+              </Button>
+            )}
             <Button
               onClick={() => setAddDialogOpen(true)}
               size="sm"
