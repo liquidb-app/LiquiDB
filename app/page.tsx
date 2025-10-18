@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Plus, Database, Play, Square, SettingsIcon, Settings2, Copy, Check, RotateCw } from "lucide-react"
+import { useEffect, useState, useRef } from "react"
+import { Plus, Database, Play, Square, SettingsIcon, Settings2, Copy, Check, RotateCw, Cog } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +9,8 @@ import { AddDatabaseDialog } from "@/components/add-database-dialog"
 import { DatabaseSettingsDialog } from "@/components/database-settings-dialog"
 import { PortConflictDialog } from "@/components/port-conflict-dialog"
 import { AppSettingsDialog } from "@/components/app-settings-dialog"
+import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import type { DatabaseContainer } from "@/lib/types"
 
@@ -22,6 +24,8 @@ export default function DatabaseManager() {
   const [conflictingPort, setConflictingPort] = useState<number | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [lastStatusCheck, setLastStatusCheck] = useState<Record<string, number>>({})
+  const lastStatusCheckRef = useRef<Record<string, number>>({})
+  const [activeTab, setActiveTab] = useState<string>("active")
 
   useEffect(() => {
     const load = async () => {
@@ -70,6 +74,153 @@ export default function DatabaseManager() {
             }
           }
         }, 1000)
+        
+        // Simple status monitoring
+        const startStatusMonitoring = () => {
+          const statusCheckInterval = setInterval(async () => {
+            try {
+              // Get current database list
+              const currentDatabases = databases
+              const databasesToCheck = currentDatabases.filter(db => 
+                db.status === "running" || db.status === "starting"
+              )
+              
+              if (databasesToCheck.length === 0) return
+              
+              // Check each database status
+              for (const db of databasesToCheck) {
+                try {
+                  // @ts-ignore
+                  const status = await window.electron?.checkDatabaseStatus?.(db.id)
+                  
+                  if (status?.status && status.status !== db.status) {
+                    console.log(`[Status Update] Database ${db.id}: ${db.status} → ${status.status}`)
+                    
+                    // Update the database status immediately
+                    setDatabases(prev => prev.map(d => 
+                      d.id === db.id ? { ...d, status: status.status } : d
+                    ))
+                    
+                    // Notifications are handled by the real-time listener to avoid duplicates
+                  }
+                } catch (error) {
+                  console.log(`[Status Check Error] Database ${db.id}:`, error)
+                }
+              }
+            } catch (error) {
+              console.log(`[Status Monitoring Error]:`, error)
+            }
+          }, 5000) // Check every 5 seconds
+          
+          return statusCheckInterval
+        }
+        
+        const statusInterval = startStatusMonitoring()
+        
+        // Set up real-time status change listener from electron main process
+        // @ts-ignore
+        if (window.electron?.onDatabaseStatusChanged) {
+          console.log(`[Listener Setup] Setting up database status listener`)
+          // @ts-ignore
+          window.electron.onDatabaseStatusChanged((data: { id: string, status: string, error?: string, exitCode?: number, ready?: boolean }) => {
+            console.log(`[Real-time Status] Database ${data.id} status changed to ${data.status}${data.ready ? ' (ready)' : ''}`)
+            
+            // Create a simple event key to prevent duplicate processing
+            const eventKey = `${data.id}-${data.status}-${data.ready ? 'ready' : 'not-ready'}`
+            
+            // Check if we've already processed this exact event in the last 5 seconds (synchronous check)
+            const now = Date.now()
+            const lastProcessed = lastStatusCheckRef.current[eventKey] || 0
+            
+            if (now - lastProcessed < 5000) {
+              console.log(`[Real-time Status] Duplicate event ignored: ${eventKey} (last processed: ${new Date(lastProcessed).toISOString()})`)
+              return
+            }
+            
+            // Update the last processed time (both ref and state)
+            lastStatusCheckRef.current[eventKey] = now
+            setLastStatusCheck(prev => ({
+              ...prev,
+              [eventKey]: now
+            }))
+            
+            console.log(`[Real-time Status] Processing event: ${eventKey}`)
+            
+            // Update database status immediately
+            setDatabases(prev => {
+              const updated = prev.map(db => 
+                db.id === data.id ? { ...db, status: data.status as any } : db
+              )
+              
+              // Show notifications only for actual status changes
+              if (data.status === "stopped") {
+                const db = prev.find(d => d.id === data.id)
+                if (db && db.status !== "stopped") {
+                  if (db.status === "starting") {
+                    // Database was starting but failed
+                    if (data.error) {
+                      toast.error("Database failed to start", {
+                        description: `${db.name} failed to start: ${data.error}`,
+                        action: {
+                          label: "Retry",
+                          onClick: () => startDatabaseWithErrorHandling(data.id)
+                        }
+                      })
+                    } else {
+                      toast.error("Database failed to start", {
+                        description: `${db.name} could not start properly. Please check the logs.`,
+                        action: {
+                          label: "Retry",
+                          onClick: () => startDatabaseWithErrorHandling(data.id)
+                        }
+                      })
+                    }
+                  } else if (db.status === "running") {
+                    // Database was running but crashed
+                    if (data.error) {
+                      toast.error("Database crashed", {
+                        description: `${db.name} stopped due to an error: ${data.error}`,
+                      })
+                    } else {
+                      toast.info("Database stopped", {
+                        description: `${db.name} has stopped running.`,
+                      })
+                    }
+                  }
+                }
+              } else if (data.status === "running") {
+                const db = prev.find(d => d.id === data.id)
+                if (db && db.status === "starting") {
+                  // Database was starting and is now running
+                  console.log(`[Notification] Showing success notification for database ${db.id} (${db.name}) - Event Key: ${eventKey}`)
+                  if (data.ready) {
+                    toast.success("Database ready", {
+                      description: `${db.name} is now running and ready to accept connections.`,
+                      id: `db-ready-${db.id}-${now}`, // Unique ID to prevent duplicates
+                    })
+                  } else {
+                    toast.success("Database started", {
+                      description: `${db.name} is now running.`,
+                      id: `db-started-${db.id}-${now}`, // Unique ID to prevent duplicates
+                    })
+                  }
+                }
+              }
+              
+              return updated
+            })
+          })
+        }
+        
+        // Clean up interval and listeners on unmount
+        return () => {
+          clearInterval(statusInterval)
+          // @ts-ignore
+          if (window.electron?.removeDatabaseStatusListener) {
+            // @ts-ignore
+            window.electron.removeDatabaseStatusListener()
+          }
+        }
       }
     }
     load()
@@ -81,9 +232,163 @@ export default function DatabaseManager() {
   const handleAddDatabase = (database: DatabaseContainer) => {
     setDatabases([...databases, database])
     setAddDialogOpen(false)
+    setActiveTab("all") // Switch to All Databases tab to show the new database
     toast.success("Database added", {
       description: `${database.name} has been added successfully.`,
     })
+  }
+
+  const startDatabaseWithErrorHandling = async (id: string) => {
+    const targetDb = databases.find((db) => db.id === id)
+    if (!targetDb) return
+
+    // Check if database is already starting
+    if (targetDb.status === "starting") {
+      toast.warning("Database already starting", {
+        description: `${targetDb.name} is already in the process of starting.`,
+      })
+      return
+    }
+
+    // Enhanced port conflict check - includes both running and starting databases
+    const portConflict = databases.find((db) => 
+      db.id !== id && 
+      db.port === targetDb.port && 
+      (db.status === "running" || db.status === "starting")
+    )
+
+    if (portConflict) {
+      const conflictType = portConflict.status === "starting" ? "starting up" : "running"
+      toast.error("Port conflict detected", {
+        description: `Port ${targetDb.port} is already in use by "${portConflict.name}" (${conflictType}). Please wait for it to finish or stop it first.`,
+        action: portConflict.status === "running" ? {
+          label: "Stop & Start",
+          onClick: async () => {
+            // Stop the conflicting database first
+            try {
+              // @ts-ignore
+              const stopResult = await window.electron?.stopDatabase?.(portConflict.id)
+              if (stopResult?.success) {
+                // Wait a moment for the process to fully stop
+                await new Promise(resolve => setTimeout(resolve, 2000))
+                // Start the target database
+                await startDatabaseWithErrorHandling(id)
+              } else {
+                toast.error("Failed to stop conflicting database", {
+                  description: "Could not stop the database using the port",
+                })
+              }
+            } catch (error) {
+              console.log(`[Port Conflict] Error stopping database ${portConflict.id}:`, error)
+              toast.error("Failed to stop conflicting database", {
+                description: "Could not stop the database using the port",
+              })
+            }
+          }
+        } : undefined
+      })
+      return
+    }
+
+    // Set status to starting and show starting toast
+    setDatabases((prev) =>
+      prev.map((db) =>
+        db.id === id ? { ...db, status: "starting" as const, lastStarted: Date.now() } : db
+      )
+    )
+
+    toast.info("Starting database", {
+      description: `${targetDb.name} is starting up...`,
+      duration: 3000,
+    })
+
+    try {
+      // @ts-ignore
+      const result = await window.electron?.startDatabase?.(targetDb)
+      
+      if (result?.success) {
+        // Database process started successfully - let the real-time listener handle status changes
+        // The "starting" status will be maintained until we get a real status change from the process
+        console.log(`[Database] ${targetDb.name} process started, waiting for status confirmation...`)
+        
+        // Add a timeout to prevent databases from staying in "starting" status indefinitely
+        setTimeout(() => {
+          setDatabases((prev) =>
+            prev.map((db) => {
+              if (db.id === id && db.status === "starting") {
+                console.log(`[Database] ${targetDb.name} startup timeout after 60 seconds`)
+                toast.error("Database start timeout", {
+                  description: `${targetDb.name} took too long to start. Please check the logs.`,
+                  action: {
+                    label: "Retry",
+                    onClick: () => startDatabaseWithErrorHandling(id)
+                  }
+                })
+                return { ...db, status: "stopped" as const }
+              }
+              return db
+            })
+          )
+        }, 60000) // 60 second timeout
+        
+        // Status changes will be handled by the real-time listener
+        // No need for manual status checking here
+      } else {
+        // Start command failed immediately
+        setDatabases((prev) =>
+          prev.map((db) =>
+            db.id === id ? { ...db, status: "stopped" as const } : db
+          )
+        )
+        // Provide more specific error messages for common failure scenarios
+        let errorMessage = result?.error || "Unknown error occurred"
+        let errorDescription = `${targetDb.name}: ${errorMessage}`
+        
+        // Handle specific error cases
+        if (errorMessage.includes("port") || errorMessage.includes("Port")) {
+          errorDescription = `${targetDb.name}: Port ${targetDb.port} is already in use. Please choose a different port.`
+        } else if (errorMessage.includes("permission") || errorMessage.includes("Permission")) {
+          errorDescription = `${targetDb.name}: Permission denied. Please check your system permissions.`
+        } else if (errorMessage.includes("not found") || errorMessage.includes("command not found")) {
+          errorDescription = `${targetDb.name}: Database software not found. Please install ${targetDb.type} first.`
+        }
+        
+        toast.error("Failed to start database", {
+          description: errorDescription,
+          action: {
+            label: "Retry",
+            onClick: () => startDatabaseWithErrorHandling(id)
+          }
+        })
+      }
+    } catch (error) {
+      // Network or other error
+      setDatabases((prev) =>
+        prev.map((db) =>
+          db.id === id ? { ...db, status: "stopped" as const } : db
+        )
+      )
+      
+      // Provide more specific error messages for network/connection issues
+      let errorDescription = "Could not connect to database service"
+      if (error instanceof Error) {
+        if (error.message.includes("ECONNREFUSED") || error.message.includes("connection refused")) {
+          errorDescription = "Database service is not responding. Please check if the service is running."
+        } else if (error.message.includes("timeout")) {
+          errorDescription = "Database service request timed out. Please try again."
+        } else if (error.message.includes("ENOENT") || error.message.includes("not found")) {
+          errorDescription = "Database service not found. Please check your installation."
+        }
+      }
+      
+      toast.error("Failed to start database", {
+        description: `${targetDb.name}: ${errorDescription}`,
+        action: {
+          label: "Retry",
+          onClick: () => startDatabaseWithErrorHandling(id)
+        }
+      })
+    }
   }
 
   const handleStartStop = async (id: string) => {
@@ -91,81 +396,47 @@ export default function DatabaseManager() {
     if (!targetDb) return
 
     if (targetDb.status === "stopped") {
-      const conflictingDb = databases.find((db) => db.id !== id && db.port === targetDb.port && db.status === "running")
+      const conflictingDb = databases.find((db) => 
+        db.id !== id && 
+        db.port === targetDb.port && 
+        (db.status === "running" || db.status === "starting")
+      )
 
       if (conflictingDb) {
+        const conflictType = conflictingDb.status === "starting" ? "starting up" : "running"
         toast.error("Port conflict detected", {
-          description: `Port ${targetDb.port} is already in use by "${conflictingDb.name}". Stop it first to start "${targetDb.name}".`,
-          action: {
+          description: `Port ${targetDb.port} is already in use by "${conflictingDb.name}" (${conflictType}). Please wait for it to finish or stop it first.`,
+          action: conflictingDb.status === "running" ? {
             label: "Stop & Start",
-            onClick: () => {
-              setDatabases((prevDatabases) =>
-                prevDatabases.map((db) => {
-                  if (db.id === conflictingDb.id) {
-                    toast.info("Database stopped", {
-                      description: `${db.name} has been stopped.`,
-                    })
-                    return { ...db, status: "stopped" as const }
-                  }
-                  if (db.id === id) {
-                    toast.success("Database started", {
-                      description: `${db.name} is now running.`,
-                    })
-                    return { ...db, status: "running" as const }
-                  }
-                  return db
-                }),
-              )
+            onClick: async () => {
+              // Stop the conflicting database first
+              try {
+                // @ts-ignore
+                const stopResult = await window.electron?.stopDatabase?.(conflictingDb.id)
+                if (stopResult?.success) {
+                  // Wait a moment for the process to fully stop
+                  await new Promise(resolve => setTimeout(resolve, 2000))
+                  // Start the target database
+                  await startDatabaseWithErrorHandling(id)
+                } else {
+                  toast.error("Failed to stop conflicting database", {
+                    description: "Could not stop the database using the port",
+                  })
+                }
+              } catch (error) {
+                console.log(`[Port Conflict] Error stopping database ${conflictingDb.id}:`, error)
+                toast.error("Failed to stop conflicting database", {
+                  description: "Could not stop the database using the port",
+                })
+              }
             },
-          },
+          } : undefined,
           duration: 10000,
         })
         return
       }
 
-      // Set status to starting and record start time
-      setDatabases((prev) =>
-        prev.map((db) =>
-          db.id === id ? { ...db, status: "starting" as const, lastStarted: Date.now() } : db
-        )
-      )
-
-      try {
-        // @ts-ignore
-        const result = await window.electron?.startDatabase?.(targetDb)
-        if (result?.success) {
-          // Immediately set to running since the process is starting
-          setDatabases((prev) =>
-            prev.map((db) => {
-              if (db.id === id) {
-                toast.success("Database started", {
-                  description: `${db.name} is now running.`,
-                })
-                return { ...db, status: "running" as const, lastStarted: Date.now() }
-              }
-              return db
-            })
-          )
-        } else {
-          setDatabases((prev) =>
-            prev.map((db) =>
-              db.id === id ? { ...db, status: "stopped" as const } : db
-            )
-          )
-          toast.error("Failed to start database", {
-            description: result?.error || "Unknown error occurred",
-          })
-        }
-      } catch (error) {
-        setDatabases((prev) =>
-          prev.map((db) =>
-            db.id === id ? { ...db, status: "stopped" as const } : db
-          )
-        )
-        toast.error("Failed to start database", {
-          description: "Could not connect to database service",
-        })
-      }
+      await startDatabaseWithErrorHandling(id)
     } else {
       // Stop the database
       try {
@@ -175,9 +446,7 @@ export default function DatabaseManager() {
           setDatabases((prev) =>
             prev.map((db) => {
               if (db.id === id) {
-                toast.success("Database stopped", {
-                  description: `${db.name} has been stopped.`,
-                })
+                // Status change notification will be handled by real-time listener
                 return { ...db, status: "stopped" as const }
               }
               return db
@@ -200,34 +469,32 @@ export default function DatabaseManager() {
     const db = databases.find((d) => d.id === id)
     if (!db || db.status !== "running") return
 
-    // Stop the database
-    setDatabases(
-      databases.map((d) => {
-        if (d.id === id) {
-          return { ...d, status: "stopped" as const }
-        }
-        return d
-      }),
-    )
-
     toast.info("Restarting database", {
       description: `${db.name} is restarting...`,
     })
 
-    // Start it again after a brief delay
-    setTimeout(() => {
-      setDatabases((prevDatabases) =>
-        prevDatabases.map((d) => {
-          if (d.id === id) {
-            toast.success("Database restarted", {
-              description: `${db.name} has been restarted successfully.`,
-            })
-            return { ...d, status: "running" as const }
-          }
-          return d
-        }),
-      )
-    }, 1000)
+    try {
+      // Stop the database first
+      // @ts-ignore
+      const stopResult = await window.electron?.stopDatabase?.(id)
+      
+      if (stopResult?.success) {
+        // Wait a moment for the process to fully stop
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        
+        // Start the database again - this will trigger the real-time listener notifications
+        await startDatabaseWithErrorHandling(id)
+      } else {
+        toast.error("Failed to restart database", {
+          description: "Could not stop the database for restart",
+        })
+      }
+    } catch (error) {
+      console.log(`[Restart] Error restarting database ${id}:`, error)
+      toast.error("Failed to restart database", {
+        description: "Could not restart the database",
+      })
+    }
   }
 
   const handleDelete = (id: string) => {
@@ -293,29 +560,39 @@ export default function DatabaseManager() {
     }
   }
 
-  const handleRefreshAllStatuses = async () => {
-    console.log("[Manual Refresh] Checking all database statuses...")
-    const now = Date.now()
-    for (const db of databases) {
-      try {
-        // @ts-ignore
-        const status = await window.electron?.checkDatabaseStatus?.(db.id)
-        setLastStatusCheck(prev => ({ ...prev, [db.id]: now }))
-        
-        if (status?.status && status.status !== db.status) {
-          console.log(`[Manual Refresh] Database ${db.id} status changed from ${db.status} to ${status.status}`)
-          setDatabases(prev => prev.map(d => 
-            d.id === db.id ? { ...d, status: status.status } : d
-          ))
-        }
-      } catch (e) {
-        setLastStatusCheck(prev => ({ ...prev, [db.id]: now }))
-        console.log(`[Manual Refresh] Error checking database ${db.id}:`, e.message)
+
+  const handleDebugDatabase = async (id: string) => {
+    try {
+      console.log(`[Debug] Checking database ${id}...`)
+      
+      // @ts-ignore
+      const verification = await window.electron?.verifyDatabaseInstance?.(id)
+      console.log(`[Debug] Database ${id} verification:`, verification)
+      
+      // Show simple results
+      const description = `Running: ${verification.isRunning}, PID: ${verification.pid || 'N/A'}, Killed: ${verification.killed}, Exit Code: ${verification.exitCode}`
+      
+      toast.info("Database debug info", {
+        description,
+        duration: 5000,
+      })
+      
+      // Log results
+      console.log(`[Debug] Database ${id}:`)
+      console.log(`[Debug] - Running: ${verification.isRunning}`)
+      console.log(`[Debug] - PID: ${verification.pid}`)
+      console.log(`[Debug] - Killed: ${verification.killed}`)
+      console.log(`[Debug] - Exit Code: ${verification.exitCode}`)
+      
+      if (verification.error) {
+        console.log(`[Debug] - Error: ${verification.error}`)
       }
+    } catch (error) {
+      console.log(`[Debug] Error checking database ${id}:`, error)
+      toast.error("Debug failed", {
+        description: "Could not check database instance",
+      })
     }
-    toast.info("All statuses refreshed", {
-      description: "Database statuses have been updated",
-    })
   }
 
   return (
@@ -324,30 +601,20 @@ export default function DatabaseManager() {
         <div className="container mx-auto px-6 py-4 flex items-center justify-end">
           <div className="flex items-center gap-2">
             <Button
-              onClick={handleRefreshAllStatuses}
-              variant="ghost"
-              size="sm"
-              className="gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
-            >
-              <RotateCw className="h-4 w-4" />
-              <span className="hidden sm:inline">Refresh</span>
-            </Button>
-            <Button
-              onClick={() => setAppSettingsOpen(true)}
-              variant="ghost"
-              size="sm"
-              className="gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
-            >
-              <Settings2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Settings</span>
-            </Button>
-            <Button
               onClick={() => setAddDialogOpen(true)}
               size="sm"
               className="transition-all duration-200 hover:scale-105 active:scale-95"
             >
               <Plus className="mr-1.5 h-4 w-4" />
               Add Database
+            </Button>
+            <Button
+              onClick={() => setAppSettingsOpen(true)}
+              variant="ghost"
+              size="sm"
+              className="transition-all duration-200 hover:scale-105 active:scale-95"
+            >
+              <Cog className="h-4 w-4 hover:animate-spin transition-transform duration-200" />
             </Button>
           </div>
         </div>
@@ -369,8 +636,38 @@ export default function DatabaseManager() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {databases.map((db) => (
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="active" className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                Active Databases
+              </TabsTrigger>
+              <TabsTrigger value="all" className="flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                All Databases
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="active" className="mt-6">
+              <div className="mb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold">Active Databases</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Databases that are currently running or starting up
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="font-medium">{databases.filter(db => db.status === "running" || db.status === "starting").length}</span>
+                    <span>Active</span>
+                  </div>
+                </div>
+              </div>
+              <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {databases
+                  .filter(db => db.status === "running" || db.status === "starting")
+                  .map((db) => (
               <Card key={db.id} className="relative overflow-hidden border-dashed">
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between mb-2">
@@ -404,7 +701,18 @@ export default function DatabaseManager() {
                   <div className="space-y-1 mb-2">
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="text-muted-foreground">Port</span>
-                      <span className="font-mono font-medium">{db.port}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-mono font-medium">{db.port}</span>
+                        {databases.some(otherDb => 
+                          otherDb.id !== db.id && 
+                          otherDb.port === db.port && 
+                          (otherDb.status === "running" || otherDb.status === "starting")
+                        ) && (
+                          <span className="text-yellow-500 text-[10px]" title="Port in use by another database">
+                            ⚠️
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center justify-between text-[11px] gap-2">
                       <span className="text-muted-foreground">Container</span>
@@ -477,6 +785,15 @@ export default function DatabaseManager() {
                       variant="outline"
                       size="sm"
                       className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
+                      onClick={() => handleDebugDatabase(db.id)}
+                      title="Debug database"
+                    >
+                      <Database className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
                       onClick={() => handleSettings(db)}
                     >
                       <SettingsIcon className="h-3 w-3" />
@@ -484,8 +801,170 @@ export default function DatabaseManager() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+                  ))}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="all" className="mt-6">
+              <div className="mb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold">All Databases</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Complete list of all databases with inactive ones shown with reduced opacity
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <Database className="h-4 w-4" />
+                    <span className="font-medium">{databases.length}</span>
+                    <span>Total</span>
+                  </div>
+                </div>
+              </div>
+              <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {databases.map((db) => (
+                  <Card 
+                    key={db.id} 
+                    className={`relative overflow-hidden border-dashed transition-opacity ${
+                      db.status === "stopped" ? "opacity-60" : "opacity-100"
+                    }`}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <div className="p-1 rounded bg-secondary text-base leading-none flex items-center justify-center w-7 h-7 shrink-0">
+                            {db.icon || <Database className="h-3.5 w-3.5" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm font-semibold leading-tight truncate">{db.name}</h3>
+                            <p className="text-[10px] text-muted-foreground leading-tight">
+                              {db.type} {db.version}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge
+                          variant={db.status === "running" ? "default" : "secondary"}
+                          className={`text-[10px] px-1.5 py-0 h-4 shrink-0 ${
+                            db.status === "running"
+                              ? "bg-success text-success-foreground hover:bg-success/90"
+                              : db.status === "starting"
+                              ? "bg-blue-500 text-white hover:bg-blue-600"
+                              : db.status === "installing"
+                              ? "bg-yellow-500 text-white hover:bg-yellow-600"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {db.status}
+                        </Badge>
+                      </div>
+
+                      <div className="space-y-1 mb-2">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">Port</span>
+                          <div className="flex items-center gap-1">
+                            <span className="font-mono font-medium">{db.port}</span>
+                            {databases.some(otherDb => 
+                              otherDb.id !== db.id && 
+                              otherDb.port === db.port && 
+                              (otherDb.status === "running" || otherDb.status === "starting")
+                            ) && (
+                              <span className="text-yellow-500 text-[10px]" title="Port in use by another database">
+                                ⚠️
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] gap-2">
+                          <span className="text-muted-foreground">Container</span>
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="font-mono text-[10px] truncate max-w-[90px]">{db.containerId}</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-4 w-4 p-0 shrink-0 transition-all duration-200 hover:scale-125 active:scale-90"
+                              onClick={() => handleCopyContainerId(db.containerId, db.id)}
+                            >
+                              {copiedId === db.id ? (
+                                <Check className="h-3 w-3 text-green-500" />
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={`flex-1 h-6 text-[11px] transition-all duration-200 hover:scale-105 active:scale-95 ${
+                            db.status === "running"
+                              ? "border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                              : db.status === "starting"
+                              ? "border-blue-500/50 text-blue-600"
+                              : db.status === "installing"
+                              ? "border-yellow-500/50 text-yellow-600"
+                              : "border-success/50 text-success hover:bg-success hover:text-success-foreground"
+                          }`}
+                          onClick={() => handleStartStop(db.id)}
+                          disabled={db.status === "installing" || db.status === "starting"}
+                        >
+                          {db.status === "running" ? (
+                            <>
+                              <Square className="mr-1 h-3 w-3" />
+                              Stop
+                            </>
+                          ) : db.status === "starting" ? (
+                            <>
+                              <RotateCw className="mr-1 h-3 w-3 animate-spin" />
+                              Starting
+                            </>
+                          ) : db.status === "installing" ? (
+                            <>
+                              <RotateCw className="mr-1 h-3 w-3 animate-spin" />
+                              Installing
+                            </>
+                          ) : (
+                            <>
+                              <Play className="mr-1 h-3 w-3" />
+                              Start
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-50"
+                          onClick={() => handleRefreshStatus(db.id)}
+                          title="Refresh status"
+                        >
+                          <RotateCw className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
+                          onClick={() => handleDebugDatabase(db.id)}
+                          title="Debug database"
+                        >
+                          <Database className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
+                          onClick={() => handleSettings(db)}
+                        >
+                          <SettingsIcon className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+          </Tabs>
         )}
       </div>
 

@@ -267,18 +267,94 @@ async function startDatabaseProcessAsync(config) {
 
   const child = spawn(cmd, args, { env, detached: false })
   
+  // Track startup status for PostgreSQL
+  let isStartupComplete = false
+  let startupTimeout = null
+  let readyEventSent = false // Flag to prevent duplicate events
+  
+  // For PostgreSQL, listen for "ready to accept connections" message
+  if (type === "postgresql") {
+    const sendReadyEvent = () => {
+      if (!readyEventSent && mainWindow) {
+        readyEventSent = true
+        console.log(`[PostgreSQL] ${id} sending ready event (readyEventSent: ${readyEventSent})`)
+        mainWindow.webContents.send('database-status-changed', { id, status: 'running', ready: true })
+      } else {
+        console.log(`[PostgreSQL] ${id} ready event already sent or no mainWindow (readyEventSent: ${readyEventSent}, mainWindow: ${!!mainWindow})`)
+      }
+    }
+    
+    child.stdout.on('data', (data) => {
+      const output = data.toString()
+      console.log(`[PostgreSQL] ${id} output:`, output.trim())
+      
+      // Check for PostgreSQL ready message
+      if (output.includes('ready to accept connections') || output.includes('database system is ready to accept connections')) {
+        console.log(`[PostgreSQL] ${id} is ready to accept connections`)
+        isStartupComplete = true
+        if (startupTimeout) {
+          clearTimeout(startupTimeout)
+          startupTimeout = null
+        }
+        sendReadyEvent()
+      }
+    })
+    
+    child.stderr.on('data', (data) => {
+      const output = data.toString()
+      console.log(`[PostgreSQL] ${id} error output:`, output.trim())
+      
+      // Check for PostgreSQL ready message in stderr too
+      if (output.includes('ready to accept connections') || output.includes('database system is ready to accept connections')) {
+        console.log(`[PostgreSQL] ${id} is ready to accept connections (from stderr)`)
+        isStartupComplete = true
+        if (startupTimeout) {
+          clearTimeout(startupTimeout)
+          startupTimeout = null
+        }
+        sendReadyEvent()
+      }
+    })
+    
+    // Set a timeout for PostgreSQL startup (60 seconds)
+    startupTimeout = setTimeout(() => {
+      if (!isStartupComplete) {
+        console.log(`[PostgreSQL] ${id} startup timeout - assuming ready`)
+        isStartupComplete = true
+        sendReadyEvent()
+      }
+    }, 60000)
+  }
+  
   child.on("error", (err) => {
-    console.error(`Database ${id} error:`, err)
+    console.error(`[Database] ${id} error:`, err)
     runningDatabases.delete(id)
+    if (startupTimeout) {
+      clearTimeout(startupTimeout)
+      startupTimeout = null
+    }
+    // Notify the renderer process that the database has stopped
+    if (mainWindow) {
+      mainWindow.webContents.send('database-status-changed', { id, status: 'stopped', error: err.message })
+    }
   })
 
   child.on("exit", (code) => {
-    console.log(`Database ${id} exited with code ${code}`)
+    console.log(`[Database] ${id} exited with code ${code}`)
     runningDatabases.delete(id)
+    if (startupTimeout) {
+      clearTimeout(startupTimeout)
+      startupTimeout = null
+    }
+    // Notify the renderer process that the database has stopped
+    if (mainWindow) {
+      mainWindow.webContents.send('database-status-changed', { id, status: 'stopped', exitCode: code })
+    }
   })
 
-  runningDatabases.set(id, { process: child, config })
-  console.log(`[Database] ${type} database process started on port ${port}`)
+  // Add to running map immediately - we'll let the process events handle cleanup
+  runningDatabases.set(id, { process: child, config, isStartupComplete: () => isStartupComplete })
+  console.log(`[Database] ${type} database process started (PID: ${child.pid})`)
 }
 
 function createWindow() {
@@ -397,20 +473,70 @@ ipcMain.handle("start-database", async (event, config) => {
   }
 })
 
-// Simple status check - only check if process is alive
+// Simple port check (not used in new logic)
+function testPortConnectivity(port) {
+  return new Promise((resolve) => {
+    const net = require('net')
+    const socket = new net.Socket()
+    
+    socket.setTimeout(2000)
+    
+    socket.on('connect', () => {
+      socket.destroy()
+      resolve(true)
+    })
+    
+    socket.on('timeout', () => {
+      socket.destroy()
+      resolve(false)
+    })
+    
+    socket.on('error', () => {
+      socket.destroy()
+      resolve(false)
+    })
+    
+    socket.connect(port, 'localhost')
+  })
+}
+
+// Simple and reliable database status check
+async function checkDatabaseStatus(id) {
+  try {
+    console.log(`[Status Check] Checking database ${id}`)
+
+    // 1. Check if we have this database in our running map
+    const db = runningDatabases.get(id)
+    if (!db) {
+      console.log(`[Status Check] Database ${id} not in running map`)
+      return { status: "stopped" }
+    }
+
+    // 2. Check if the process is still alive
+    if (db.process.killed || db.process.exitCode !== null) {
+      console.log(`[Status Check] Database ${id} process has died`)
+      runningDatabases.delete(id)
+      return { status: "stopped" }
+    }
+
+    // 3. For PostgreSQL, check if startup is complete
+    if (db.config.type === "postgresql" && db.isStartupComplete && !db.isStartupComplete()) {
+      console.log(`[Status Check] Database ${id} is starting (PostgreSQL not ready yet)`)
+      return { status: "starting" }
+    }
+
+    // 4. Simple process check - if it exists and isn't killed, it's running
+    console.log(`[Status Check] Database ${id} is running (PID: ${db.process.pid})`)
+    return { status: "running" }
+  } catch (error) {
+    console.log(`[Status Check] Error checking ${id}: ${error.message}`)
+    return { status: "stopped" }
+  }
+}
+
+// Simple status check
 ipcMain.handle("check-database-status", async (event, id) => {
-  const db = runningDatabases.get(id)
-  if (!db) {
-    return { status: "stopped" }
-  }
-
-  // Simple check: if process is alive, it's running
-  if (db.process.killed || db.process.exitCode !== null) {
-    runningDatabases.delete(id)
-    return { status: "stopped" }
-  }
-
-  return { status: "running" }
+  return await checkDatabaseStatus(id)
 })
 
 ipcMain.handle("stop-database", async (event, id) => {
@@ -426,6 +552,25 @@ ipcMain.handle("stop-database", async (event, id) => {
   } catch (error) {
     console.error("Failed to stop database:", error)
     return { success: false, error: error.message }
+  }
+})
+
+// Simple debug function
+ipcMain.handle("verify-database-instance", async (event, id) => {
+  const db = runningDatabases.get(id)
+  if (!db) {
+    return { 
+      isRunning: false, 
+      error: "Database not in running map",
+      pid: null
+    }
+  }
+  
+  return {
+    isRunning: !db.process.killed && db.process.exitCode === null,
+    pid: db.process.pid,
+    killed: db.process.killed,
+    exitCode: db.process.exitCode
   }
 })
 
