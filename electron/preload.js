@@ -18,6 +18,13 @@ contextBridge.exposeInMainWorld("electron", {
   brewInstallDb: (opts) => ipcRenderer.invoke("brew:installDb", opts),
   getBannedPorts: () => ipcRenderer.invoke("ports:getBanned"),
   setBannedPorts: (ports) => ipcRenderer.invoke("ports:setBanned", ports),
+  onDatabaseStatusChanged: (callback) => {
+    ipcRenderer.on('database-status-changed', (event, data) => callback(data))
+  },
+  removeDatabaseStatusListener: () => {
+    ipcRenderer.removeAllListeners('database-status-changed')
+  },
+  verifyDatabaseInstance: (id) => ipcRenderer.invoke("verify-database-instance", id),
   platform: process.platform,
   isElectron: true,
 })
