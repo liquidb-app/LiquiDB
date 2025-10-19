@@ -307,3 +307,9 @@
 [data-chart] .recharts-tooltip-content .recharts-tooltip-item {
   color: hsl(var(--popover-foreground)) !important;
 }
+
+/* Ensure tooltips are always on top */
+[data-radix-tooltip-content] {
+  z-index: 99999 !important;
+  position: relative !important;
+}
