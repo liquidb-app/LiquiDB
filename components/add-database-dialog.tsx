@@ -187,6 +187,29 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
   const [step, setStep] = useState<"type" | "config">("type")
   const [selectedType, setSelectedType] = useState<DatabaseType>("postgresql")
   const [name, setName] = useState("")
+  const [nameError, setNameError] = useState("")
+  const MAX_NAME_LENGTH = 15
+
+  // Function to validate name length
+  const validateName = (nameValue: string) => {
+    if (nameValue.length > MAX_NAME_LENGTH) {
+      setNameError(`Name must be ${MAX_NAME_LENGTH} characters or less`)
+      return false
+    }
+    setNameError("")
+    return true
+  }
+
+  // Function to handle name change with validation
+  const handleNameChange = (value: string) => {
+    // Truncate if too long
+    if (value.length > MAX_NAME_LENGTH) {
+      value = value.substring(0, MAX_NAME_LENGTH)
+    }
+    setName(value)
+    validateName(value)
+  }
+
   const [version, setVersion] = useState("")
   const [port, setPort] = useState("")
   const [username, setUsername] = useState("")
@@ -197,6 +220,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
   const [bannedPorts, setBannedPorts] = useState<number[]>([])
   const [portError, setPortError] = useState<string>("")
   const [checkingPort, setCheckingPort] = useState(false)
+  const [findingPort, setFindingPort] = useState(false)
   const [installing, setInstalling] = useState(false)
   const [installMsg, setInstallMsg] = useState<string>("")
   const [installProgress, setInstallProgress] = useState<number>(0)
@@ -290,10 +314,32 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
     return fallbackDetails[databaseType] || [{ majorVersion: "latest", fullVersion: "latest", packageName: databaseType }]
   }
 
-  const handleTypeSelect = (type: DatabaseType) => {
+  const handleTypeSelect = async (type: DatabaseType) => {
     setSelectedType(type)
-    setPort(DATABASE_CONFIGS[type].defaultPort.toString())
     setSelectedIcon(DATABASE_CONFIGS[type].icon)
+    
+    // Find the next available port BEFORE setting it
+    const defaultPort = DATABASE_CONFIGS[type].defaultPort
+    console.log(`[Port Assignment] Starting port search from ${defaultPort} for ${type}`)
+    setFindingPort(true)
+    setPortError("")
+    
+    try {
+      const availablePort = await findNextAvailablePort(defaultPort)
+      console.log(`[Port Assignment] Found available port: ${availablePort}`)
+      setPort(availablePort.toString())
+      
+      if (availablePort !== defaultPort) {
+        console.log(`[Port Assignment] Port ${defaultPort} was taken, assigned ${availablePort} instead`)
+      }
+    } catch (error) {
+      console.error("[Port Assignment] Error finding available port:", error)
+      // Fallback to default port if finding fails
+      setPort(defaultPort.toString())
+    } finally {
+      setFindingPort(false)
+    }
+    
     // Fetch versions dynamically
     fetchVersions(type)
     
@@ -332,6 +378,121 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
     if (open) load()
   }, [open])
 
+  // Function to find the next available port starting from a given port
+  const findNextAvailablePort = async (startPort: number): Promise<number> => {
+    console.log(`[Port Search] Starting search from port ${startPort}`)
+    let port = startPort
+    const maxAttempts = 50 // Reduced for faster checking
+    const batchSize = 5 // Check multiple ports in parallel
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt += batchSize) {
+      // Create a batch of ports to check
+      const portsToCheck = []
+      for (let i = 0; i < batchSize && (attempt + i) < maxAttempts; i++) {
+        const currentPort = startPort + attempt + i
+        if (currentPort > 65535) break
+        
+        // Skip banned ports immediately
+        if (!bannedPorts.includes(currentPort)) {
+          portsToCheck.push(currentPort)
+        }
+      }
+      
+      if (portsToCheck.length === 0) {
+        port += batchSize
+        continue
+      }
+      
+      // Check all ports in the batch in parallel
+      try {
+        // @ts-ignore
+        if (window.electron?.checkPortConflict) {
+          const conflictChecks = await Promise.all(
+            portsToCheck.map(async (p) => {
+              try {
+                // First check for internal conflicts (other databases in the app)
+                // @ts-ignore
+                const allDatabases = await window.electron?.getAllDatabases?.() || []
+                console.log(`[Port Check] Checking port ${p} against ${allDatabases.length} existing databases`)
+                const internalConflict = allDatabases.some((db: any) => {
+                  const isConflict = db.port === p // Check ALL databases regardless of status
+                  if (isConflict) {
+                    console.log(`[Port Check] Internal conflict found: ${db.name} (${db.port}) - ${db.status}`)
+                  }
+                  return isConflict
+                })
+                
+                if (internalConflict) {
+                  return { port: p, inUse: true }
+                }
+                
+                // Then check for external conflicts
+                // @ts-ignore
+                const result = await window.electron.checkPortConflict(p)
+                return { port: p, inUse: result?.inUse || false }
+              } catch (error) {
+                console.error(`[Port Check] Error checking port ${p}:`, error)
+                return { port: p, inUse: true } // Assume in use if error
+              }
+            })
+          )
+          
+          // Find first available port in the batch
+          const availablePort = conflictChecks.find(check => !check.inUse)
+          if (availablePort) {
+            console.log(`[Port Search] Found available port: ${availablePort.port}`)
+            return availablePort.port
+          }
+        } else if (window.electron?.checkPort) {
+          const portChecks = await Promise.all(
+            portsToCheck.map(async (p) => {
+              try {
+                // First check for internal conflicts (other databases in the app)
+                // @ts-ignore
+                const allDatabases = await window.electron?.getAllDatabases?.() || []
+                console.log(`[Port Check] Checking port ${p} against ${allDatabases.length} existing databases`)
+                const internalConflict = allDatabases.some((db: any) => {
+                  const isConflict = db.port === p // Check ALL databases regardless of status
+                  if (isConflict) {
+                    console.log(`[Port Check] Internal conflict found: ${db.name} (${db.port}) - ${db.status}`)
+                  }
+                  return isConflict
+                })
+                
+                if (internalConflict) {
+                  return { port: p, available: false }
+                }
+                
+                // Then check for external conflicts
+                // @ts-ignore
+                const result = await window.electron.checkPort(p)
+                return { port: p, available: result?.available || false }
+              } catch (error) {
+                console.error(`[Port Check] Error checking port ${p}:`, error)
+                return { port: p, available: false } // Assume not available if error
+              }
+            })
+          )
+          
+          // Find first available port in the batch
+          const availablePort = portChecks.find(check => check.available)
+          if (availablePort) {
+            console.log(`[Port Search] Found available port: ${availablePort.port}`)
+            return availablePort.port
+          }
+        }
+      } catch (error) {
+        console.error(`[Port Check] Error checking port batch:`, error)
+      }
+      
+      port += batchSize
+    }
+    
+    // If we couldn't find an available port, return the original port
+    console.warn(`[Port Check] Could not find available port starting from ${startPort}, returning original`)
+    return startPort
+  }
+
   const validatePort = async (p: string) => {
     setPortError("")
     const portNum = Number.parseInt(p)
@@ -366,6 +527,11 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
   }
 
   const handleSubmit = async () => {
+    // Validate name length
+    if (!validateName(name)) {
+      return
+    }
+
     const ok = await validatePort(port)
     if (!ok) return
 
@@ -505,15 +671,17 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                 <TabsContent value="basic" className="space-y-3 pt-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="name" className="text-xs">
-                      Database Name
+                      Database Name ({name.length}/{MAX_NAME_LENGTH})
                     </Label>
                     <Input
                       id="name"
                       placeholder={`my-${selectedType}-db`}
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      onChange={(e) => handleNameChange(e.target.value)}
                       className="h-8 text-sm"
+                      maxLength={MAX_NAME_LENGTH}
                     />
+                    {nameError && <p className="text-[10px] text-destructive">{nameError}</p>}
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Icon</Label>
@@ -584,7 +752,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="port" className="text-xs">
-                      Port
+                      Port {findingPort && <span className="text-muted-foreground">(finding available...)</span>}
                     </Label>
                     <Input
                       id="port"
@@ -594,7 +762,25 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                         setPort(e.target.value)
                         if (e.target.value) await validatePort(e.target.value)
                       }}
+                      onBlur={async (e) => {
+                        // When user finishes editing, try to find next available port if current one is taken
+                        const portNum = Number.parseInt(e.target.value)
+                        if (!isNaN(portNum) && portNum > 0) {
+                          setFindingPort(true)
+                          try {
+                            const availablePort = await findNextAvailablePort(portNum)
+                            if (availablePort !== portNum) {
+                              setPort(availablePort.toString())
+                              // Clear any existing error since we found an available port
+                              setPortError("")
+                            }
+                          } finally {
+                            setFindingPort(false)
+                          }
+                        }
+                      }}
                       className="h-8 text-sm"
+                      disabled={findingPort}
                     />
                     {portError && <p className="text-[10px] text-destructive">{portError}</p>}
                   </div>

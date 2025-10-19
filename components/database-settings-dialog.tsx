@@ -131,6 +131,8 @@ export function DatabaseSettingsDialog({
   allDatabases = [],
 }: DatabaseSettingsDialogProps) {
   const [name, setName] = useState(database.name)
+  const [nameError, setNameError] = useState("")
+  const MAX_NAME_LENGTH = 15
   const [port, setPort] = useState(database.port.toString())
   const [username, setUsername] = useState(database.username)
   const [password, setPassword] = useState("")
@@ -139,6 +141,26 @@ export function DatabaseSettingsDialog({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [iconPickerOpen, setIconPickerOpen] = useState(false)
   const [autoStartConflict, setAutoStartConflict] = useState<string | null>(null)
+
+  // Function to validate name length
+  const validateName = (nameValue: string) => {
+    if (nameValue.length > MAX_NAME_LENGTH) {
+      setNameError(`Name must be ${MAX_NAME_LENGTH} characters or less`)
+      return false
+    }
+    setNameError("")
+    return true
+  }
+
+  // Function to handle name change with validation
+  const handleNameChange = (value: string) => {
+    // Truncate if too long
+    if (value.length > MAX_NAME_LENGTH) {
+      value = value.substring(0, MAX_NAME_LENGTH)
+    }
+    setName(value)
+    validateName(value)
+  }
 
   useEffect(() => {
     setName(database.name)
@@ -191,6 +213,11 @@ export function DatabaseSettingsDialog({
   }
 
   const handleSave = () => {
+    // Validate name length
+    if (!validateName(name)) {
+      return
+    }
+
     const portNum = Number.parseInt(port)
     const checkAndSave = async () => {
       // Only check port availability if the port has changed
@@ -270,14 +297,16 @@ export function DatabaseSettingsDialog({
               <TabsContent value="general" className="space-y-3 pt-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="edit-name" className="text-xs">
-                    Database Name
+                    Database Name ({name.length}/{MAX_NAME_LENGTH})
                   </Label>
                   <Input
                     id="edit-name"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => handleNameChange(e.target.value)}
                     className="h-8 text-sm"
+                    maxLength={MAX_NAME_LENGTH}
                   />
+                  {nameError && <p className="text-[10px] text-destructive">{nameError}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Icon</Label>
