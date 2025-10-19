@@ -2090,15 +2090,12 @@ export default function DatabaseManager() {
                       <span className="text-muted-foreground">Port</span>
                       <div className="flex items-center gap-1">
                         <span className="font-mono font-medium text-success">{db.port}</span>
-                        {databases.some(otherDb => 
-                          otherDb.id !== db.id && 
-                          otherDb.port === db.port && 
-                          (otherDb.status === "running" || otherDb.status === "starting")
-                        ) && (
-                          <span className="text-warning text-[10px]" title="Port in use by another database">
-                            ⚠️
+                        {isPortBanned(db.port) && (
+                          <span className="text-destructive text-[10px]" title="This port is banned and cannot be used">
+                            🚫
                           </span>
                         )}
+                        <PortConflictWarning port={db.port} databaseId={db.id} databaseStatus={db.status} />
                       </div>
                     </div>
                     {(db.status === "running" || db.status === "starting") && db.pid && (
@@ -2316,15 +2313,12 @@ export default function DatabaseManager() {
                             <span className="text-muted-foreground">Port</span>
                             <div className="flex items-center gap-1">
                               <span className="font-mono font-medium text-success">{db.port}</span>
-                              {databases.some(otherDb => 
-                                otherDb.id !== db.id && 
-                                otherDb.port === db.port && 
-                                (otherDb.status === "running" || otherDb.status === "starting")
-                              ) && (
-                                <span className="text-warning text-[10px]" title="Port in use by another database">
-                                  ⚠️
+                              {isPortBanned(db.port) && (
+                                <span className="text-destructive text-[10px]" title="This port is banned and cannot be used">
+                                  🚫
                                 </span>
                               )}
+                              <PortConflictWarning port={db.port} databaseId={db.id} databaseStatus={db.status} />
                             </div>
                           </div>
                           <div className="flex items-center justify-between text-[11px] gap-2">
