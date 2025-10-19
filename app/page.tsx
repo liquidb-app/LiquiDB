@@ -105,16 +105,581 @@ export default function DatabaseManager() {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [appSettingsOpen, setAppSettingsOpen] = useState(false)
-  const [portConflictDialogOpen, setPortConflictDialogOpen] = useState(false)
   const [instanceInfoOpen, setInstanceInfoOpen] = useState(false)
   const [selectedDatabase, setSelectedDatabase] = useState<DatabaseContainer | null>(null)
   const [conflictingPort, setConflictingPort] = useState<number | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [lastStatusCheck, setLastStatusCheck] = useState<Record<string, number>>({})
   const lastStatusCheckRef = useRef<Record<string, number>>({})
-  const [activeTab, setActiveTab] = useState<string>("active")
+  const [activeTab, setActiveTab] = useState<string>("all")
   const [selectedDatabases, setSelectedDatabases] = useState<Set<string>>(new Set())
   const [showBulkActions, setShowBulkActions] = useState(false)
+  const [bannedPorts, setBannedPorts] = useState<number[]>([])
+  const [portConflictDialogOpen, setPortConflictDialogOpen] = useState(false)
+  const [portConflicts, setPortConflicts] = useState<[number, DatabaseContainer[]][]>([])
+  // No port conflict caching - all checks are dynamic
+
+  // Load banned ports on component mount and listen for changes
+  useEffect(() => {
+    const loadBannedPorts = async () => {
+      try {
+        // @ts-ignore
+        if (window.electron?.getBannedPorts) {
+          // @ts-ignore
+          const ports = await window.electron.getBannedPorts()
+          setBannedPorts(Array.isArray(ports) ? ports : [])
+        } else {
+          const saved = localStorage.getItem("blacklisted-ports")
+          if (saved) setBannedPorts(JSON.parse(saved))
+        }
+      } catch (error) {
+        console.error("Failed to load banned ports:", error)
+      }
+    }
+    loadBannedPorts()
+
+    // Listen for banned port changes
+    const handleBannedPortsChange = () => {
+      loadBannedPorts()
+    }
+
+    // Listen to storage changes for banned ports
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'blacklisted-ports') {
+        handleBannedPortsChange()
+      }
+    })
+
+    return () => {
+      window.removeEventListener('storage', handleBannedPortsChange)
+    }
+  }, [])
+
+  // Function to check if a port is banned
+  const isPortBanned = (port: number): boolean => {
+    return bannedPorts.includes(port)
+  }
+
+  // Function to check for port conflicts dynamically (no caching)
+  const checkPortConflict = async (port: number): Promise<{ inUse: boolean; processName?: string; pid?: string }> => {
+    try {
+      // @ts-ignore
+      if (window.electron?.checkPortConflict) {
+        // @ts-ignore
+        const result = await window.electron.checkPortConflict(port)
+        return {
+          inUse: result?.inUse || false,
+          processName: result?.processInfo?.processName || 'Unknown process',
+          pid: result?.processInfo?.pid || 'Unknown'
+        }
+      }
+      return { inUse: false }
+    } catch (error) {
+      console.error(`[Port Check] Error checking port ${port}:`, error)
+      return { inUse: false }
+    }
+  }
+
+  // Function to check if a port has a conflict (dynamic check)
+  const hasPortConflict = async (port: number): Promise<boolean> => {
+    const result = await checkPortConflict(port)
+    return result.inUse
+  }
+
+  // Function to get port conflict info (dynamic check)
+  const getPortConflictInfo = async (port: number): Promise<{ processName: string; pid: string } | null> => {
+    const result = await checkPortConflict(port)
+    return result.inUse ? { processName: result.processName || 'Unknown', pid: result.pid || 'Unknown' } : null
+  }
+
+  // Dynamic port conflict warning component
+  const PortConflictWarning = ({ port, databaseId, databaseStatus }: { port: number; databaseId: string; databaseStatus: string }) => {
+    const [conflictInfo, setConflictInfo] = useState<{ processName: string; pid: string } | null>(null)
+    const [isChecking, setIsChecking] = useState(false)
+
+    useEffect(() => {
+      let isMounted = true
+      
+      const checkConflict = async () => {
+        // Only show warning if this database is NOT running
+        if (databaseStatus === "running" || databaseStatus === "starting") {
+          if (isMounted) setConflictInfo(null)
+          return
+        }
+        
+        setIsChecking(true)
+        try {
+          // Check for internal conflicts first (faster)
+          const internalConflict = databases.some(otherDb => 
+            otherDb.id !== databaseId && 
+            otherDb.port === port && 
+            (otherDb.status === "running" || otherDb.status === "starting")
+          )
+          
+          if (internalConflict) {
+            if (isMounted) setConflictInfo({ processName: 'Another database in this app', pid: 'N/A' })
+            return
+          }
+          
+          // Only check for external conflicts if no internal conflicts found
+          const externalConflict = await getPortConflictInfo(port)
+          if (isMounted) {
+            // Only set conflict info if there's actually a conflict
+            if (externalConflict) {
+              setConflictInfo(externalConflict)
+            } else {
+              setConflictInfo(null)
+            }
+          }
+        } catch (error) {
+          console.error(`[Port Warning] Error checking port ${port}:`, error)
+          if (isMounted) setConflictInfo(null)
+        } finally {
+          if (isMounted) setIsChecking(false)
+        }
+      }
+      
+      checkConflict()
+      
+      // Re-check every 5 seconds
+      const interval = setInterval(checkConflict, 5000)
+      
+      return () => {
+        isMounted = false
+        clearInterval(interval)
+      }
+    }, [port, databaseId, databaseStatus])
+
+    if (!conflictInfo && !isChecking) return null
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="text-warning text-[10px] cursor-help">
+            ⚠️
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="z-[99999]">
+          <p>
+            {conflictInfo?.processName === 'Another database in this app'
+              ? `Port ${port} is in use by another database in this app`
+              : `Port ${port} is in use by external process: ${conflictInfo?.processName} (PID: ${conflictInfo?.pid})`
+            }
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  // Function to check if a database name already exists
+  const isNameDuplicate = (name: string, excludeId?: string): boolean => {
+    return databases.some(db => db.name === name && db.id !== excludeId)
+  }
+
+  // Function to check if a container ID already exists
+  const isContainerIdDuplicate = (containerId: string, excludeId?: string): boolean => {
+    return databases.some(db => db.containerId === containerId && db.id !== excludeId)
+  }
+
+  // Function to find the next available port starting from a given port
+  const findNextAvailablePort = async (startPort: number, excludeId?: string): Promise<number> => {
+    let port = startPort
+    const maxAttempts = 100 // Prevent infinite loops
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      // Check if port is banned
+      if (isPortBanned(port)) {
+        port++
+        continue
+      }
+      
+      // Check for internal conflicts (other databases in the app)
+      const internalConflict = databases.some(db => 
+        db.id !== excludeId && 
+        db.port === port && 
+        (db.status === "running" || db.status === "starting")
+      )
+      
+      if (internalConflict) {
+        port++
+        continue
+      }
+      
+      // Check for external conflicts (other services)
+      try {
+        const conflictResult = await checkPortConflict(port)
+        if (conflictResult.inUse) {
+          port++
+          continue
+        }
+      } catch (error) {
+        console.error(`[Port Check] Error checking port ${port}:`, error)
+        port++
+        continue
+      }
+      
+      // Port is available
+      return port
+    }
+    
+    // If we couldn't find an available port, return the original port
+    console.warn(`[Port Check] Could not find available port starting from ${startPort}, returning original`)
+    return startPort
+  }
+
+  // Main useEffect to load databases and set up monitoring
+  useEffect(() => {
+    let isMounted = true
+    let statusInterval: NodeJS.Timeout | null = null
+    let lastDatabaseCount = 0
+    let noActiveDatabasesCount = 0
+
+    const load = async (retryCount = 0) => {
+      const maxRetries = 3
+      
+      // Check if Electron is available
+      // @ts-ignore
+      if (!window.electron) {
+        console.log("[Debug] Electron not available yet, retrying in 1 second")
+        setTimeout(() => load(retryCount), 1000)
+        return
+      }
+      
+      // Check if databases.json file exists
+      let fileExists = false
+      try {
+        // @ts-ignore
+        const fileCheck = await window.electron?.checkDatabasesFile?.()
+        fileExists = fileCheck?.exists || false
+        
+        if (!fileExists) {
+          console.log("[Storage] databases.json file missing, clearing dashboard")
+          if (isMounted) setDatabases([])
+          return
+        }
+      } catch (error) {
+        console.error("[Storage] Error checking databases file:", error)
+        // If we can't check if file exists, try to load anyway
+      }
+      
+      // Try to load databases with retry logic
+      try {
+        // @ts-ignore
+        if (window.electron?.getDatabases) {
+          // @ts-ignore
+          const list = await window.electron.getDatabases()
+          const databases = Array.isArray(list) ? list : []
+          
+          // Fix any databases stuck in "installing" status
+          const updatedDatabases = databases.map(db => ({
+            ...db,
+            status: db.status === "installing" ? "stopped" as const : db.status
+          }))
+          
+          if (isMounted) {
+            setDatabases(updatedDatabases)
+            
+            // Clean up any dead processes first
+            try {
+              // @ts-ignore
+              if (window.electron?.cleanupDeadProcesses) {
+                // @ts-ignore
+                const cleanupResult = await window.electron.cleanupDeadProcesses()
+                if (cleanupResult.success && (cleanupResult.cleanedProcesses > 0 || cleanupResult.updatedStatuses > 0)) {
+                  console.log(`[Cleanup] Cleaned up ${cleanupResult.cleanedProcesses} dead processes, updated ${cleanupResult.updatedStatuses} statuses`)
+                  // Reload databases after cleanup
+                  // @ts-ignore
+                  const cleanedList = await window.electron.getDatabases()
+                  const cleanedDatabases = Array.isArray(cleanedList) ? cleanedList : []
+                  setDatabases(cleanedDatabases)
+                }
+              }
+            } catch (cleanupError) {
+              console.error("[Cleanup] Error during cleanup:", cleanupError)
+            }
+            
+            // Port conflicts are now checked dynamically, no need to cache
+          }
+          console.log(`[Storage] Successfully loaded ${updatedDatabases.length} databases`)
+          
+          // Force immediate status check for all databases
+          const checkDatabasesFileExists = async () => {
+            try {
+              // @ts-ignore
+              const fileCheck = await window.electron?.checkDatabasesFile?.()
+              if (!fileCheck?.exists) {
+                console.log("[Storage] databases.json file deleted, clearing dashboard")
+                if (isMounted) setDatabases([])
+              }
+            } catch (error) {
+              console.error("[Storage] Error checking databases file:", error)
+            }
+          }
+          
+          let fileCheckCounter = 0
+          const startStatusMonitoring = () => {
+            return setInterval(async () => {
+              if (!isMounted) return
+              
+              try {
+                // Check if databases file still exists every 10 checks (every 2.5 minutes)
+                fileCheckCounter++
+                if (fileCheckCounter >= 10) {
+                  await checkDatabasesFileExists()
+                  fileCheckCounter = 0
+                }
+                
+                // Get current database list from state at the time of check
+                setDatabases(currentDatabases => {
+                  if (!isMounted) return currentDatabases
+                  
+                  const databasesToCheck = currentDatabases.filter(db => 
+                    db.status === "running" || db.status === "starting" || db.status === "stopping"
+                  )
+                  
+                  // If no active databases, reduce monitoring frequency significantly
+                  if (databasesToCheck.length === 0) {
+                    noActiveDatabasesCount++
+                    // Skip monitoring if no active databases for 3 consecutive checks (30 seconds)
+                    if (noActiveDatabasesCount < 3) return currentDatabases
+                    // Reset counter and continue with minimal checks
+                    noActiveDatabasesCount = 0
+                  } else {
+                    noActiveDatabasesCount = 0
+                  }
+                  
+                  // Only check if database count changed or there are active databases
+                  if (databasesToCheck.length === 0 && currentDatabases.length === lastDatabaseCount) {
+                    return currentDatabases // Skip unnecessary checks
+                  }
+                  lastDatabaseCount = currentDatabases.length
+                  
+                  // Check each database status asynchronously
+                  databasesToCheck.forEach(async (db) => {
+                    if (!isMounted) return
+                    try {
+                      // @ts-ignore
+                      const status = await window.electron?.checkDatabaseStatus?.(db.id)
+                      
+                      if (status?.status && status.status !== db.status && isMounted) {
+                        // Protection against race conditions during startup
+                        // Don't update from "starting" to "stopped" too quickly
+                        if (db.status === "starting" && status.status === "stopped") {
+                          // Check if the database was recently started (within last 30 seconds)
+                          const timeSinceStarted = Date.now() - (db.lastStarted || 0)
+                          if (timeSinceStarted < 30000) {
+                            console.log(`[Status Protection] Database ${db.id} still in startup phase, ignoring status change to stopped`)
+                            return
+                          }
+                        }
+                        
+                        // Don't update from "running" to "stopped" unless confirmed by real-time listener
+                        if (db.status === "running" && status.status === "stopped") {
+                          console.log(`[Status Protection] Database ${db.id} was running, deferring to real-time listener for stopped status`)
+                          return
+                        }
+                        
+                        // Don't update from "stopping" to "running" - this shouldn't happen
+                        if (db.status === "stopping" && status.status === "running") {
+                          console.log(`[Status Protection] Database ${db.id} was stopping, ignoring status change to running`)
+                          return
+                        }
+                        
+                        console.log(`[Status Update] Database ${db.id}: ${db.status} → ${status.status}`)
+                        
+                        // Update the database status immediately, preserving PID if provided
+                        setDatabases(prev => prev.map(d => 
+                          d.id === db.id ? { ...d, status: status.status, pid: status.pid || d.pid } : d
+                        ))
+                        
+                        // Notifications are handled by the real-time listener to avoid duplicates
+                      }
+                    } catch (error) {
+                      console.log(`[Status Check Error] Database ${db.id}:`, error)
+                    }
+                  })
+                  
+                  return currentDatabases
+                })
+              } catch (error) {
+                console.log(`[Status Monitoring Error]:`, error)
+              }
+            }, 15000) // Reduced frequency to every 15 seconds to save memory
+          }
+          
+          statusInterval = startStatusMonitoring()
+          
+          // Set up real-time status change listener from electron main process
+          // @ts-ignore
+          if (window.electron?.onDatabaseStatusChanged) {
+            console.log(`[Listener Setup] Setting up database status listener`)
+            // @ts-ignore
+            window.electron.onDatabaseStatusChanged((data: { id: string, status: string, error?: string, exitCode?: number, ready?: boolean, pid?: number }) => {
+              if (!isMounted) return
+              
+              console.log(`[Real-time Status] Database ${data.id} status changed to ${data.status}${data.ready ? ' (ready)' : ''} (PID: ${data.pid})`)
+              
+              // Create a simple event key to prevent duplicate processing
+              // For stopped events, use a simpler key to prevent duplicates from error/exit events
+              const eventKey = data.status === 'stopped' 
+                ? `${data.id}-stopped` 
+                : `${data.id}-${data.status}-${data.ready ? 'ready' : 'not-ready'}`
+              
+              // Check if we've already processed this exact event in the last 500ms (reduced further)
+              const now = Date.now()
+              const lastProcessed = lastStatusCheckRef.current[eventKey] || 0
+              
+              if (now - lastProcessed < 500) {
+                console.log(`[Real-time Status] Duplicate event ignored: ${eventKey} (last processed: ${new Date(lastProcessed).toISOString()})`)
+                return
+              }
+              
+              console.log(`[Real-time Status] Processing event: ${eventKey} (time since last: ${now - lastProcessed}ms)`)
+              
+              // Update the last processed time (both ref and state)
+              lastStatusCheckRef.current[eventKey] = now
+              if (isMounted) {
+                setLastStatusCheck(prev => ({
+                  ...prev,
+                  [eventKey]: now
+                }))
+              }
+              
+              console.log(`[Real-time Status] Processing event: ${eventKey}`)
+              
+              // Update database status immediately
+              if (isMounted) {
+                setDatabases(prev => {
+                  const updated = prev.map(db => 
+                    db.id === data.id ? { ...db, status: data.status as any, pid: data.pid } : db
+                  )
+                  
+                  // Show notifications only for actual status changes
+                  if (data.status === "stopped") {
+                    const db = prev.find(d => d.id === data.id)
+                    if (db && db.status !== "stopped") {
+                      if (db.status === "starting") {
+                        notifyError("Database failed to start", {
+                          description: `${db.name} failed to start: ${data.error || 'Unknown error'}`,
+                          id: `db-failed-start-${db.id}-${now}`, // Unique ID to prevent duplicates
+                          action: {
+                            label: "Retry",
+                            onClick: () => startDatabaseWithErrorHandling(data.id)
+                          }
+                        })
+                      } else {
+                        notifyError("Database stopped", {
+                          description: `${db.name} has stopped unexpectedly.`,
+                          id: `db-stopped-${db.id}-${now}`, // Unique ID to prevent duplicates
+                          action: {
+                            label: "Restart",
+                            onClick: () => startDatabaseWithErrorHandling(data.id)
+                          }
+                        })
+                      }
+                    }
+                  } else if (data.status === "running") {
+                    const db = prev.find(d => d.id === data.id)
+                    if (db && db.status !== "running") {
+                      notifySuccess("Database started", {
+                        description: `${db.name} is now running on port ${db.port}.`,
+                        id: `db-started-${db.id}-${now}`, // Unique ID to prevent duplicates
+                      })
+                    }
+                  }
+                  
+                  return updated
+                })
+              }
+            })
+          }
+          
+          // Set up auto-start event listeners
+          // @ts-ignore
+          if (window.electron?.onAutoStartPortConflicts) {
+            // @ts-ignore
+            window.electron.onAutoStartPortConflicts((event, data) => {
+              if (!isMounted) return
+              
+              console.log(`[Auto-start] Port conflicts detected:`, data.conflicts)
+              
+              // Show individual conflict notifications
+              data.conflicts.forEach((conflict: any) => {
+                notifyWarning("Auto-start Port Conflict Resolved", {
+                  description: `${conflict.databaseName} port changed from ${conflict.originalPort} to ${conflict.newPort} due to conflict with ${conflict.conflictingDatabase}`,
+                  duration: 8000,
+                })
+              })
+            })
+          }
+          
+          // @ts-ignore
+          if (window.electron?.onAutoStartCompleted) {
+            // @ts-ignore
+            window.electron.onAutoStartCompleted((event, data) => {
+              if (!isMounted) return
+              
+              console.log(`[Auto-start] Completed:`, data)
+              
+              // Show summary notification
+              if (data.conflicts && data.conflicts.length > 0) {
+                notifyInfo("Auto-start Completed with Port Conflicts", {
+                  description: `${data.started} databases started, ${data.conflicts.length} port conflicts resolved`,
+                  duration: 6000,
+                })
+              } else {
+                notifySuccess("Auto-start Completed", {
+                  description: `${data.started} databases started successfully`,
+                  duration: 4000,
+                })
+              }
+            })
+          }
+        }
+        } catch (error) {
+          console.error(`[Storage] Error loading databases (attempt ${retryCount + 1}/${maxRetries + 1}):`, error)
+          
+          // If file exists but loading failed, retry a few times
+          if (fileExists && retryCount < maxRetries) {
+            console.log(`[Storage] Retrying database load in ${(retryCount + 1) * 1000}ms...`)
+            setTimeout(() => {
+              if (isMounted) {
+                load(retryCount + 1)
+              }
+            }, (retryCount + 1) * 1000)
+            return
+          }
+          
+          // If all retries failed or file doesn't exist, show error
+          if (isMounted) {
+            console.error("[Storage] Failed to load databases after all retries")
+            setDatabases([])
+            notifyError("Failed to load databases", {
+              description: "Could not load database configuration. Please restart the application.",
+            })
+          }
+        }
+      }
+      
+      load()
+
+      // Clean up interval and listeners on unmount
+      return () => {
+        isMounted = false
+        if (statusInterval) {
+          clearInterval(statusInterval)
+        }
+        // @ts-ignore
+        if (window.electron?.removeAllListeners) {
+          // @ts-ignore
+          window.electron.removeAllListeners('database-status-changed')
+          // @ts-ignore
+          window.electron.removeAllListeners('auto-start-port-conflicts')
+          // @ts-ignore
+          window.electron.removeAllListeners('auto-start-completed')
+        }
+      }
+    }, [])
 
   // Function to find a free port
   const findFreePort = (preferredPort: number): number => {
@@ -159,22 +724,101 @@ export default function DatabaseManager() {
   }
 
   const handleBulkStart = async (databaseIds: string[]) => {
-    console.log(`[Bulk Start] Starting ${databaseIds.length} databases`)
+    // Filter to only include databases that are actually stopped
+    const stoppedDatabases = databases.filter(db => 
+      databaseIds.includes(db.id) && db.status === "stopped"
+    )
+    
+    if (stoppedDatabases.length === 0) {
+      notifyInfo("No Stopped Databases", {
+        description: "All selected databases are already running or starting.",
+        duration: 3000,
+      })
+      return
+    }
+    
+    console.log(`[Bulk Start] Starting ${stoppedDatabases.length} stopped databases (${databaseIds.length - stoppedDatabases.length} already running)`)
     
     // Show initial toast
     notifyInfo("Starting Multiple Databases", {
-      description: `Starting ${databaseIds.length} databases...`,
+      description: `Starting ${stoppedDatabases.length} stopped databases...`,
       duration: 3000,
     })
 
-    // First, set all databases to "starting" status immediately to prevent race conditions
+    // Check for banned ports first (only on stopped databases)
+    const bannedPortDatabases = stoppedDatabases.filter(db => isPortBanned(db.port))
+    
+    if (bannedPortDatabases.length > 0) {
+      const bannedNames = bannedPortDatabases.map(db => db.name).join(", ")
+      notifyError("Cannot start databases", {
+        description: `The following databases use banned ports: ${bannedNames}. Please change their ports in settings.`,
+      })
+      return
+    }
+
+    // Check for port conflicts before starting any databases (only on stopped databases)
+    const conflictChecks = await Promise.all(
+      stoppedDatabases.map(async (targetDb) => {
+        // Check for external port conflicts
+        if (targetDb.port) {
+          const conflictResult = await checkPortConflict(targetDb.port)
+          if (conflictResult.inUse) {
+            return { 
+              id: targetDb.id, 
+              hasConflict: true, 
+              conflictType: 'external',
+              message: `Port ${targetDb.port} is in use by external process: ${conflictResult.processName} (PID: ${conflictResult.pid})`
+            }
+          }
+        }
+
+        // Check for internal port conflicts (other databases in the selection)
+        const conflictingDb = stoppedDatabases.find(otherDb => 
+          otherDb.id !== targetDb.id && 
+          otherDb.port === targetDb.port
+        )
+
+        if (conflictingDb) {
+          return { 
+            id: targetDb.id, 
+            hasConflict: true, 
+            conflictType: 'internal',
+            message: `Port ${targetDb.port} is in use by "${conflictingDb.name}" in this selection`
+          }
+        }
+
+        return { id: targetDb.id, hasConflict: false }
+      })
+    )
+
+    // Filter out databases with conflicts
+    const conflictedDatabases = conflictChecks.filter(check => check.hasConflict)
+    const validDatabaseIds = conflictChecks.filter(check => !check.hasConflict).map(check => check.id)
+
+    if (conflictedDatabases.length > 0) {
+      const conflictMessages = conflictedDatabases.map(check => 
+        `${databases.find(db => db.id === check.id)?.name}: ${check.message}`
+      ).join('\n')
+      
+      notifyError("Cannot start some databases", {
+        description: `The following databases have port conflicts:\n${conflictMessages}`,
+        duration: 8000,
+      })
+      
+      // If no valid databases to start, return early
+      if (validDatabaseIds.length === 0) {
+        return
+      }
+    }
+
+    // First, set all valid databases to "starting" status immediately to prevent race conditions
     setDatabases(prev => prev.map(db => 
-      databaseIds.includes(db.id) ? { ...db, status: "starting" as const, lastStarted: Date.now() } : db
+      validDatabaseIds.includes(db.id) ? { ...db, status: "starting" as const, lastStarted: Date.now() } : db
     ))
 
-    // Start all databases using the existing startDatabaseWithErrorHandling function
+    // Start all valid databases using the existing startDatabaseWithErrorHandling function
     // This function handles the async nature properly and uses real-time listeners
-    const startPromises = databaseIds.map(async (id, index) => {
+    const startPromises = validDatabaseIds.map(async (id, index) => {
       try {
         // Add a small delay between starts to prevent overwhelming the system
         if (index > 0) {
@@ -184,21 +828,9 @@ export default function DatabaseManager() {
         const targetDb = databases.find((db) => db.id === id)
         if (!targetDb) return { id, success: false, error: "Database not found" }
 
-        // Check for port conflicts
-        const conflictingDb = databases.find((db) => 
-          db.id !== id && 
-          db.port === targetDb.port && 
-          (db.status === "running" || db.status === "starting")
-        )
-
-        if (conflictingDb) {
-          const conflictType = conflictingDb.status === "starting" ? "starting up" : "running"
-          console.log(`[Bulk Start] Port conflict for ${targetDb.name}: port ${targetDb.port} used by ${conflictingDb.name} (${conflictType})`)
-          return { id, success: false, error: `Port conflict with ${conflictingDb.name}` }
-        }
-
         // Use the existing startDatabaseWithErrorHandling function
         // This function handles the async startup properly
+        // Note: Port conflicts are already checked upfront, so this should succeed
         await startDatabaseWithErrorHandling(id)
         
         // Since startDatabaseWithErrorHandling doesn't return a value,
@@ -756,10 +1388,52 @@ export default function DatabaseManager() {
     const targetDb = databases.find((db) => db.id === id)
     if (!targetDb) return
 
+    // Check for port conflicts before starting
+    if (targetDb.port) {
+      const conflictResult = await checkPortConflict(targetDb.port)
+      
+      // Check for external port conflicts
+      if (conflictResult.inUse) {
+        notifyError("Cannot start database", {
+          description: `Port ${targetDb.port} is already in use by external process: ${conflictResult.processName} (PID: ${conflictResult.pid}). Please choose a different port.`,
+        })
+        return
+      }
+      
+      // Check for internal port conflicts (other databases in the app)
+      const conflictingDb = databases.find(otherDb => 
+        otherDb.id !== targetDb.id && 
+        otherDb.port === targetDb.port && 
+        (otherDb.status === "running" || otherDb.status === "starting")
+      )
+      
+      if (conflictingDb) {
+        notifyError("Cannot start database", {
+          description: `Port ${targetDb.port} is already in use by "${conflictingDb.name}". Only one database can use a port at a time.`,
+        })
+        return
+      }
+    }
+
     // Check if database is already starting
     if (targetDb.status === "starting") {
       notifyWarning("Database already starting", {
         description: `${targetDb.name} is already in the process of starting.`,
+      })
+      return
+    }
+
+    // Check if the database port is banned
+    if (isPortBanned(targetDb.port)) {
+      notifyError("Cannot start database", {
+        description: `Port ${targetDb.port} is banned. Please change the port in database settings.`,
+        action: {
+          label: "Open Settings",
+          onClick: () => {
+            setSelectedDatabase(targetDb)
+            setSettingsDialogOpen(true)
+          }
+        }
       })
       return
     }
@@ -1059,6 +1733,22 @@ export default function DatabaseManager() {
     const originalDatabase = databases.find(db => db.id === updatedDatabase.id)
     if (!originalDatabase) return
 
+    // Check for duplicate name (excluding current database)
+    if (isNameDuplicate(updatedDatabase.name, updatedDatabase.id)) {
+      notifyError("Database name already exists", {
+        description: `A database with the name "${updatedDatabase.name}" already exists. Please choose a different name.`,
+      })
+      return
+    }
+
+    // Check for duplicate container ID (excluding current database)
+    if (isContainerIdDuplicate(updatedDatabase.containerId, updatedDatabase.id)) {
+      notifyError("Container ID already exists", {
+        description: `A database with container ID "${updatedDatabase.containerId}" already exists. Please try again.`,
+      })
+      return
+    }
+
     // Check if port has changed and database is running
     const portChanged = originalDatabase.port !== updatedDatabase.port
     const wasRunning = originalDatabase.status === "running" || originalDatabase.status === "starting"
@@ -1066,12 +1756,24 @@ export default function DatabaseManager() {
     // Update the database in state
     setDatabases(databases.map((db) => (db.id === updatedDatabase.id ? updatedDatabase : db)))
     
-    // Save the updated database to Electron storage
+    // Port conflicts are now checked dynamically, no need to cache
+    
+    // Save the updated database to Electron storage with validation
     try {
       // @ts-ignore
-      await window.electron?.saveDatabase?.(updatedDatabase)
+      const result = await window.electron?.saveDatabase?.(updatedDatabase)
+      if (result && result.success === false) {
+        notifyError("Failed to update database", {
+          description: result.error || "An error occurred while saving the database changes.",
+        })
+        return
+      }
     } catch (error) {
       console.log(`[Port Change] Error saving database ${updatedDatabase.id}:`, error)
+      notifyError("Failed to update database", {
+        description: "An error occurred while saving the database changes.",
+      })
+      return
     }
     
     // If port changed and database was running, restart it
