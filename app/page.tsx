@@ -871,21 +871,34 @@ export default function DatabaseManager() {
   }
 
   const handleBulkStop = async (databaseIds: string[]) => {
-    console.log(`[Bulk Stop] Stopping ${databaseIds.length} databases`)
+    // Filter to only include databases that are actually running
+    const runningDatabases = databases.filter(db => 
+      databaseIds.includes(db.id) && (db.status === "running" || db.status === "starting")
+    )
+    
+    if (runningDatabases.length === 0) {
+      notifyInfo("No Running Databases", {
+        description: "All selected databases are already stopped.",
+        duration: 3000,
+      })
+      return
+    }
+    
+    console.log(`[Bulk Stop] Stopping ${runningDatabases.length} running databases (${databaseIds.length - runningDatabases.length} already stopped)`)
     
     // Show initial toast
     notifyInfo("Stopping Multiple Databases", {
-      description: `Stopping ${databaseIds.length} databases...`,
+      description: `Stopping ${runningDatabases.length} running databases...`,
       duration: 3000,
     })
 
-    // First, set all databases to "stopping" status immediately
+    // First, set only running databases to "stopping" status immediately
     setDatabases(prev => prev.map(db => 
-      databaseIds.includes(db.id) ? { ...db, status: "stopping" as const } : db
+      runningDatabases.some(rdb => rdb.id === db.id) ? { ...db, status: "stopping" as const } : db
     ))
 
-    // Stop all databases in parallel
-    const stopPromises = databaseIds.map(async (id, index) => {
+    // Stop only running databases in parallel
+    const stopPromises = runningDatabases.map(async (db, index) => {
       try {
         // Add a small delay between stops to prevent overwhelming the system
         if (index > 0) {
@@ -893,11 +906,11 @@ export default function DatabaseManager() {
         }
 
         // @ts-ignore
-        const result = await window.electron?.stopDatabase?.(id)
-        return { id, success: result?.success || false, error: result?.error }
+        const result = await window.electron?.stopDatabase?.(db.id)
+        return { id: db.id, success: result?.success || false, error: result?.error }
       } catch (error) {
-        console.error(`[Bulk Stop] Error stopping database ${id}:`, error)
-        return { id, success: false, error: error instanceof Error ? error.message : String(error) }
+        console.error(`[Bulk Stop] Error stopping database ${db.id}:`, error)
+        return { id: db.id, success: false, error: error instanceof Error ? error.message : String(error) }
       }
     })
 
@@ -989,10 +1002,122 @@ export default function DatabaseManager() {
     return selectedVisibleCount === visibleDatabases.length ? "Deselect All" : "Select All"
   }
 
+  // Helper function to get selected databases with their statuses
+  const getSelectedDatabases = () => {
+    return databases.filter(db => selectedDatabases.has(db.id))
+  }
+
+  // Helper function to determine which bulk action buttons to show
+  const getBulkActionButtons = () => {
+    const selectedDbs = getSelectedDatabases()
+    if (selectedDbs.length === 0) return { showStart: false, showStop: false }
+
+    const runningCount = selectedDbs.filter(db => db.status === "running" || db.status === "starting").length
+    const stoppedCount = selectedDbs.filter(db => db.status === "stopped").length
+
+    // If all selected databases are running/starting, only show Stop All
+    if (runningCount === selectedDbs.length) {
+      return { showStart: false, showStop: true }
+    }
+    
+    // If all selected databases are stopped, only show Start All
+    if (stoppedCount === selectedDbs.length) {
+      return { showStart: true, showStop: false }
+    }
+    
+    // If there's a mix, show both buttons (but only affect relevant databases)
+    return { showStart: stoppedCount > 0, showStop: runningCount > 0 }
+  }
+
+  // Function to check for port conflicts in selected databases
+  const checkPortConflictsInSelection = (selectedIds: string[]) => {
+    const selectedDbs = databases.filter(db => selectedIds.includes(db.id))
+    const portGroups = new Map<number, DatabaseContainer[]>()
+    
+    // Group databases by port
+    selectedDbs.forEach(db => {
+      if (db.port) {
+        if (!portGroups.has(db.port)) {
+          portGroups.set(db.port, [])
+        }
+        portGroups.get(db.port)!.push(db)
+      }
+    })
+    
+    // Find ports with multiple databases
+    const conflicts = Array.from(portGroups.entries()).filter(([port, dbs]) => dbs.length > 1)
+    return conflicts
+  }
+
+  // Function to show port conflict selection dialog
+  const showPortConflictDialog = (conflicts: [number, DatabaseContainer[]][]) => {
+    setPortConflicts(conflicts)
+    setPortConflictDialogOpen(true)
+  }
+
+  // Function to handle database selection from conflict dialog
+  const handleConflictDatabaseSelect = (dbId: string) => {
+    // Get the original selected databases
+    const originalSelectedIds = Array.from(selectedDatabases)
+    
+    // Find the selected database
+    const selectedDb = databases.find(db => db.id === dbId)
+    if (!selectedDb) return
+    
+    // If the selected database is already running, we don't need to start it
+    const databasesToStart = originalSelectedIds.filter(id => {
+      const db = databases.find(d => d.id === id)
+      if (!db) return false
+      
+      // Skip if it's the selected database and it's already running
+      if (id === dbId && (db.status === "running" || db.status === "starting")) {
+        return false
+      }
+      
+      // Skip if it's a conflicting database (different from the selected one)
+      const isConflicting = portConflicts.some(([port, dbs]) => 
+        dbs.some(conflictDb => conflictDb.id === id && conflictDb.id !== dbId)
+      )
+      
+      return !isConflicting
+    })
+    
+    // Add the selected database if it's not running
+    if (selectedDb.status === "stopped") {
+      databasesToStart.push(dbId)
+    }
+    
+    // Start the databases
+    if (databasesToStart.length > 0) {
+      handleBulkStart(databasesToStart)
+    } else {
+      // All databases are already running or no valid databases to start
+      notifyInfo("No Databases to Start", {
+        description: "All selected databases are already running or have been resolved.",
+        duration: 3000,
+      })
+    }
+    
+    clearSelection()
+    setShowBulkActions(false)
+    setPortConflictDialogOpen(false)
+    setPortConflicts([])
+  }
+
   const handleBulkStartSelected = () => {
     const selectedIds = Array.from(selectedDatabases)
     if (selectedIds.length === 0) return
     
+    // Check for port conflicts
+    const conflicts = checkPortConflictsInSelection(selectedIds)
+    
+    if (conflicts.length > 0) {
+      // Show port conflict dialog
+      showPortConflictDialog(conflicts)
+      return
+    }
+    
+    // No conflicts, proceed with normal bulk start
     handleBulkStart(selectedIds)
     clearSelection()
     setShowBulkActions(false) // Exit selection mode
@@ -1889,33 +2014,40 @@ export default function DatabaseManager() {
       <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border/50 cursor-move" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
         <div className="container mx-auto px-6 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {selectedDatabases.size > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  {selectedDatabases.size} selected
-                </span>
-                <Button
-                  onClick={handleBulkStartSelected}
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-3 text-xs cursor-pointer"
-                  style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                >
-                  <Play className="mr-1 h-3 w-3" />
-                  Start All
-                </Button>
-                <Button
-                  onClick={handleBulkStopSelected}
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-3 text-xs cursor-pointer"
-                  style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                >
-                  <Square className="mr-1 h-3 w-3" />
-                  Stop All
-                </Button>
-              </div>
-            )}
+            {selectedDatabases.size > 0 && (() => {
+              const { showStart, showStop } = getBulkActionButtons()
+              return (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    {selectedDatabases.size} selected
+                  </span>
+                  {showStart && (
+                    <Button
+                      onClick={handleBulkStartSelected}
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-3 text-xs cursor-pointer border-success/50 text-success hover:bg-success hover:text-success-foreground transition-all duration-200 hover:scale-105 active:scale-95"
+                      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    >
+                      <Play className="mr-1 h-3 w-3" />
+                      Start All
+                    </Button>
+                  )}
+                  {showStop && (
+                    <Button
+                      onClick={handleBulkStopSelected}
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-3 text-xs cursor-pointer border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all duration-200 hover:scale-105 active:scale-95"
+                      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    >
+                      <Square className="mr-1 h-3 w-3" />
+                      Stop All
+                    </Button>
+                  )}
+                </div>
+              )
+            })()}
           </div>
           
           <div className="flex items-center gap-2">
