@@ -1319,7 +1319,7 @@ export default function DatabaseManager() {
           window.electron.onDatabaseStatusChanged((data: { id: string, status: string, error?: string, exitCode?: number, ready?: boolean, pid?: number }) => {
             if (!isMounted) return
             
-            console.log(`[Real-time Status] Database ${data.id} status changed to ${data.status}${data.ready ? ' (ready)' : ''}`)
+            console.log(`[Real-time Status] Database ${data.id} status changed to ${data.status}${data.ready ? ' (ready)' : ''} (PID: ${data.pid})`)
             
             // Create a simple event key to prevent duplicate processing
             // For stopped events, use a simpler key to prevent duplicates from error/exit events
@@ -1327,14 +1327,16 @@ export default function DatabaseManager() {
               ? `${data.id}-stopped` 
               : `${data.id}-${data.status}-${data.ready ? 'ready' : 'not-ready'}`
             
-            // Check if we've already processed this exact event in the last 3 seconds (reduced from 5)
+            // Check if we've already processed this exact event in the last 500ms (reduced further)
             const now = Date.now()
             const lastProcessed = lastStatusCheckRef.current[eventKey] || 0
             
-            if (now - lastProcessed < 3000) {
+            if (now - lastProcessed < 500) {
               console.log(`[Real-time Status] Duplicate event ignored: ${eventKey} (last processed: ${new Date(lastProcessed).toISOString()})`)
               return
             }
+            
+            console.log(`[Real-time Status] Processing event: ${eventKey} (time since last: ${now - lastProcessed}ms)`)
             
             // Update the last processed time (both ref and state)
             lastStatusCheckRef.current[eventKey] = now
@@ -1502,7 +1504,41 @@ export default function DatabaseManager() {
     }
   }, [activeTab, showBulkActions, selectedDatabases])
 
-  const handleAddDatabase = (database: DatabaseContainer) => {
+  const handleAddDatabase = async (database: DatabaseContainer) => {
+    // Check for duplicate name
+    if (isNameDuplicate(database.name)) {
+      notifyError("Database name already exists", {
+        description: `A database with the name "${database.name}" already exists. Please choose a different name.`,
+      })
+      return
+    }
+
+    // Check for duplicate container ID
+    if (isContainerIdDuplicate(database.containerId)) {
+      notifyError("Container ID already exists", {
+        description: `A database with container ID "${database.containerId}" already exists. Please try again.`,
+      })
+      return
+    }
+
+    // Save to backend with validation
+    try {
+      // @ts-ignore
+      const result = await window.electron?.saveDatabase?.(database)
+      if (result && result.success === false) {
+        notifyError("Failed to save database", {
+          description: result.error || "An error occurred while saving the database.",
+        })
+        return
+      }
+    } catch (error) {
+      console.error("[Database Save] Error saving database:", error)
+      notifyError("Failed to save database", {
+        description: "An error occurred while saving the database.",
+      })
+      return
+    }
+
     setDatabases([...databases, database])
     setAddDialogOpen(false)
     setActiveTab("all") // Switch to All Databases tab to show the new database
