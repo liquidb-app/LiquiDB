@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("electron", {
   checkDatabaseStatus: (id) => ipcRenderer.invoke("check-database-status", id),
   checkPort: (port) => ipcRenderer.invoke("check-port", port),
   getDatabases: () => ipcRenderer.invoke("get-databases"),
+  getAllDatabases: () => ipcRenderer.invoke("get-databases"),
   saveDatabase: (db) => ipcRenderer.invoke("db:save", db),
   deleteDatabase: (id) => ipcRenderer.invoke("db:delete", id),
   deleteAllDatabases: () => ipcRenderer.invoke("db:deleteAll"),
@@ -28,6 +29,8 @@ contextBridge.exposeInMainWorld("electron", {
   },
   verifyDatabaseInstance: (id) => ipcRenderer.invoke("verify-database-instance", id),
   getDatabaseSystemInfo: (id) => ipcRenderer.invoke("get-database-system-info", id),
+  checkPortConflict: (port) => ipcRenderer.invoke("check-port-conflict", port),
+  cleanupDeadProcesses: () => ipcRenderer.invoke("cleanup-dead-processes"),
   saveCustomImage: (imageData) => ipcRenderer.invoke("save-custom-image", imageData),
   getSavedImages: () => ipcRenderer.invoke("get-saved-images"),
   convertFileToDataUrl: (fileUrl) => ipcRenderer.invoke("convert-file-to-data-url", fileUrl),
@@ -40,6 +43,10 @@ contextBridge.exposeInMainWorld("electron", {
   // Auto-start port conflict events
   onAutoStartPortConflicts: (callback) => ipcRenderer.on("auto-start-port-conflicts", callback),
   onAutoStartCompleted: (callback) => ipcRenderer.on("auto-start-completed", callback),
+  
+  // External link handler
+  openExternalLink: (url) => ipcRenderer.invoke("open-external-link", url),
+  
   platform: process.platform,
   isElectron: true,
 })

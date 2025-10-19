@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron")
+const { app, BrowserWindow, ipcMain, shell } = require("electron")
 const path = require("path")
 const { spawn } = require("child_process")
 const fs = require("fs")
@@ -23,9 +23,27 @@ const runningDatabases = new Map() // id -> { process, config }
 // Auto-launch configuration
 let autoLauncher
 try {
+  console.log("[Auto-launch] App path:", process.execPath)
+  console.log("[Auto-launch] App name:", require('path').basename(process.execPath))
+  
+  const appName = require('path').basename(process.execPath, require('path').extname(process.execPath))
+  console.log("[Auto-launch] Using app name:", appName)
+  
+  // For macOS, try to use the app bundle path if available
+  let appPath = process.execPath
+  if (process.platform === 'darwin' && process.execPath.includes('.app')) {
+    // Extract the app bundle path from the executable path
+    const pathParts = process.execPath.split('/')
+    const appIndex = pathParts.findIndex(part => part.endsWith('.app'))
+    if (appIndex !== -1) {
+      appPath = pathParts.slice(0, appIndex + 1).join('/')
+      console.log("[Auto-launch] Using app bundle path:", appPath)
+    }
+  }
+  
   autoLauncher = new AutoLaunch({
-    name: 'LiquiDB',
-    path: process.execPath,
+    name: appName,
+    path: appPath,
     isHidden: true
   })
   console.log("[Auto-launch] Auto-launch module initialized successfully")
@@ -275,7 +293,7 @@ function resetDatabaseStatuses() {
 
 // Start database process (extracted from start-database handler)
 async function startDatabaseProcess(config) {
-  const { id, type, version, port, username, password } = config
+  const { id, type, version, port, username, password, containerId } = config
   
   // Return immediately to prevent UI freezing
   console.log(`[Database] Starting ${type} database on port ${port}...`)
@@ -293,7 +311,7 @@ async function startDatabaseProcess(config) {
 }
 
 async function startDatabaseProcessAsync(config) {
-  const { id, type, version, port, username, password } = config
+  const { id, type, version, port, username, password, containerId } = config
   
   try {
     let cmd, args, env = { 
@@ -426,15 +444,19 @@ async function startDatabaseProcessAsync(config) {
     args = [
       "--port", port.toString(), 
       "--datadir", `/tmp/liquidb-${id}`, 
-      "--skip-grant-tables", 
-      "--skip-networking=false",
       "--bind-address=127.0.0.1",
       `--log-error=/tmp/liquidb-${id}/mysql-error.log`,
       "--basedir=/opt/homebrew",
       "--tmpdir=/tmp",
       "--pid-file=/tmp/liquidb-${id}/mysql.pid",
-      "--socket=/tmp/mysql-${id}.sock"
+      `--socket=/tmp/mysql-${containerId}.sock`,
+      "--mysqlx=OFF"  // Disable X Plugin to allow multiple MySQL instances
     ]
+    
+    console.log(`[MySQL] Starting MySQL with ID: ${id}, Container ID: ${containerId}, Port: ${port}`)
+    console.log(`[MySQL] Socket path: /tmp/mysql-${containerId}.sock`)
+    console.log(`[MySQL] Data dir: /tmp/liquidb-${id}`)
+    console.log(`[MySQL] Args:`, args)
     
     // Create data directory (async)
     const fs = require("fs").promises
@@ -719,6 +741,32 @@ async function startDatabaseProcessAsync(config) {
           console.error(`[Database] ${id} failed to update status to running in storage:`, error)
         }
         
+        // Create a user with no password for easy access
+        try {
+          const { execSync } = require("child_process")
+          const mysqlClientPath = mysqldPath.replace('mysqld', 'mysql')
+          
+          // Wait a moment for MySQL to be fully ready
+          setTimeout(async () => {
+            try {
+              // Create user with no password
+              execSync(`${mysqlClientPath} --socket=/tmp/mysql-${containerId}.sock -e "CREATE USER IF NOT EXISTS 'root'@'localhost' IDENTIFIED BY ''; GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION; FLUSH PRIVILEGES;"`, { 
+                stdio: 'pipe',
+                env: { 
+                  ...process.env,
+                  PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
+                  HOMEBREW_PREFIX: "/opt/homebrew"
+                }
+              })
+              console.log(`[MySQL] ${id} created root user with no password`)
+            } catch (userError) {
+              console.log(`[MySQL] ${id} user creation failed (this is normal for existing databases):`, userError.message)
+            }
+          }, 2000)
+        } catch (error) {
+          console.log(`[MySQL] ${id} user creation setup failed:`, error.message)
+        }
+        
         mainWindow.webContents.send('database-status-changed', { id, status: 'running', ready: true, pid: child.pid })
       } else {
         console.log(`[MySQL] ${id} ready event already sent or no mainWindow (readyEventSent: ${readyEventSent}, mainWindow: ${!!mainWindow})`)
@@ -939,8 +987,14 @@ ipcMain.handle("auto-launch:enable", async () => {
       console.warn("[Auto-launch] Auto-launcher not available")
       return { success: false, error: "Auto-launch module not available" }
     }
+    console.log("[Auto-launch] Attempting to enable auto-launch...")
     await autoLauncher.enable()
-    console.log("[Auto-launch] Enabled startup launch")
+    console.log("[Auto-launch] Successfully enabled startup launch")
+    
+    // Verify it was enabled
+    const isEnabled = await autoLauncher.isEnabled()
+    console.log("[Auto-launch] Verification - isEnabled:", isEnabled)
+    
     return { success: true }
   } catch (error) {
     console.error("[Auto-launch] Error enabling:", error)
@@ -954,11 +1008,28 @@ ipcMain.handle("auto-launch:disable", async () => {
       console.warn("[Auto-launch] Auto-launcher not available")
       return { success: false, error: "Auto-launch module not available" }
     }
+    console.log("[Auto-launch] Attempting to disable auto-launch...")
     await autoLauncher.disable()
-    console.log("[Auto-launch] Disabled startup launch")
+    console.log("[Auto-launch] Successfully disabled startup launch")
+    
+    // Verify it was disabled
+    const isEnabled = await autoLauncher.isEnabled()
+    console.log("[Auto-launch] Verification - isEnabled:", isEnabled)
+    
     return { success: true }
   } catch (error) {
     console.error("[Auto-launch] Error disabling:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+// External link handler
+ipcMain.handle("open-external-link", async (event, url) => {
+  try {
+    await shell.openExternal(url)
+    return { success: true }
+  } catch (error) {
+    console.error("[External Link] Error opening URL:", error)
     return { success: false, error: error.message }
   }
 })
@@ -1140,6 +1211,55 @@ function testPortConnectivity(port) {
   })
 }
 
+// Check if a port is in use by external processes
+async function checkPortInUse(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer()
+    
+    server.listen(port, '127.0.0.1', () => {
+      // Port is available
+      server.close(() => {
+        resolve(false)
+      })
+    })
+    
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        // Port is in use
+        resolve(true)
+      } else {
+        // Other error, assume port is available
+        resolve(false)
+      }
+    })
+  })
+}
+
+// Get process information for a port
+async function getProcessUsingPort(port) {
+  return new Promise((resolve) => {
+    exec(`lsof -i :${port}`, (error, stdout, stderr) => {
+      if (error || !stdout.trim()) {
+        resolve(null)
+        return
+      }
+      
+      const lines = stdout.trim().split('\n')
+      if (lines.length > 1) {
+        // Skip header line, get first process
+        const processLine = lines[1]
+        const parts = processLine.split(/\s+/)
+        if (parts.length >= 2) {
+          const processName = parts[0]
+          const pid = parts[1]
+          resolve({ processName, pid })
+        }
+      }
+      resolve(null)
+    })
+  })
+}
+
 // Simple and reliable database status check
 async function checkDatabaseStatus(id) {
   try {
@@ -1312,6 +1432,80 @@ ipcMain.handle("get-database-system-info", async (event, id) => {
       pid: null,
       memory: null,
       cpu: null
+    }
+  }
+})
+
+// Clean up dead processes and reset statuses
+ipcMain.handle("cleanup-dead-processes", async () => {
+  try {
+    console.log("[Cleanup] Starting cleanup of dead processes")
+    let cleanedCount = 0
+    
+    // Check all running databases
+    for (const [id, db] of runningDatabases) {
+      if (db.process.killed || db.process.exitCode !== null) {
+        console.log(`[Cleanup] Removing dead process ${id} (PID: ${db.process.pid})`)
+        runningDatabases.delete(id)
+        cleanedCount++
+      }
+    }
+    
+    // Update storage to reflect actual status
+    const databases = storage.loadDatabases(app)
+    let updatedCount = 0
+    
+    for (let i = 0; i < databases.length; i++) {
+      const db = databases[i]
+      if (db.status === "running" || db.status === "starting") {
+        // Check if process is actually running
+        const isInRunningMap = runningDatabases.has(db.id)
+        if (!isInRunningMap) {
+          console.log(`[Cleanup] Updating database ${db.id} status from ${db.status} to stopped`)
+          databases[i].status = "stopped"
+          databases[i].pid = null
+          updatedCount++
+        }
+      }
+    }
+    
+    if (updatedCount > 0) {
+      storage.saveDatabases(app, databases)
+      console.log(`[Cleanup] Updated ${updatedCount} database statuses in storage`)
+    }
+    
+    console.log(`[Cleanup] Cleanup complete: removed ${cleanedCount} dead processes, updated ${updatedCount} statuses`)
+    return { success: true, cleanedProcesses: cleanedCount, updatedStatuses: updatedCount }
+  } catch (error) {
+    console.error("[Cleanup] Error during cleanup:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+// Check for port conflicts
+ipcMain.handle("check-port-conflict", async (event, port) => {
+  try {
+    const isInUse = await checkPortInUse(port)
+    if (isInUse) {
+      const processInfo = await getProcessUsingPort(port)
+      return {
+        success: true,
+        inUse: true,
+        processInfo: processInfo || { processName: 'Unknown', pid: 'Unknown' }
+      }
+    }
+    return {
+      success: true,
+      inUse: false,
+      processInfo: null
+    }
+  } catch (error) {
+    console.error(`[Port Check] Error checking port ${port}:`, error)
+    return {
+      success: false,
+      error: error.message,
+      inUse: false,
+      processInfo: null
     }
   }
 })
@@ -1827,14 +2021,52 @@ ipcMain.handle("get-databases", async () => {
 })
 
 ipcMain.handle("db:save", async (event, db) => {
-  if (db?.password && keytar) {
-    try {
-      await keytar.setPassword("LiquiDB", db.id, db.password)
-      db.password = "__SECURE__"
-    } catch {}
+  try {
+    // Validate name length
+    if (db.name && db.name.length > 15) {
+      return { 
+        success: false, 
+        error: `Database name must be 15 characters or less. Current length: ${db.name.length}` 
+      }
+    }
+
+    // Load existing databases to check for duplicates
+    const existingDatabases = storage.loadDatabases(app)
+    
+    // Check for duplicate name
+    const nameExists = existingDatabases.some(existingDb => 
+      existingDb.name === db.name && existingDb.id !== db.id
+    )
+    if (nameExists) {
+      return { 
+        success: false, 
+        error: `Database name "${db.name}" already exists. Please choose a different name.` 
+      }
+    }
+    
+    // Check for duplicate container ID
+    const containerIdExists = existingDatabases.some(existingDb => 
+      existingDb.containerId === db.containerId && existingDb.id !== db.id
+    )
+    if (containerIdExists) {
+      return { 
+        success: false, 
+        error: `Container ID "${db.containerId}" already exists. Please try again.` 
+      }
+    }
+    
+    if (db?.password && keytar) {
+      try {
+        await keytar.setPassword("LiquiDB", db.id, db.password)
+        db.password = "__SECURE__"
+      } catch {}
+    }
+    const saved = storage.upsertDatabase(app, db)
+    return saved
+  } catch (error) {
+    console.error("[Database Save] Error saving database:", error)
+    return { success: false, error: error.message }
   }
-  const saved = storage.upsertDatabase(app, db)
-  return saved
 })
 
 ipcMain.handle("db:getPassword", async (event, id) => {
