@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useTheme } from "next-themes"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -63,15 +63,6 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   const [autoLaunchEnabled, setAutoLaunchEnabled] = useState(false)
   const [autoLaunchLoading, setAutoLaunchLoading] = useState(false)
   
-  // Local state for unsaved changes
-  const [localTheme, setLocalTheme] = useState(theme || "system")
-  const [localColorScheme, setLocalColorScheme] = useState("mono")
-  const [localAutoLaunchEnabled, setLocalAutoLaunchEnabled] = useState(false)
-  const [localNotifications, setLocalNotifications] = useState(true)
-  
-  // Store original values for revert functionality
-  const [originalTheme, setOriginalTheme] = useState(theme || "system")
-  const [originalColorScheme, setOriginalColorScheme] = useState("mono")
 
   useEffect(() => {
     setMounted(true)
@@ -104,19 +95,6 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     checkAutoLaunchStatus()
   }, [])
   
-  // Initialize local state when dialog opens
-  useEffect(() => {
-    if (open) {
-      setLocalTheme(theme || "system")
-      setLocalColorScheme(colorScheme)
-      setLocalAutoLaunchEnabled(autoLaunchEnabled)
-      setLocalNotifications(notifications)
-      
-      // Store original values for revert functionality
-      setOriginalTheme(theme || "system")
-      setOriginalColorScheme(colorScheme)
-    }
-  }, [open, theme, colorScheme, autoLaunchEnabled, notifications])
 
   const checkAutoLaunchStatus = async () => {
     try {
@@ -175,52 +153,42 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
 
   // Preview handlers that apply changes immediately
   const handleThemePreview = (newTheme: string) => {
-    setLocalTheme(newTheme)
     setTheme(newTheme) // Apply immediately for preview
   }
 
   const handleColorSchemePreview = (newColorScheme: string) => {
-    setLocalColorScheme(newColorScheme)
     setColorScheme(newColorScheme) // Apply immediately for preview
     localStorage.setItem("color-scheme", newColorScheme)
     document.documentElement.setAttribute("data-color-scheme", newColorScheme)
   }
 
   const handleNotificationToggle = (enabled: boolean) => {
-    console.log("[App Settings] Notification toggle clicked, enabled:", enabled)
-    setLocalNotifications(enabled)
     setNotifications(enabled)
     
     // Check if we're in a browser environment
     if (typeof window !== 'undefined') {
       if (notifications && typeof (notifications as any).setNotificationsEnabled === 'function') {
-        console.log("[App Settings] Notification manager available, updating...")
         ;(notifications as any).setNotificationsEnabled(enabled)
         
         // Force reload the setting to ensure it's updated
         if (typeof (notifications as any).reloadNotificationSetting === 'function') {
-          console.log("[App Settings] Reloading notification setting...")
           ;(notifications as any).reloadNotificationSetting()
         }
         
         // Show a notification about the setting change (this will respect the new setting)
         if (enabled) {
-          console.log("[App Settings] Showing enabled notification")
           ;(notifications as any).success("Notifications enabled", {
             description: "You'll now receive toast notifications for database events.",
           })
         } else {
           // Use direct toast for this one since we want to show it even when disabling
-          console.log("[App Settings] Showing disabled notification")
           toast.info("Notifications disabled", {
             description: "Toast notifications are now disabled.",
           })
         }
       } else {
-        console.warn("Notification manager not available, using localStorage fallback")
         try {
           localStorage.setItem("notifications-enabled", JSON.stringify(enabled))
-          console.log("[App Settings] Saved to localStorage:", enabled)
         } catch (error) {
           console.error("Failed to save notification setting:", error)
         }
@@ -228,47 +196,22 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     }
   }
 
-  const handleSave = () => {
-    // Theme and color scheme changes are already applied for preview
-    // Just ensure they're persisted (they already are from the preview handlers)
-    
-    // Apply auto-launch changes
-    if (localAutoLaunchEnabled !== autoLaunchEnabled) {
-      handleAutoLaunchToggle(localAutoLaunchEnabled)
-    }
-    
-    // Apply notification changes
-    if (localNotifications !== notifications) {
-      setNotifications(localNotifications)
-      try {
-        if (typeof window !== 'undefined' && notifications && typeof (notifications as any).setNotificationsEnabled === 'function') {
-          (notifications as any).setNotificationsEnabled(localNotifications)
-        } else {
-          localStorage.setItem("notifications-enabled", JSON.stringify(localNotifications))
-        }
-      } catch (error) {
-        console.error("Failed to save notification setting:", error)
-        localStorage.setItem("notifications-enabled", JSON.stringify(localNotifications))
+  const handleOpenExternalLink = async (url: string) => {
+    try {
+      // @ts-ignore
+      const result = await window.electron?.openExternalLink?.(url)
+      if (!result?.success) {
+        notifyError("Failed to open link", {
+          description: result?.error || "Could not open the link in your default browser.",
+        })
       }
+    } catch (error) {
+      notifyError("Failed to open link", {
+        description: "Could not open the link in your default browser.",
+      })
     }
-    
-    onOpenChange(false)
   }
 
-  const handleCancel = () => {
-    // Revert theme and color scheme to original values
-    setTheme(originalTheme)
-    setColorScheme(originalColorScheme)
-    localStorage.setItem("color-scheme", originalColorScheme)
-    document.documentElement.setAttribute("data-color-scheme", originalColorScheme)
-    
-    // Reset local state to original values
-    setLocalTheme(originalTheme)
-    setLocalColorScheme(originalColorScheme)
-    setLocalAutoLaunchEnabled(autoLaunchEnabled)
-    setLocalNotifications(notifications)
-    onOpenChange(false)
-  }
 
   const isDark = mounted && resolvedTheme === "dark"
 
@@ -301,7 +244,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleCancel}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[500px] !top-[15vh] !translate-y-0">
           <DialogHeader>
             <DialogTitle>App Settings</DialogTitle>
@@ -319,7 +262,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
               <TabsContent value="appearance" className="space-y-4 pt-4 mt-0">
                 <div className="space-y-2">
                   <Label>Theme</Label>
-                  <Select value={localTheme} onValueChange={handleThemePreview}>
+                  <Select value={theme || "system"} onValueChange={handleThemePreview}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -357,7 +300,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                         key={scheme.value}
                         onClick={() => handleColorSchemePreview(scheme.value)}
                         className={`flex flex-col items-center gap-1.5 p-2 rounded-md border-2 transition-colors ${
-                          localColorScheme === scheme.value
+                          colorScheme === scheme.value
                             ? "border-primary bg-accent"
                             : "border-border hover:border-muted-foreground"
                         }`}
@@ -381,8 +324,8 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                     </p>
                   </div>
                   <Switch 
-                    checked={localAutoLaunchEnabled} 
-                    onCheckedChange={setLocalAutoLaunchEnabled}
+                    checked={autoLaunchEnabled} 
+                    onCheckedChange={handleAutoLaunchToggle}
                     disabled={autoLaunchLoading}
                   />
                 </div>
@@ -392,7 +335,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                     <Label>Notifications</Label>
                     <p className="text-xs text-muted-foreground">Show toast notifications for database events</p>
                   </div>
-                  <Switch checked={localNotifications} onCheckedChange={setLocalNotifications} />
+                  <Switch checked={notifications} onCheckedChange={handleNotificationToggle} />
                 </div>
 
                 <div className="space-y-2">
@@ -451,7 +394,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                   <Button
                     variant="outline"
                     className="w-full justify-start bg-transparent"
-                    onClick={() => window.open("https://github.com/alexg-sh/LiquiDB", "_blank")}
+                    onClick={() => handleOpenExternalLink("https://github.com/alexg-sh/LiquiDB")}
                   >
                     <Github className="h-4 w-4 mr-2" />
                     View on GitHub
@@ -460,7 +403,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                   <Button
                     variant="outline"
                     className="w-full justify-start bg-transparent"
-                    onClick={() => window.open("https://liquidb.app", "_blank")}
+                    onClick={() => handleOpenExternalLink("https://liquidb.app")}
                   >
                     <Globe className="h-4 w-4 mr-2" />
                     Visit Website
@@ -471,14 +414,6 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
             </div>
           </Tabs>
           
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancel} size="sm">
-              Cancel
-            </Button>
-            <Button onClick={handleSave} size="sm">
-              Save Changes
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
