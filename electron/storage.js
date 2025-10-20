@@ -11,6 +11,12 @@ function getDatabasesFile(app) {
   return path.join(getDataDir(app), "databases.json")
 }
 
+function getDatabaseDataDir(app, containerId) {
+  const databasesDir = path.join(getDataDir(app), "databases")
+  if (!fs.existsSync(databasesDir)) fs.mkdirSync(databasesDir, { recursive: true })
+  return path.join(databasesDir, containerId)
+}
+
 function loadDatabases(app) {
   const file = getDatabasesFile(app)
   if (!fs.existsSync(file)) return []
@@ -72,6 +78,7 @@ module.exports = {
   deleteAllDatabases,
   checkDatabasesFileExists,
   recreateDatabasesFile,
+  getDatabaseDataDir,
 }
 
 

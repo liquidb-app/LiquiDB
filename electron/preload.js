@@ -47,6 +47,26 @@ contextBridge.exposeInMainWorld("electron", {
   // External link handler
   openExternalLink: (url) => ipcRenderer.invoke("open-external-link", url),
   
+  // Helper service methods
+  getHelperStatus: () => ipcRenderer.invoke("helper:status"),
+  getHelperHealth: () => ipcRenderer.invoke("helper:health"),
+  startHelper: () => ipcRenderer.invoke("helper:start"),
+  restartHelper: () => ipcRenderer.invoke("helper:restart"),
+  cleanupHelper: () => ipcRenderer.invoke("helper:cleanup"),
+  
+  // Permissions methods
+  checkPermissions: () => ipcRenderer.invoke("permissions:check"),
+  getPermissionDescriptions: () => ipcRenderer.invoke("permissions:getDescriptions"),
+  openSystemPreferences: () => ipcRenderer.invoke("permissions:openSettings"),
+  openPermissionPage: (permissionType) => ipcRenderer.invoke("permissions:openPermissionPage", permissionType),
+  requestCriticalPermissions: () => ipcRenderer.invoke("permissions:requestCritical"),
+  requestPermission: (permissionName) => ipcRenderer.invoke("permissions:request", permissionName),
+  
+  // Secure storage methods using Electron's safeStorage API
+  encryptString: (text) => ipcRenderer.invoke("permissions:encryptString", text),
+  decryptString: (encryptedBuffer) => ipcRenderer.invoke("permissions:decryptString", encryptedBuffer),
+  isEncryptionAvailable: () => ipcRenderer.invoke("permissions:isEncryptionAvailable"),
+  
   platform: process.platform,
   isElectron: true,
 })

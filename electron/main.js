@@ -2274,6 +2274,191 @@ ipcMain.handle("db:deleteAll", async (event) => {
   }
 })
 
+// Helper service management
+ipcMain.handle("helper:status", async (event) => {
+  try {
+    if (!helperService) {
+      return { success: false, error: "Helper service not initialized" }
+    }
+    const status = await helperService.getStatus()
+    return { success: true, data: status }
+  } catch (error) {
+    console.error("[Helper Status] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle("helper:start", async (event) => {
+  try {
+    if (!helperService) {
+      helperService = new HelperServiceManager(app)
+    }
+    const success = await helperService.start()
+    return { success, error: success ? null : "Failed to start helper service" }
+  } catch (error) {
+    console.error("[Helper Start] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+
+ipcMain.handle("helper:restart", async (event) => {
+  try {
+    if (!helperService) {
+      helperService = new HelperServiceManager(app)
+    }
+    const success = await helperService.restart()
+    return { success, error: success ? null : "Failed to restart helper service" }
+  } catch (error) {
+    console.error("[Helper Restart] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle("helper:cleanup", async (event) => {
+  try {
+    if (!helperService) {
+      return { success: false, error: "Helper service not initialized" }
+    }
+    const result = await helperService.requestCleanup()
+    return result
+  } catch (error) {
+    console.error("[Helper Cleanup] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+
+ipcMain.handle("helper:health", async (event) => {
+  try {
+    if (!helperService) {
+      return { success: false, error: "Helper service not initialized" }
+    }
+    const isHealthy = await helperService.isHealthy()
+    return { success: true, data: { isHealthy } }
+  } catch (error) {
+    console.error("[Helper Health] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+// Permissions management
+ipcMain.handle("permissions:check", async (event) => {
+  try {
+    if (!permissionsManager) {
+      return { success: false, error: "Permissions manager not initialized" }
+    }
+    const result = await permissionsManager.checkAllPermissions()
+    return { success: true, data: result }
+  } catch (error) {
+    console.error("[Permissions Check] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle("permissions:getDescriptions", async (event) => {
+  try {
+    if (!permissionsManager) {
+      return { success: false, error: "Permissions manager not initialized" }
+    }
+    const descriptions = permissionsManager.getPermissionDescriptions()
+    return { success: true, data: descriptions }
+  } catch (error) {
+    console.error("[Permissions Descriptions] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle("permissions:openSettings", async (event) => {
+  try {
+    // Open System Preferences to Privacy & Security
+    await exec('open "x-apple.systempreferences:com.apple.preference.security?Privacy"')
+    return { success: true }
+  } catch (error) {
+    console.error("[Permissions Open Settings] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle("permissions:openPermissionPage", async (event, permissionType) => {
+  try {
+    if (!permissionsManager) {
+      return { success: false, error: "Permissions manager not initialized" }
+    }
+    const result = await permissionsManager.openPermissionPage(permissionType)
+    return { success: result }
+  } catch (error) {
+    console.error("[Permissions Open Permission Page] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle("permissions:requestCritical", async (event) => {
+  try {
+    if (!permissionsManager) {
+      return { success: false, error: "Permissions manager not initialized" }
+    }
+    const result = await permissionsManager.requestCriticalPermissions()
+    return { success: true, data: result }
+  } catch (error) {
+    console.error("[Permissions Request Critical] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle("permissions:request", async (event, permissionName) => {
+  try {
+    if (!permissionsManager) {
+      return { success: false, error: "Permissions manager not initialized" }
+    }
+    const granted = await permissionsManager.requestPermission(permissionName)
+    return { success: true, data: { granted } }
+  } catch (error) {
+    console.error("[Permissions Request] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+// Secure storage methods using Electron's safeStorage API
+ipcMain.handle("permissions:encryptString", async (event, text) => {
+  try {
+    if (!permissionsManager) {
+      return { success: false, error: "Permissions manager not initialized" }
+    }
+    const encrypted = permissionsManager.encryptString(text)
+    return { success: true, data: { encrypted } }
+  } catch (error) {
+    console.error("[Permissions Encrypt String] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle("permissions:decryptString", async (event, encryptedBuffer) => {
+  try {
+    if (!permissionsManager) {
+      return { success: false, error: "Permissions manager not initialized" }
+    }
+    const decrypted = permissionsManager.decryptString(encryptedBuffer)
+    return { success: true, data: { decrypted } }
+  } catch (error) {
+    console.error("[Permissions Decrypt String] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle("permissions:isEncryptionAvailable", async (event) => {
+  try {
+    if (!permissionsManager) {
+      return { success: false, error: "Permissions manager not initialized" }
+    }
+    const available = permissionsManager.isEncryptionAvailable()
+    return { success: true, data: { available } }
+  } catch (error) {
+    console.error("[Permissions Is Encryption Available] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
 // Image saving functionality
 function getImagesDirectory() {
   const dataDir = app.getPath("userData")
