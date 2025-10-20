@@ -568,6 +568,53 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
         setInstallMsg("Installation complete! Database is ready to start.")
       }
       
+      // Get the Homebrew installation path for this database type
+      const getHomebrewPath = (dbType: DatabaseType, version: string) => {
+        const versionDetail = availableVersions.find(v => v.fullVersion === version)
+        const majorVersion = versionDetail?.majorVersion || version.split('.').slice(0, 2).join('.')
+        
+        switch (dbType) {
+          case 'postgresql':
+            return `/opt/homebrew/opt/postgresql@${majorVersion}/bin`
+          case 'mysql':
+            return `/opt/homebrew/opt/mysql@${majorVersion}/bin`
+          case 'mongodb':
+            return `/opt/homebrew/opt/mongodb-community@${majorVersion}/bin`
+          case 'redis':
+            return `/opt/homebrew/opt/redis/bin`
+          default:
+            return `/opt/homebrew/bin`
+        }
+      }
+
+      const id = generateShortId()
+      const database: DatabaseContainer = {
+        id,
+        name: name || generateShortName(selectedType),
+        type: selectedType,
+        version,
+        port: Number.parseInt(port),
+        status: "stopped", // Create with stopped status since installation is complete
+        containerId: id, // Use the same ID for both id and containerId
+        username,
+        password,
+        createdAt: new Date().toISOString(),
+        icon: selectedIcon,
+        autoStart,
+        homebrewPath: getHomebrewPath(selectedType, version),
+        dataPath: `~/Library/Application Support/LiquiDB/databases/${id}`,
+      }
+      
+      // Persist via Electron (secure password via keychain)
+      // @ts-ignore
+      if (window.electron?.saveDatabase) {
+        // @ts-ignore
+        await window.electron.saveDatabase(database)
+      }
+      
+      onAdd(database)
+      handleReset()
+      
       // Small delay to ensure UI updates properly
       setTimeout(() => {
         setInstalling(false)
@@ -583,34 +630,6 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       alert("Failed to install the selected database via Homebrew.")
       return
     }
-    const database: DatabaseContainer = {
-      id: generateShortId(),
-      name: name || generateShortName(selectedType),
-      type: selectedType,
-      version,
-      port: Number.parseInt(port),
-      status: "stopped", // Create with stopped status since installation is complete
-      containerId: generateShortId(),
-      username,
-      password,
-      createdAt: new Date().toISOString(),
-      icon: selectedIcon,
-      autoStart,
-    }
-    
-    // Persist via Electron (secure password via keychain)
-    // @ts-ignore
-    if (window.electron?.saveDatabase) {
-      // @ts-ignore
-      await window.electron.saveDatabase(database)
-    }
-    
-    onAdd(database)
-    handleReset()
-    setInstalling(false)
-    setInstallMsg("")
-    setInstallProgress(0)
-    setCanStart(false)
   }
 
   const handleReset = () => {
