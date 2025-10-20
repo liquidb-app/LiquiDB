@@ -103,9 +103,14 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     // Check auto-launch status
     checkAutoLaunchStatus()
     
-    // Load helper service status
-    loadHelperStatus()
-  }, [])
+  // Load helper service status
+  loadHelperStatus()
+  
+  // Refresh helper status every 3 seconds for more responsive updates
+  const statusInterval = setInterval(loadHelperStatus, 3000)
+  
+  return () => clearInterval(statusInterval)
+}, [])
   
 
   const checkAutoLaunchStatus = async () => {
@@ -256,6 +261,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
 
   // Helper service functions
   const loadHelperStatus = async () => {
+    setHelperLoading(true)
     try {
       // @ts-ignore
       const result = await window.electron?.getHelperStatus?.()
