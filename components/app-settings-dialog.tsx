@@ -281,20 +281,37 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
       }
     } catch (error) {
       console.error("Failed to load helper status:", error)
+    } finally {
+      setHelperLoading(false)
     }
   }
 
-  const handleHelperAction = async (action: 'start' | 'restart' | 'cleanup') => {
+  const handleHelperAction = async (action: 'install' | 'start' | 'cleanup') => {
     setHelperLoading(true)
     try {
       // @ts-ignore
       const result = await window.electron?.[`${action}Helper`]?.()
       if (result?.success) {
-        notifySuccess(`Helper service ${action}ed successfully`)
+        const method = result.data?.method === 'direct' ? ' (direct cleanup)' : ''
+        const cleanedCount = result.data?.cleanedCount
+        const message = action === 'cleanup' 
+          ? `Cleanup completed successfully${method}${cleanedCount ? ` - ${cleanedCount} processes cleaned` : ''}`
+          : action === 'install'
+          ? 'Helper service installed successfully'
+          : `Helper service ${action}ed successfully`
+        notifySuccess(message)
+        // Refresh status immediately after action
         await loadHelperStatus()
+        // Also refresh again after a short delay to ensure status is accurate
+        setTimeout(loadHelperStatus, 1000)
       } else {
+        const errorMessage = result?.error || "Unknown error occurred"
+        const isSocketError = errorMessage.includes('ECONNREFUSED') || errorMessage.includes('socket not found')
+        const description = isSocketError 
+          ? "Helper service is not running. Try starting the service first."
+          : errorMessage
         notifyError(`Failed to ${action} helper service`, {
-          description: result?.error || "Unknown error occurred",
+          description,
         })
       }
     } catch (error) {
