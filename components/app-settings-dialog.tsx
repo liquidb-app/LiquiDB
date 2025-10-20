@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Monitor, Moon, Sun, Github, ExternalLink, Globe, Ban, Trash2, AlertTriangle } from "lucide-react"
+import { Monitor, Moon, Sun, Github, ExternalLink, Globe, Ban, Trash2, AlertTriangle, Settings, Play, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { BannedPortsDialog } from "./banned-ports-dialog"
 import { toast } from "sonner"
 import { notifications, notifySuccess, notifyError, notifyInfo, notifyWarning } from "@/lib/notifications"
@@ -63,6 +64,14 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   const [autoLaunchEnabled, setAutoLaunchEnabled] = useState(false)
   const [autoLaunchLoading, setAutoLaunchLoading] = useState(false)
   
+  // Helper service state
+  const [helperStatus, setHelperStatus] = useState<{
+    installed: boolean
+    running: boolean
+    isRunning: boolean
+  } | null>(null)
+  const [helperLoading, setHelperLoading] = useState(false)
+  
 
   useEffect(() => {
     setMounted(true)
@@ -93,6 +102,9 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     
     // Check auto-launch status
     checkAutoLaunchStatus()
+    
+    // Load helper service status
+    loadHelperStatus()
   }, [])
   
 
@@ -242,6 +254,52 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     }
   }
 
+  // Helper service functions
+  const loadHelperStatus = async () => {
+    try {
+      // @ts-ignore
+      const result = await window.electron?.getHelperStatus?.()
+      if (result?.success) {
+        // When main app is running, helper should be off (this is normal)
+        const status = result.data
+        if (status.installed && !status.running) {
+          // Helper is installed but not running - this is expected when main app is running
+          setHelperStatus({
+            ...status,
+            running: false, // Show as stopped when main app is running
+            isRunning: false
+          })
+        } else {
+          setHelperStatus(status)
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load helper status:", error)
+    }
+  }
+
+  const handleHelperAction = async (action: 'start' | 'restart' | 'cleanup') => {
+    setHelperLoading(true)
+    try {
+      // @ts-ignore
+      const result = await window.electron?.[`${action}Helper`]?.()
+      if (result?.success) {
+        notifySuccess(`Helper service ${action}ed successfully`)
+        await loadHelperStatus()
+      } else {
+        notifyError(`Failed to ${action} helper service`, {
+          description: result?.error || "Unknown error occurred",
+        })
+      }
+    } catch (error) {
+      notifyError(`Failed to ${action} helper service`, {
+        description: "Could not connect to helper service",
+      })
+    } finally {
+      setHelperLoading(false)
+    }
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -252,9 +310,10 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
           </DialogHeader>
 
           <Tabs defaultValue="appearance" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="appearance">Appearance</TabsTrigger>
               <TabsTrigger value="general">General</TabsTrigger>
+              <TabsTrigger value="helper">Helper Service</TabsTrigger>
               <TabsTrigger value="about">About</TabsTrigger>
             </TabsList>
 
@@ -366,6 +425,97 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                   <p className="text-xs text-muted-foreground">
                     Permanently delete all databases and their data. This action cannot be undone.
                   </p>
+                </div>
+              </TabsContent>
+
+
+              <TabsContent value="helper" className="space-y-4 pt-4 mt-0">
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-sm font-medium">Background Helper Service</Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      The helper service runs in the background to monitor database processes and prevent port conflicts. It automatically starts when the app launches and continues running to ensure database management.
+                    </p>
+                  </div>
+                  
+                  {helperStatus && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Service Status</p>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${helperStatus.running ? 'bg-green-500' : 'bg-red-500'}`} />
+                            <span className="text-xs text-muted-foreground">
+                              {helperStatus.running ? 'Running' : 'Stopped'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground">Installed</p>
+                          <span className="text-xs font-mono">
+                            {helperStatus.installed ? 'Yes' : 'No'}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {!helperStatus.running && (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleHelperAction('start')}
+                              disabled={helperLoading}
+                            >
+                              <Play className="h-3 w-3 mr-1" />
+                              Start Service
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleHelperAction('restart')}
+                              disabled={helperLoading}
+                            >
+                              <RotateCcw className="h-3 w-3 mr-1" />
+                              Restart
+                            </Button>
+                          </div>
+                          
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleHelperAction('cleanup')}
+                            disabled={helperLoading}
+                            className="w-full"
+                          >
+                            <Settings className="h-3 w-3 mr-1" />
+                            Cleanup Orphaned Processes
+                          </Button>
+                        </div>
+                      )}
+                      
+                      {helperStatus.running && (
+                        <div className="p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-green-500" />
+                            <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                              Service is running and monitoring databases
+                            </span>
+                          </div>
+                          <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                            The helper service is automatically managing database processes in the background.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {!helperStatus && (
+                    <div className="text-center py-8">
+                      <Settings className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">Loading helper service status...</p>
+                    </div>
+                  )}
                 </div>
               </TabsContent>
 
