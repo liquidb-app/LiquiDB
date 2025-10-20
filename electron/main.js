@@ -1,4 +1,19 @@
 const { app, BrowserWindow, ipcMain, shell } = require("electron")
+
+// Prevent multiple instances
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // Someone tried to run a second instance, we should focus our window instead.
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+}
 const path = require("path")
 const { spawn } = require("child_process")
 const fs = require("fs")
@@ -7,6 +22,8 @@ const os = require("os")
 const { exec } = require("child_process")
 const brew = require("./brew")
 const storage = require("./storage")
+const HelperServiceManager = require("./helper-service")
+const PermissionsManager = require("./permissions")
 const https = require("https")
 const http = require("http")
 const AutoLaunch = require("auto-launch")
@@ -19,6 +36,8 @@ try {
 
 let mainWindow
 const runningDatabases = new Map() // id -> { process, config }
+let helperService = null
+let permissionsManager = null
 
 // Auto-launch configuration
 let autoLauncher
@@ -319,71 +338,85 @@ async function startDatabaseProcessAsync(config) {
       PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
       HOMEBREW_PREFIX: "/opt/homebrew"
     }
+    
+    // Declare mysqldPath at function scope so it's accessible throughout
+    let mysqldPath
 
   if (type === "postgresql") {
-    // Find PostgreSQL binary path for the specific version (async)
-    const { exec } = require("child_process")
-    const { promisify } = require("util")
-    const execAsync = promisify(exec)
-    
+    // Get PostgreSQL binary paths from database record or find them
+    const databases = storage.loadDatabases(app)
+    const dbRecord = databases.find(d => d.id === id)
     let postgresPath, initdbPath
     
-    // Try to find the specific version first
-    try {
-      // Look for postgresql@16 specifically
-      const { stdout: versionPath } = await execAsync("find /opt/homebrew -path '*/postgresql@16/*' -name postgres -type f 2>/dev/null | head -1")
-      const { stdout: versionInitdbPath } = await execAsync("find /opt/homebrew -path '*/postgresql@16/*' -name initdb -type f 2>/dev/null | head -1")
+    if (dbRecord?.homebrewPath) {
+      // Use stored Homebrew path
+      postgresPath = `${dbRecord.homebrewPath}/postgres`
+      initdbPath = `${dbRecord.homebrewPath}/initdb`
+      console.log(`[PostgreSQL] Using stored Homebrew path: ${dbRecord.homebrewPath}`)
+    } else {
+      // Fallback to finding PostgreSQL binary path for the specific version (async)
+      const { exec } = require("child_process")
+      const { promisify } = require("util")
+      const execAsync = promisify(exec)
       
-      if (versionPath.trim() && versionInitdbPath.trim()) {
-        postgresPath = versionPath.trim()
-        initdbPath = versionInitdbPath.trim()
-        console.log(`[PostgreSQL] Found PostgreSQL 16 at ${postgresPath}`)
-      } else {
-        throw new Error("PostgreSQL 16 not found")
-      }
-    } catch (e) {
-      // Fallback to any PostgreSQL version
+      // Try to find the specific version first
       try {
-        const { stdout: postgresOut } = await execAsync("which postgres")
-        const { stdout: initdbOut } = await execAsync("which initdb")
-        postgresPath = postgresOut.trim()
-        initdbPath = initdbOut.trim()
-      } catch (e2) {
-        // Try Homebrew paths
+        // Look for postgresql@16 specifically
+        const { stdout: versionPath } = await execAsync("find /opt/homebrew -path '*/postgresql@16/*' -name postgres -type f 2>/dev/null | head -1")
+        const { stdout: versionInitdbPath } = await execAsync("find /opt/homebrew -path '*/postgresql@16/*' -name initdb -type f 2>/dev/null | head -1")
+        
+        if (versionPath.trim() && versionInitdbPath.trim()) {
+          postgresPath = versionPath.trim()
+          initdbPath = versionInitdbPath.trim()
+          console.log(`[PostgreSQL] Found PostgreSQL 16 at ${postgresPath}`)
+        } else {
+          throw new Error("PostgreSQL 16 not found")
+        }
+      } catch (e) {
+        // Fallback to any PostgreSQL version
         try {
-          const { stdout: postgresOut } = await execAsync("find /opt/homebrew -name postgres -type f 2>/dev/null | head -1")
-          const { stdout: initdbOut } = await execAsync("find /opt/homebrew -name initdb -type f 2>/dev/null | head -1")
+          const { stdout: postgresOut } = await execAsync("which postgres")
+          const { stdout: initdbOut } = await execAsync("which initdb")
           postgresPath = postgresOut.trim()
           initdbPath = initdbOut.trim()
-        } catch (e3) {
-          console.error("PostgreSQL not found in PATH or Homebrew")
-          throw new Error("PostgreSQL not found. Please ensure it's installed via Homebrew.")
+        } catch (e2) {
+          // Try Homebrew paths
+          try {
+            const { stdout: postgresOut } = await execAsync("find /opt/homebrew -name postgres -type f 2>/dev/null | head -1")
+            const { stdout: initdbOut } = await execAsync("find /opt/homebrew -name initdb -type f 2>/dev/null | head -1")
+            postgresPath = postgresOut.trim()
+            initdbPath = initdbOut.trim()
+          } catch (e3) {
+            console.error("PostgreSQL not found in PATH or Homebrew")
+            throw new Error("PostgreSQL not found. Please ensure it's installed via Homebrew.")
+          }
         }
       }
     }
     
-    cmd = postgresPath
-    args = ["-D", `/tmp/liquidb-${id}`, "-p", port.toString(), "-h", "localhost"]
-    
     // Create data directory and initialize (async to prevent blocking)
     const fs = require("fs").promises
     const fsSync = require("fs")
+    const dataDir = storage.getDatabaseDataDir(app, containerId)
     
     try {
-      await fs.mkdir(`/tmp/liquidb-${id}`, { recursive: true })
+      await fs.mkdir(dataDir, { recursive: true })
     } catch (e) {
       // Directory might already exist
     }
     
+    cmd = postgresPath
+    args = ["-D", dataDir, "-p", port.toString(), "-h", "localhost"]
+    
     // Check if database directory already exists and is initialized
-    const pgVersionPath = `/tmp/liquidb-${id}/PG_VERSION`
+    const pgVersionPath = `${dataDir}/PG_VERSION`
     
     if (!fsSync.existsSync(pgVersionPath)) {
       try {
         console.log(`[PostgreSQL] Initializing database with ${initdbPath}`)
         // Use spawn instead of execSync to prevent blocking
         const { spawn } = require("child_process")
-        const initProcess = spawn(initdbPath, ["-D", `/tmp/liquidb-${id}`, "-U", "postgres"], {
+        const initProcess = spawn(initdbPath, ["-D", dataDir, "-U", "postgres"], {
           env: { ...env, LC_ALL: "C" },
           stdio: "pipe"
         })
@@ -412,7 +445,7 @@ async function startDatabaseProcessAsync(config) {
     }
     
     // Set up authentication (async)
-    const pgHbaPath = `/tmp/liquidb-${id}/pg_hba.conf`
+    const pgHbaPath = `${dataDir}/pg_hba.conf`
     if (fsSync.existsSync(pgHbaPath)) {
       try {
         const content = await fs.readFile(pgHbaPath, "utf8")
@@ -426,48 +459,60 @@ async function startDatabaseProcessAsync(config) {
       }
     }
   } else if (type === "mysql") {
-    // Find MySQL binary path
-    const { execSync } = require("child_process")
-    let mysqldPath
-    try {
-      mysqldPath = execSync("which mysqld", { encoding: "utf8" }).trim()
-    } catch (e) {
+    // Get MySQL binary path from database record or find it
+    const databases = storage.loadDatabases(app)
+    const dbRecord = databases.find(d => d.id === id)
+    
+    if (dbRecord?.homebrewPath) {
+      // Use stored Homebrew path
+      mysqldPath = `${dbRecord.homebrewPath}/mysqld`
+      console.log(`[MySQL] Using stored Homebrew path: ${dbRecord.homebrewPath}`)
+    } else {
+      // Fallback to finding MySQL binary path
+      const { execSync } = require("child_process")
       try {
-        mysqldPath = execSync("find /opt/homebrew -name mysqld -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
-      } catch (e2) {
-        console.error("MySQL not found in PATH or Homebrew")
-        throw new Error("MySQL not found. Please ensure it's installed via Homebrew.")
+        mysqldPath = execSync("which mysqld", { encoding: "utf8" }).trim()
+      } catch (e) {
+        try {
+          mysqldPath = execSync("find /opt/homebrew -name mysqld -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
+        } catch (e2) {
+          console.error("MySQL not found in PATH or Homebrew")
+          throw new Error("MySQL not found. Please ensure it's installed via Homebrew.")
+        }
       }
     }
+    
+    // Create data directory (async)
+    const fs = require("fs").promises
+    const dataDir = storage.getDatabaseDataDir(app, containerId)
+    
+    // Get the MySQL base directory from the mysqld path
+    const mysqlBaseDir = mysqldPath.replace('/bin/mysqld', '')
     
     cmd = mysqldPath
     args = [
       "--port", port.toString(), 
-      "--datadir", `/tmp/liquidb-${id}`, 
+      "--datadir", dataDir, 
       "--bind-address=127.0.0.1",
-      `--log-error=/tmp/liquidb-${id}/mysql-error.log`,
-      "--basedir=/opt/homebrew",
+      `--log-error=${dataDir}/mysql-error.log`,
+      `--basedir=${mysqlBaseDir}`,
       "--tmpdir=/tmp",
-      "--pid-file=/tmp/liquidb-${id}/mysql.pid",
+      `--pid-file=${dataDir}/mysql.pid`,
       `--socket=/tmp/mysql-${containerId}.sock`,
       "--mysqlx=OFF"  // Disable X Plugin to allow multiple MySQL instances
     ]
     
     console.log(`[MySQL] Starting MySQL with ID: ${id}, Container ID: ${containerId}, Port: ${port}`)
     console.log(`[MySQL] Socket path: /tmp/mysql-${containerId}.sock`)
-    console.log(`[MySQL] Data dir: /tmp/liquidb-${id}`)
+    console.log(`[MySQL] Data dir: ${dataDir}`)
     console.log(`[MySQL] Args:`, args)
-    
-    // Create data directory (async)
-    const fs = require("fs").promises
     try {
-      await fs.mkdir(`/tmp/liquidb-${id}`, { recursive: true })
+      await fs.mkdir(dataDir, { recursive: true })
     } catch (e) {
       // Directory might already exist
     }
     
     // Initialize MySQL database if it doesn't exist
-    const dataDir = `/tmp/liquidb-${id}`
     const mysqlDataExists = await fs.access(`${dataDir}/mysql`).then(() => true).catch(() => false)
     
     if (!mysqlDataExists) {
@@ -488,20 +533,23 @@ async function startDatabaseProcessAsync(config) {
         
         // Use spawn instead of execSync to prevent blocking
         const { spawn } = require("child_process")
+        // Get the MySQL base directory from the mysqld path
+        const mysqlBaseDir = mysqldPath.replace('/bin/mysqld', '')
+        
         const initProcess = spawn(mysqldPath, [
           "--initialize-insecure", 
           `--datadir=${dataDir}`,
           `--log-error=${dataDir}/mysql-init.log`,
-          "--basedir=/opt/homebrew",
+          `--basedir=${mysqlBaseDir}`,
           "--tmpdir=/tmp"
         ], { 
           stdio: "pipe",
           env: { 
             ...env,
-            MYSQL_HOME: "/opt/homebrew",
-            MYSQL_UNIX_PORT: `/tmp/mysql-${id}.sock`
+            MYSQL_HOME: mysqlBaseDir,
+            MYSQL_UNIX_PORT: `/tmp/mysql-${containerId}.sock`
           },
-          cwd: "/opt/homebrew"
+          cwd: mysqlBaseDir
         })
         
         let initOutput = ""
@@ -585,48 +633,70 @@ async function startDatabaseProcessAsync(config) {
       console.log(`[MySQL] Database already initialized, skipping initialization`)
     }
   } else if (type === "mongodb") {
-    // Find MongoDB binary path
-    const { execSync } = require("child_process")
+    // Get MongoDB binary path from database record or find it
+    const databases = storage.loadDatabases(app)
+    const dbRecord = databases.find(d => d.id === id)
     let mongodPath
-    try {
-      mongodPath = execSync("which mongod", { encoding: "utf8" }).trim()
-    } catch (e) {
+    
+    if (dbRecord?.homebrewPath) {
+      // Use stored Homebrew path
+      mongodPath = `${dbRecord.homebrewPath}/mongod`
+      console.log(`[MongoDB] Using stored Homebrew path: ${dbRecord.homebrewPath}`)
+    } else {
+      // Fallback to finding MongoDB binary path
+      const { execSync } = require("child_process")
       try {
-        mongodPath = execSync("find /opt/homebrew -name mongod -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
-      } catch (e2) {
-        console.error("MongoDB not found in PATH or Homebrew")
-        throw new Error("MongoDB not found. Please ensure it's installed via Homebrew.")
+        mongodPath = execSync("which mongod", { encoding: "utf8" }).trim()
+      } catch (e) {
+        try {
+          mongodPath = execSync("find /opt/homebrew -name mongod -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
+        } catch (e2) {
+          console.error("MongoDB not found in PATH or Homebrew")
+          throw new Error("MongoDB not found. Please ensure it's installed via Homebrew.")
+        }
       }
     }
     
-    cmd = mongodPath
-    args = ["--port", port.toString(), "--dbpath", `/tmp/liquidb-${id}`, "--bind_ip", "127.0.0.1"]
-    
     // Create data directory (async)
     const fs = require("fs").promises
+    const dataDir = storage.getDatabaseDataDir(app, containerId)
+    
     try {
-      await fs.mkdir(`/tmp/liquidb-${id}`, { recursive: true })
+      await fs.mkdir(dataDir, { recursive: true })
     } catch (e) {
       // Directory might already exist
     }
+    
+    cmd = mongodPath
+    args = ["--port", port.toString(), "--dbpath", dataDir, "--bind_ip", "127.0.0.1"]
   } else if (type === "redis") {
-    // Find Redis binary path
-    const { execSync } = require("child_process")
+    // Get Redis binary path from database record or find it
+    const databases = storage.loadDatabases(app)
+    const dbRecord = databases.find(d => d.id === id)
     let redisPath
-    try {
-      redisPath = execSync("which redis-server", { encoding: "utf8" }).trim()
-    } catch (e) {
+    
+    if (dbRecord?.homebrewPath) {
+      // Use stored Homebrew path
+      redisPath = `${dbRecord.homebrewPath}/redis-server`
+      console.log(`[Redis] Using stored Homebrew path: ${dbRecord.homebrewPath}`)
+    } else {
+      // Fallback to finding Redis binary path
+      const { execSync } = require("child_process")
       try {
-        redisPath = execSync("find /opt/homebrew -name redis-server -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
-      } catch (e2) {
-        console.error("Redis not found in PATH or Homebrew")
-        throw new Error("Redis not found. Please ensure it's installed via Homebrew.")
+        redisPath = execSync("which redis-server", { encoding: "utf8" }).trim()
+      } catch (e) {
+        try {
+          redisPath = execSync("find /opt/homebrew -name redis-server -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim()
+        } catch (e2) {
+          console.error("Redis not found in PATH or Homebrew")
+          throw new Error("Redis not found. Please ensure it's installed via Homebrew.")
+        }
       }
     }
     
     // Create data directory for Redis
     const fs = require("fs").promises
-    const redisDataDir = `/tmp/liquidb-${id}`
+    const redisDataDir = storage.getDatabaseDataDir(app, containerId)
     try {
       await fs.mkdir(redisDataDir, { recursive: true })
     } catch (e) {
@@ -638,7 +708,7 @@ async function startDatabaseProcessAsync(config) {
       "--port", port.toString(), 
       "--bind", "127.0.0.1",
       "--dir", redisDataDir,
-      "--dbfilename", `dump-${id}.rdb`,
+      "--dbfilename", `dump-${containerId}.rdb`,
       "--save", "900 1", // Save after 900 seconds if at least 1 key changed
       "--save", "300 10", // Save after 300 seconds if at least 10 keys changed
       "--save", "60 10000" // Save after 60 seconds if at least 10000 keys changed
@@ -1034,9 +1104,30 @@ ipcMain.handle("open-external-link", async (event, url) => {
   }
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   console.log("[App] App is ready, initializing...")
   console.log("[Auto-launch] Auto-launcher available:", !!autoLauncher)
+  
+  // Initialize permissions manager
+  permissionsManager = new PermissionsManager()
+  
+  // Initialize helper service and ensure it's running
+  helperService = new HelperServiceManager(app)
+  try {
+    // Check if helper service is already running
+    const isRunning = await helperService.isServiceRunning()
+    if (isRunning) {
+      console.log("[Helper] Helper service is already running")
+    } else {
+      // Start the helper service if it's not running
+      console.log("[Helper] Starting helper service...")
+      await helperService.start()
+      console.log("[Helper] Helper service started successfully")
+    }
+  } catch (error) {
+    console.log("[Helper] Error managing helper service:", error.message)
+  }
+  
   resetDatabaseStatuses()
   createWindow()
   // Auto-start databases after a short delay to ensure mainWindow is ready
@@ -1072,7 +1163,7 @@ app.on("activate", () => {
 })
 
 // Cleanup on app termination
-app.on("before-quit", () => {
+app.on("before-quit", async () => {
   console.log("[App Quit] Stopping all databases...")
   for (const [id, db] of runningDatabases) {
     try {
@@ -1083,6 +1174,16 @@ app.on("before-quit", () => {
     }
   }
   runningDatabases.clear()
+  
+  // Start helper service when main app closes
+  if (helperService) {
+    try {
+      console.log("[App Quit] Starting helper service for background monitoring...")
+      await helperService.start()
+    } catch (error) {
+      console.error("[App Quit] Error starting helper service:", error)
+    }
+  }
   
   // Clear all PIDs from storage when app quits
   try {
@@ -2101,13 +2202,17 @@ ipcMain.handle("db:delete", async (event, id) => {
     
     // Delete database data files
     const fs = require("fs")
-    const dataDir = `/tmp/liquidb-${id}`
-    if (fs.existsSync(dataDir)) {
-      try {
-        console.log(`[Delete] Removing database files for ${id}: ${dataDir}`)
-        fs.rmSync(dataDir, { recursive: true, force: true })
-      } catch (error) {
-        console.error(`[Delete] Error removing database files for ${id}:`, error)
+    const databases = storage.loadDatabases(app)
+    const databaseRecord = databases.find(d => d.id === id)
+    if (databaseRecord) {
+      const dataDir = storage.getDatabaseDataDir(app, databaseRecord.containerId)
+      if (fs.existsSync(dataDir)) {
+        try {
+          console.log(`[Delete] Removing database files for ${id}: ${dataDir}`)
+          fs.rmSync(dataDir, { recursive: true, force: true })
+        } catch (error) {
+          console.error(`[Delete] Error removing database files for ${id}:`, error)
+        }
       }
     }
     
@@ -2149,7 +2254,7 @@ ipcMain.handle("db:deleteAll", async (event) => {
     const path = require("path")
     for (const db of databases) {
       try {
-        const dataDir = `/tmp/liquidb-${db.id}`
+        const dataDir = storage.getDatabaseDataDir(app, db.containerId)
         if (fs.existsSync(dataDir)) {
           console.log(`[Delete All] Removing database files for ${db.id}: ${dataDir}`)
           fs.rmSync(dataDir, { recursive: true, force: true })
