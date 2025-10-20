@@ -2315,6 +2315,19 @@ ipcMain.handle("helper:restart", async (event) => {
   }
 })
 
+ipcMain.handle("helper:install", async (event) => {
+  try {
+    if (!helperService) {
+      helperService = new HelperServiceManager(app)
+    }
+    const success = await helperService.install()
+    return { success, error: success ? null : "Failed to install helper service" }
+  } catch (error) {
+    console.error("[Helper Install] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
 ipcMain.handle("helper:cleanup", async (event) => {
   try {
     if (!helperService) {

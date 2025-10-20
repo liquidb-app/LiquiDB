@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld("electron", {
   // Helper service methods
   getHelperStatus: () => ipcRenderer.invoke("helper:status"),
   getHelperHealth: () => ipcRenderer.invoke("helper:health"),
+  installHelper: () => ipcRenderer.invoke("helper:install"),
   startHelper: () => ipcRenderer.invoke("helper:start"),
   restartHelper: () => ipcRenderer.invoke("helper:restart"),
   cleanupHelper: () => ipcRenderer.invoke("helper:cleanup"),
