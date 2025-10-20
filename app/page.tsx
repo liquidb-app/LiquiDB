@@ -10,6 +10,9 @@ import { DatabaseSettingsDialog } from "@/components/database-settings-dialog"
 import { PortConflictDialog } from "@/components/port-conflict-dialog"
 import { AppSettingsDialog } from "@/components/app-settings-dialog"
 import { InstanceInfoDialog } from "@/components/instance-info-dialog"
+import { HelperHealthMonitor } from "@/components/helper-health-monitor"
+import { PermissionsDialog } from "@/components/permissions-dialog"
+import { usePermissions } from "@/lib/use-permissions"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -119,6 +122,29 @@ export default function DatabaseManager() {
   const [portConflictDialogOpen, setPortConflictDialogOpen] = useState(false)
   const [portConflicts, setPortConflicts] = useState<[number, DatabaseContainer[]][]>([])
   // No port conflict caching - all checks are dynamic
+  
+  // Permissions
+  const {
+    permissions,
+    isLoading: permissionsLoading,
+    checkPermissions,
+    openSystemPreferences,
+    openPermissionPage,
+    requestCriticalPermissions,
+    hasAllCriticalPermissions,
+    hasAllPermissions
+  } = usePermissions()
+  const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false)
+
+  // Check permissions on app startup
+  useEffect(() => {
+    if (!permissionsLoading && permissions.length > 0) {
+      const missingCritical = permissions.filter(p => p.critical && !p.granted)
+      if (missingCritical.length > 0) {
+        setPermissionsDialogOpen(true)
+      }
+    }
+  }, [permissions, permissionsLoading])
 
   // Load banned ports on component mount and listen for changes
   useEffect(() => {
@@ -2049,6 +2075,7 @@ export default function DatabaseManager() {
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background">
+        <HelperHealthMonitor className="mx-6 mt-4" />
       <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border/50 cursor-move" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
         <div className="container mx-auto px-6 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -2822,6 +2849,17 @@ export default function DatabaseManager() {
       )}
 
       <AppSettingsDialog open={appSettingsOpen} onOpenChange={setAppSettingsOpen} />
+
+      <PermissionsDialog
+        open={permissionsDialogOpen}
+        onOpenChange={setPermissionsDialogOpen}
+        permissions={permissions}
+        onRetry={checkPermissions}
+        onSkip={() => setPermissionsDialogOpen(false)}
+        onOpenSettings={openSystemPreferences}
+        onOpenPermissionPage={openPermissionPage}
+        onRequestCritical={requestCriticalPermissions}
+      />
 
       {selectedDatabase && (
         <InstanceInfoDialog
