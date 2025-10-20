@@ -17,4 +17,6 @@ export interface DatabaseContainer {
   autoStart?: boolean
   lastStarted?: number
   pid?: number
+  homebrewPath?: string
+  dataPath?: string
 }
