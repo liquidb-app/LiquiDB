@@ -2,6 +2,15 @@
   "name": "liquidb",
   "version": "1.0.0",
   "description": "Modern Database Management for macOS",
+  "author": "LiquidB",
+  "license": "MIT",
+  "homepage": "https://liquidb.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/liquidb/liquidb"
+  },
+  "keywords": [
+    "database", "management", "macos", "electron", "react", "tailwind", "typescript"],
   "main": "electron/main.js",
   "private": true,
   "scripts": {
