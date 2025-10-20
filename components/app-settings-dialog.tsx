@@ -467,9 +467,10 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                         <div className="space-y-1">
                           <p className="text-sm font-medium">Service Status</p>
                           <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${helperStatus.running ? 'bg-green-500' : 'bg-red-500'}`} />
+                            <div className={`w-2 h-2 rounded-full ${helperStatus.running ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'} ${helperLoading ? 'opacity-50' : ''}`} />
                             <span className="text-xs text-muted-foreground">
                               {helperStatus.running ? 'Running' : 'Stopped'}
+                              {helperLoading && <span className="ml-1 text-blue-500">•</span>}
                             </span>
                           </div>
                         </div>
@@ -481,28 +482,45 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                         </div>
                       </div>
                       
-                      {!helperStatus.running && (
+                      {!helperStatus.installed && (
                         <div className="space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleHelperAction('start')}
-                              disabled={helperLoading}
-                            >
-                              <Play className="h-3 w-3 mr-1" />
-                              Start Service
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleHelperAction('restart')}
-                              disabled={helperLoading}
-                            >
-                              <RotateCcw className="h-3 w-3 mr-1" />
-                              Restart
-                            </Button>
+                          <div className="p-3 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <Settings className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                              <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                                Helper Service Not Installed
+                              </span>
+                            </div>
+                            <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                              Install the helper service to enable automatic database process monitoring and cleanup.
+                            </p>
                           </div>
+                          
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => handleHelperAction('install')}
+                            disabled={helperLoading}
+                            className="w-full bg-blue-600 hover:bg-blue-700"
+                          >
+                            <Settings className="h-3 w-3 mr-1" />
+                            Install Helper Service
+                          </Button>
+                        </div>
+                      )}
+                      
+                      {helperStatus.installed && !helperStatus.running && (
+                        <div className="space-y-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleHelperAction('start')}
+                            disabled={helperLoading}
+                            className="w-full"
+                          >
+                            <Play className="h-3 w-3 mr-1" />
+                            Start Service
+                          </Button>
                           
                           <Button
                             variant="outline"
@@ -520,7 +538,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                       {helperStatus.running && (
                         <div className="p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
                           <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-green-500" />
+                            <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
                             <span className="text-sm font-medium text-green-800 dark:text-green-200">
                               Service is running and monitoring databases
                             </span>
