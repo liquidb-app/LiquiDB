@@ -53,7 +53,7 @@ export function ProfileMenuTrigger() {
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => {
           // @ts-ignore
-          window.electron?.openExternalLink?.("https://liquidb.com/help")
+          window.electron?.openExternalLink?.("https://liquidb.app/help")
         }}>
           <HelpCircle className="mr-2 h-4 w-4" /> Help
         </DropdownMenuItem>

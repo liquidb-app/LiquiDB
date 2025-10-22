@@ -4,10 +4,10 @@
   "description": "Modern Database Management for macOS",
   "author": "LiquidB",
   "license": "MIT",
-  "homepage": "https://liquidb.com",
+  "homepage": "https://liquidb.app",
   "repository": {
     "type": "git",
-    "url": "https://github.com/liquidb/liquidb"
+    "url": "https://github.com/alexg-sh/LiquiDB"
   },
   "keywords": [
     "database",
