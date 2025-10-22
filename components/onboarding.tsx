@@ -1103,7 +1103,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                     <GlowingEffect variant="default" disabled={false}>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                          {autoStartPref ? "ON" : "OFF"}
+                          {autoStart ? "ON" : "OFF"}
                         </div>
                         <div className="text-xs text-muted-foreground">Boot startup</div>
                       </div>
