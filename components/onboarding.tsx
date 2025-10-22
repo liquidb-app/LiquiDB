@@ -1348,42 +1348,18 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
               layout
               transition={{ duration: 0.5, ease: "easeInOut" }}
             >
-              {/* Celebration Header */}
+              {/* Welcome Message - Aligned with CardTitle */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="text-center"
+                className="text-left"
               >
-                <div className="flex items-center justify-center gap-3">
-                  <motion.div
-                    initial={{ scale: 0, rotate: -180 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ 
-                      type: "spring", 
-                      stiffness: 200, 
-                      damping: 15,
-                      delay: 0.4 
-                    }}
-                    className="text-4xl"
-                  >
-                    🎉
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 }}
-                    className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent"
-                  >
-                    You're all set!
-                  </motion.div>
-                </div>
-                
                 <motion.p
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.8 }}
-                  className="text-sm text-muted-foreground mt-2"
+                  className="text-sm text-muted-foreground"
                 >
                   Welcome to LiquiDB! You're ready to start managing your databases with powerful features.
                 </motion.p>
