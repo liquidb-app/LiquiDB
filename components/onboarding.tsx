@@ -304,7 +304,24 @@ const colorSchemes = [
 ]
 
 export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () => void; onStartTour: () => void }) {
+  // Add flicker animation styles
+  React.useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes flicker {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   const [step, setStep] = useState<Step>(1)
+  const [transitionDir, setTransitionDir] = useState<'forward' | 'backward' | 'none'>('none')
+  const prevStepRef = useRef<Step>(1)
   const [bgSpeed, setBgSpeed] = useState(50)
   const [username, setUsername] = useState("")
   const [avatar, setAvatar] = useState<string | undefined>(undefined)
