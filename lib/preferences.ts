@@ -15,6 +15,7 @@ const PROFILE_KEY = "liquidb-profile"
 const PREFS_KEY = "liquidb-preferences"
 const ONBOARDING_KEY = "liquidb-onboarding-complete"
 const TOUR_KEY = "liquidb-tour-requested"
+const TOUR_SKIPPED_KEY = "liquidb-tour-skipped"
 
 // Profile functions
 export function saveProfile(profile: UserProfile): void {
@@ -188,6 +189,23 @@ export function wasTourRequested(): boolean {
     return localStorage.getItem(TOUR_KEY) === "true"
   } catch (error) {
     console.error("Failed to check tour status:", error)
+    return false
+  }
+}
+
+export function setTourSkipped(skipped: boolean): void {
+  try {
+    localStorage.setItem(TOUR_SKIPPED_KEY, skipped.toString())
+  } catch (error) {
+    console.error("Failed to set tour skipped:", error)
+  }
+}
+
+export function wasTourSkipped(): boolean {
+  try {
+    return localStorage.getItem(TOUR_SKIPPED_KEY) === "true"
+  } catch (error) {
+    console.error("Failed to check tour skipped status:", error)
     return false
   }
 }
