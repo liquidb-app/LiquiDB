@@ -210,7 +210,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
       setHelperStatus(null)
       
       // If it's a timeout, show a more helpful message
-      if (error.message?.includes('timeout')) {
+      if (error instanceof Error && error.message?.includes('timeout')) {
         console.warn("Helper status check timed out, assuming service is not available")
       }
     } finally {
@@ -242,7 +242,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
       }
     } catch (error) {
       console.error("Failed to start helper:", error)
-      notifyError(`Failed to start helper service: ${error.message || 'Unknown error'}`, undefined, true) // Critical - system service
+      notifyError(`Failed to start helper service: ${error instanceof Error ? error.message : 'Unknown error'}`, undefined, true) // Critical - system service
     } finally {
       setHelperLoading(false)
     }
