@@ -2106,7 +2106,7 @@ export default function DatabaseManager() {
             }}
           />
         )}
-        <HelperHealthMonitor className="mx-6 mt-4" />
+        <HelperHealthMonitor className="mx-6 mt-4" data-testid="helper-status" />
       <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border/50 cursor-move" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
         <div className="container mx-auto px-6 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -2178,7 +2178,7 @@ export default function DatabaseManager() {
               Add Database
             </Button>
             {/* User/profile menu replacing gear */}
-            <div className="relative" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <div className="relative" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties} data-testid="profile-menu">
               <ProfileMenuTrigger />
             </div>
           </div>
@@ -2262,7 +2262,7 @@ export default function DatabaseManager() {
                   </div>
                 </div>
               </div>
-              <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-testid="database-grid">
                 {databases.map((db) => (
                   <Card 
                     key={db.id} 
