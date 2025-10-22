@@ -45,7 +45,8 @@ try {
   console.log("[Auto-launch] App path:", process.execPath)
   console.log("[Auto-launch] App name:", require('path').basename(process.execPath))
   
-  const appName = require('path').basename(process.execPath, require('path').extname(process.execPath))
+  // Use the proper app name instead of executable name
+  const appName = app.getName() || "LiquiDB"
   console.log("[Auto-launch] Using app name:", appName)
   
   // For macOS, try to use the app bundle path if available
@@ -1057,6 +1058,14 @@ ipcMain.handle("auto-launch:enable", async () => {
       console.warn("[Auto-launch] Auto-launcher not available")
       return { success: false, error: "Auto-launch module not available" }
     }
+    
+    // First check if auto-launch is already enabled
+    const isCurrentlyEnabled = await autoLauncher.isEnabled()
+    if (isCurrentlyEnabled) {
+      console.log("[Auto-launch] Auto-launch is already enabled")
+      return { success: true }
+    }
+    
     console.log("[Auto-launch] Attempting to enable auto-launch...")
     await autoLauncher.enable()
     console.log("[Auto-launch] Successfully enabled startup launch")
@@ -1078,6 +1087,14 @@ ipcMain.handle("auto-launch:disable", async () => {
       console.warn("[Auto-launch] Auto-launcher not available")
       return { success: false, error: "Auto-launch module not available" }
     }
+    
+    // First check if auto-launch is actually enabled
+    const isCurrentlyEnabled = await autoLauncher.isEnabled()
+    if (!isCurrentlyEnabled) {
+      console.log("[Auto-launch] Auto-launch is already disabled")
+      return { success: true }
+    }
+    
     console.log("[Auto-launch] Attempting to disable auto-launch...")
     await autoLauncher.disable()
     console.log("[Auto-launch] Successfully disabled startup launch")
@@ -1089,6 +1106,13 @@ ipcMain.handle("auto-launch:disable", async () => {
     return { success: true }
   } catch (error) {
     console.error("[Auto-launch] Error disabling:", error)
+    
+    // Handle specific case where login item doesn't exist
+    if (error.message && error.message.includes("Can't get login item")) {
+      console.log("[Auto-launch] Login item doesn't exist, considering as already disabled")
+      return { success: true }
+    }
+    
     return { success: false, error: error.message }
   }
 })
@@ -1111,43 +1135,100 @@ app.whenReady().then(async () => {
   // Initialize permissions manager
   permissionsManager = new PermissionsManager()
   
-  // Initialize helper service and ensure it's running
-  helperService = new HelperServiceManager(app)
-  try {
-    // Check if helper service is already running
-    const isRunning = await helperService.isServiceRunning()
-    if (isRunning) {
-      console.log("[Helper] Helper service is already running")
-    } else {
-      // Start the helper service if it's not running
-      console.log("[Helper] Starting helper service...")
-      await helperService.start()
-      console.log("[Helper] Helper service started successfully")
-    }
-  } catch (error) {
-    console.log("[Helper] Error managing helper service:", error.message)
-  }
-  
   resetDatabaseStatuses()
   createWindow()
-  // Auto-start databases after a short delay to ensure mainWindow is ready
-  setTimeout(() => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      console.log("[Auto-start] MainWindow is ready, starting auto-start process")
-      autoStartDatabases()
-    } else {
-      console.warn("[Auto-start] MainWindow not ready, delaying auto-start")
-      // Retry after another 2 seconds
-      setTimeout(() => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          console.log("[Auto-start] MainWindow ready on retry, starting auto-start process")
-          autoStartDatabases()
-        } else {
-          console.error("[Auto-start] MainWindow still not ready, skipping auto-start")
+  
+  // Check if onboarding is complete before starting background processes
+  let onboardingCheckCount = 0
+  const maxOnboardingChecks = 30 // Maximum 30 checks (30 seconds)
+  
+  const checkOnboardingAndStartProcesses = async () => {
+    try {
+      onboardingCheckCount++
+      
+      // @ts-ignore - This will be available in the renderer process
+      const isOnboardingComplete = await mainWindow?.webContents?.executeJavaScript('window.electron?.isOnboardingComplete ? window.electron.isOnboardingComplete() : false')
+      
+      if (isOnboardingComplete) {
+        console.log("[App] Onboarding complete, starting background processes...")
+        
+        // Start helper service after onboarding is complete
+        helperService = new HelperServiceManager(app)
+        try {
+          const isRunning = await helperService.isServiceRunning()
+          if (!isRunning) {
+            console.log("[Helper] Starting helper service after onboarding completion...")
+            await helperService.start()
+            console.log("[Helper] Helper service started successfully")
+          } else {
+            console.log("[Helper] Helper service already running")
+          }
+        } catch (error) {
+          console.log("[Helper] Error starting helper service after onboarding:", error.message)
         }
-      }, 2000)
+        
+        // Auto-start databases after a short delay to ensure mainWindow is ready
+        setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            console.log("[Auto-start] MainWindow is ready, starting auto-start process")
+            autoStartDatabases()
+          } else {
+            console.warn("[Auto-start] MainWindow not ready, delaying auto-start")
+            // Retry after another 2 seconds
+            setTimeout(() => {
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                console.log("[Auto-start] MainWindow ready on retry, starting auto-start process")
+                autoStartDatabases()
+              } else {
+                console.error("[Auto-start] MainWindow still not ready, skipping auto-start")
+              }
+            }, 2000)
+          }
+        }, 2000)
+      } else if (onboardingCheckCount < maxOnboardingChecks) {
+        // Only log every 5th check to reduce spam
+        if (onboardingCheckCount % 5 === 0) {
+          console.log(`[App] Onboarding in progress, deferring background processes... (${onboardingCheckCount}/${maxOnboardingChecks})`)
+        }
+        // Check again in 2 seconds (reduced frequency)
+        setTimeout(checkOnboardingAndStartProcesses, 2000)
+      } else {
+        console.log("[App] Onboarding check timeout reached, starting background processes anyway...")
+        // Note: Helper service will be started by user interaction, not automatically
+        
+        setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            autoStartDatabases()
+          }
+        }, 2000)
+      }
+    } catch (error) {
+      console.log("[App] Error checking onboarding status:", error.message)
+      // If we can't check, assume onboarding is complete and start processes
+      if (onboardingCheckCount < maxOnboardingChecks) {
+        setTimeout(checkOnboardingAndStartProcesses, 2000)
+      } else {
+        console.log("[App] Starting background processes after error timeout...")
+        // Note: Helper service will be started by user interaction, not automatically
+        setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            autoStartDatabases()
+          }
+        }, 2000)
+      }
     }
-  }, 2000)
+  }
+  
+  // Start checking after a short delay to ensure the window is ready
+  setTimeout(checkOnboardingAndStartProcesses, 2000)
+})
+ipcMain.handle("app:quit", async () => {
+  try {
+    app.quit()
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e?.message || "quit failed" }
+  }
 })
 
 app.on("window-all-closed", () => {
@@ -2110,9 +2191,10 @@ ipcMain.handle("ports:setBanned", async (event, ports) => {
     const uniqueSorted = Array.from(new Set((Array.isArray(ports) ? ports : []).filter((p) => Number.isInteger(p))))
       .sort((a, b) => a - b)
     fs.writeFileSync(file, JSON.stringify(uniqueSorted, null, 2), "utf-8")
-    return true
+    return { success: true, data: uniqueSorted }
   } catch (e) {
-    return false
+    console.error("[Banned Ports] Error setting banned ports:", e)
+    return { success: false, error: e.message || "Failed to set banned ports" }
   }
 })
 
@@ -2311,6 +2393,20 @@ ipcMain.handle("helper:restart", async (event) => {
     return { success, error: success ? null : "Failed to restart helper service" }
   } catch (error) {
     console.error("[Helper Restart] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+// Start helper service on demand (for onboarding step 4 or app settings)
+ipcMain.handle("helper:start-on-demand", async (event) => {
+  try {
+    if (!helperService) {
+      helperService = new HelperServiceManager(app)
+    }
+    const success = await helperService.start()
+    return { success, error: success ? null : "Failed to start helper service" }
+  } catch (error) {
+    console.error("[Helper Start On Demand] Error:", error)
     return { success: false, error: error.message }
   }
 })

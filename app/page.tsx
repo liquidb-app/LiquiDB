@@ -20,6 +20,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from "sonner"
 import { notifySuccess, notifyError, notifyInfo, notifyWarning } from "@/lib/notifications"
 import type { DatabaseContainer } from "@/lib/types"
+import { OnboardingOverlay } from "@/components/onboarding"
+import { MaybeStartTour } from "@/components/tour"
+import { ProfileMenuTrigger } from "@/components/profile-menu"
+import { isOnboardingComplete, wasTourRequested, setTourRequested } from "@/lib/preferences"
 
 // Helper function to render database icons (emoji or custom image)
 const renderDatabaseIcon = (icon: string | undefined, className: string = "w-full h-full object-cover") => {
@@ -105,6 +109,7 @@ const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, class
 }
 
 export default function DatabaseManager() {
+  const [showOnboarding, setShowOnboarding] = useState(true) // Start with true to prevent flash
   const [databases, setDatabases] = useState<DatabaseContainer[]>([])
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
@@ -135,6 +140,23 @@ export default function DatabaseManager() {
     hasAllPermissions
   } = usePermissions()
   const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false)
+
+  // Onboarding gate - check immediately on mount
+  useEffect(() => {
+    try {
+      const done = isOnboardingComplete()
+      setShowOnboarding(!done)
+    } catch {
+      setShowOnboarding(true) // Default to onboarding if check fails
+    }
+  }, [])
+
+  // Allow profile menu to open settings via event
+  useEffect(() => {
+    const handler = () => setAppSettingsOpen(true)
+    window.addEventListener("open-app-settings", handler as EventListener)
+    return () => window.removeEventListener("open-app-settings", handler as EventListener)
+  }, [])
 
   // Check permissions on app startup
   useEffect(() => {
@@ -2075,6 +2097,15 @@ export default function DatabaseManager() {
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background">
+        <MaybeStartTour />
+        {showOnboarding && (
+          <OnboardingOverlay
+            onFinished={() => setShowOnboarding(false)}
+            onStartTour={() => {
+              setTourRequested(true)
+            }}
+          />
+        )}
         <HelperHealthMonitor className="mx-6 mt-4" />
       <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border/50 cursor-move" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
         <div className="container mx-auto px-6 py-2 flex items-center justify-between">
@@ -2139,21 +2170,17 @@ export default function DatabaseManager() {
             <Button
               onClick={() => setAddDialogOpen(true)}
               size="sm"
+              id="btn-add-database"
               className="transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
               style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             >
               <Plus className="mr-1.5 h-4 w-4" />
               Add Database
             </Button>
-            <Button
-              onClick={() => setAppSettingsOpen(true)}
-              variant="ghost"
-              size="sm"
-              className="transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
-              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-            >
-              <Cog className="h-4 w-4 settings-cog" />
-            </Button>
+            {/* User/profile menu replacing gear */}
+            <div className="relative" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+              <ProfileMenuTrigger />
+            </div>
           </div>
         </div>
       </div>

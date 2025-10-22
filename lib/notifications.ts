@@ -57,30 +57,39 @@ class NotificationManager {
     this.loadNotificationSetting()
   }
 
-  public success(message: string, options?: any) {
-    console.log("[Notification Manager] Success called, enabled:", this.notificationsEnabled, "message:", message)
-    if (this.notificationsEnabled) {
+  public success(message: string, options?: any, critical: boolean = false) {
+    console.log("[Notification Manager] Success called, enabled:", this.notificationsEnabled, "critical:", critical, "message:", message)
+    if (this.notificationsEnabled || critical) {
       toast.success(message, options)
     } else {
       console.log("[Notification Manager] Success notification blocked - notifications disabled")
     }
   }
 
-  public error(message: string, options?: any) {
-    if (this.notificationsEnabled) {
+  public error(message: string, options?: any, critical: boolean = false) {
+    console.log("[Notification Manager] Error called, enabled:", this.notificationsEnabled, "critical:", critical, "message:", message)
+    if (this.notificationsEnabled || critical) {
       toast.error(message, options)
+    } else {
+      console.log("[Notification Manager] Error notification blocked - notifications disabled")
     }
   }
 
-  public info(message: string, options?: any) {
-    if (this.notificationsEnabled) {
+  public info(message: string, options?: any, critical: boolean = false) {
+    console.log("[Notification Manager] Info called, enabled:", this.notificationsEnabled, "critical:", critical, "message:", message)
+    if (this.notificationsEnabled || critical) {
       toast.info(message, options)
+    } else {
+      console.log("[Notification Manager] Info notification blocked - notifications disabled")
     }
   }
 
-  public warning(message: string, options?: any) {
-    if (this.notificationsEnabled) {
+  public warning(message: string, options?: any, critical: boolean = false) {
+    console.log("[Notification Manager] Warning called, enabled:", this.notificationsEnabled, "critical:", critical, "message:", message)
+    if (this.notificationsEnabled || critical) {
       toast.warning(message, options)
+    } else {
+      console.log("[Notification Manager] Warning notification blocked - notifications disabled")
     }
   }
 }
@@ -109,52 +118,73 @@ const areNotificationsEnabled = (): boolean => {
 }
 
 // Export individual methods for convenience with safety checks
-export const notifySuccess = (message: string, options?: any) => {
-  console.log("[notifySuccess] Called with message:", message)
+export const notifySuccess = (message: string, options?: any, critical: boolean = false) => {
+  console.log("[notifySuccess] Called with message:", message, "critical:", critical)
   const enabled = areNotificationsEnabled()
   console.log("[notifySuccess] Notifications enabled:", enabled)
   
-  if (enabled) {
+  if (enabled || critical) {
     toast.success(message, options)
   } else {
     console.log("[notifySuccess] Notification blocked - notifications disabled")
   }
 }
 
-export const notifyError = (message: string, options?: any) => {
-  console.log("[notifyError] Called with message:", message)
+export const notifyError = (message: string, options?: any, critical: boolean = false) => {
+  console.log("[notifyError] Called with message:", message, "critical:", critical)
   const enabled = areNotificationsEnabled()
   console.log("[notifyError] Notifications enabled:", enabled)
   
-  if (enabled) {
+  if (enabled || critical) {
     toast.error(message, options)
   } else {
     console.log("[notifyError] Notification blocked - notifications disabled")
   }
 }
 
-export const notifyInfo = (message: string, options?: any) => {
-  console.log("[notifyInfo] Called with message:", message)
+export const notifyInfo = (message: string, options?: any, critical: boolean = false) => {
+  console.log("[notifyInfo] Called with message:", message, "critical:", critical)
   const enabled = areNotificationsEnabled()
   console.log("[notifyInfo] Notifications enabled:", enabled)
   
-  if (enabled) {
+  if (enabled || critical) {
     toast.info(message, options)
   } else {
     console.log("[notifyInfo] Notification blocked - notifications disabled")
   }
 }
 
-export const notifyWarning = (message: string, options?: any) => {
-  console.log("[notifyWarning] Called with message:", message)
+export const notifyWarning = (message: string, options?: any, critical: boolean = false) => {
+  console.log("[notifyWarning] Called with message:", message, "critical:", critical)
   const enabled = areNotificationsEnabled()
   console.log("[notifyWarning] Notifications enabled:", enabled)
   
-  if (enabled) {
+  if (enabled || critical) {
     toast.warning(message, options)
   } else {
     console.log("[notifyWarning] Notification blocked - notifications disabled")
   }
+}
+
+// Function to update notification setting and sync with singleton
+export const updateNotificationSetting = (enabled: boolean) => {
+  console.log("[updateNotificationSetting] Setting notifications to:", enabled)
+  notifications.setNotificationsEnabled(enabled)
+  
+  // Also update localStorage directly for consistency
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem("notifications-enabled", JSON.stringify(enabled))
+      console.log("[updateNotificationSetting] Updated localStorage:", enabled)
+    }
+  } catch (error) {
+    console.error("[updateNotificationSetting] Failed to update localStorage:", error)
+  }
+}
+
+// Function to get current notification setting
+export const getNotificationSetting = (): boolean => {
+  return notifications.areNotificationsEnabled()
 }
 
 // Export the singleton instance for direct access

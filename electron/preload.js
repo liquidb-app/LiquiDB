@@ -46,12 +46,23 @@ contextBridge.exposeInMainWorld("electron", {
   
   // External link handler
   openExternalLink: (url) => ipcRenderer.invoke("open-external-link", url),
+  quitApp: () => ipcRenderer.invoke("app:quit"),
+  
+  // Onboarding status check
+  isOnboardingComplete: () => {
+    try {
+      return localStorage.getItem('onboarding-complete') === 'true'
+    } catch (error) {
+      return false
+    }
+  },
   
   // Helper service methods
   getHelperStatus: () => ipcRenderer.invoke("helper:status"),
   getHelperHealth: () => ipcRenderer.invoke("helper:health"),
   installHelper: () => ipcRenderer.invoke("helper:install"),
   startHelper: () => ipcRenderer.invoke("helper:start"),
+  startHelperOnDemand: () => ipcRenderer.invoke("helper:start-on-demand"),
   restartHelper: () => ipcRenderer.invoke("helper:restart"),
   cleanupHelper: () => ipcRenderer.invoke("helper:cleanup"),
   

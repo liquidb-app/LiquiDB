@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { BannedPortsDialog } from "./banned-ports-dialog"
 import { toast } from "sonner"
-import { notifications, notifySuccess, notifyError, notifyInfo, notifyWarning } from "@/lib/notifications"
+import { notifications, notifySuccess, notifyError, notifyInfo, notifyWarning, updateNotificationSetting } from "@/lib/notifications"
 
 interface AppSettingsDialogProps {
   open: boolean
@@ -182,34 +182,19 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   const handleNotificationToggle = (enabled: boolean) => {
     setNotifications(enabled)
     
-    // Check if we're in a browser environment
-    if (typeof window !== 'undefined') {
-      if (notifications && typeof (notifications as any).setNotificationsEnabled === 'function') {
-        ;(notifications as any).setNotificationsEnabled(enabled)
-        
-        // Force reload the setting to ensure it's updated
-        if (typeof (notifications as any).reloadNotificationSetting === 'function') {
-          ;(notifications as any).reloadNotificationSetting()
-        }
-        
-        // Show a notification about the setting change (this will respect the new setting)
-        if (enabled) {
-          ;(notifications as any).success("Notifications enabled", {
-            description: "You'll now receive toast notifications for database events.",
-          })
-        } else {
-          // Use direct toast for this one since we want to show it even when disabling
-          toast.info("Notifications disabled", {
-            description: "Toast notifications are now disabled.",
-          })
-        }
-      } else {
-        try {
-          localStorage.setItem("notifications-enabled", JSON.stringify(enabled))
-        } catch (error) {
-          console.error("Failed to save notification setting:", error)
-        }
-      }
+    // Update notification setting using the new system
+    updateNotificationSetting(enabled)
+    
+    // Show a notification about the setting change (this will respect the new setting)
+    if (enabled) {
+      notifySuccess("Notifications enabled", {
+        description: "You'll now receive toast notifications for database events.",
+      })
+    } else {
+      // Use direct toast for this one since we want to show it even when disabling
+      toast.info("Notifications disabled", {
+        description: "Toast notifications are now disabled.",
+      })
     }
   }
 
@@ -467,7 +452,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                         <div className="space-y-1">
                           <p className="text-sm font-medium">Service Status</p>
                           <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${helperStatus.running ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'} ${helperLoading ? 'opacity-50' : ''}`} />
+                            <div className={`w-2 h-2 rounded-full ${helperStatus.running ? 'bg-green-500 animate-pulse' : 'bg-red-500 animate-pulse'} ${helperLoading ? 'opacity-50' : ''}`} />
                             <span className="text-xs text-muted-foreground">
                               {helperStatus.running ? 'Running' : 'Stopped'}
                               {helperLoading && <span className="ml-1 text-blue-500">•</span>}
@@ -538,7 +523,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                       {helperStatus.running && (
                         <div className="p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
                           <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                             <span className="text-sm font-medium text-green-800 dark:text-green-200">
                               Service is running and monitoring databases
                             </span>
