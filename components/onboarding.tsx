@@ -804,7 +804,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
   }, [bgSpeed, onFinished, onStartTour])
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background" data-onboarding-stars>
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-start bg-background pt-8" data-onboarding-stars>
       {/* Full-screen stars background */}
       <div className="absolute inset-0 pointer-events-none">
         <StarsBackground
@@ -821,7 +821,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
           {[1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
-              className="h-1.5 rounded-full flex-1 relative overflow-hidden bg-muted/40"
+              className="h-1 rounded-full flex-1 relative overflow-hidden bg-muted/40"
             >
               <motion.div
                 className="absolute inset-0 rounded-full"
