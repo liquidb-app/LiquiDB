@@ -1,29 +1,17 @@
-"use client";
-
-import React from "react";
 import { cn } from "@/lib/utils";
 
-interface BentoGridProps {
-  children: React.ReactNode;
+export const BentoGrid = ({
+  className,
+  children,
+}: {
   className?: string;
-}
-
-interface BentoGridItemProps {
-  children: React.ReactNode;
-  className?: string;
-  size?: "1" | "2" | "3" | "4" | "5" | "6";
-  header?: React.ReactNode;
-  title?: string;
-  description?: string;
-  icon?: React.ReactNode;
-}
-
-export const BentoGrid = ({ children, className }: BentoGridProps) => {
+  children?: React.ReactNode;
+}) => {
   return (
     <div
       className={cn(
-        "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-7xl mx-auto",
-        className
+        "mx-auto grid max-w-7xl grid-cols-1 gap-4 md:auto-rows-[18rem] md:grid-cols-3",
+        className,
       )}
     >
       {children}
@@ -32,49 +20,41 @@ export const BentoGrid = ({ children, className }: BentoGridProps) => {
 };
 
 export const BentoGridItem = ({
-  children,
   className,
-  size = "1",
-  header,
   title,
   description,
+  header,
   icon,
-}: BentoGridItemProps) => {
-  const sizeClasses = {
-    "1": "col-span-1 row-span-1",
-    "2": "col-span-1 md:col-span-2 row-span-1",
-    "3": "col-span-1 md:col-span-2 lg:col-span-3 row-span-1",
-    "4": "col-span-1 row-span-1 md:row-span-2",
-    "5": "col-span-1 md:col-span-2 row-span-1 md:row-span-2",
-    "6": "col-span-1 md:col-span-2 lg:col-span-3 row-span-1 md:row-span-2",
-  };
-
+  children,
+  size,
+}: {
+  className?: string;
+  title?: string | React.ReactNode;
+  description?: string | React.ReactNode;
+  header?: React.ReactNode;
+  icon?: React.ReactNode;
+  children?: React.ReactNode;
+  size?: "1" | "2";
+}) => {
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 transition-all duration-300 hover:shadow-lg",
-        sizeClasses[size],
-        className
+        "group/bento shadow-input row-span-1 flex flex-col justify-between space-y-4 rounded-xl border border-neutral-200 bg-white p-4 transition duration-200 hover:shadow-xl dark:border-white/[0.2] dark:bg-black dark:shadow-none",
+        size === "2" && "md:col-span-2 md:row-span-2",
+        className,
       )}
     >
       {header}
-      {icon && (
-        <div className="absolute top-4 right-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">
-          {icon}
-        </div>
-      )}
-      {title && (
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+      <div className="transition duration-200 group-hover/bento:translate-x-2">
+        {icon}
+        <div className="mt-2 mb-2 font-sans font-bold text-neutral-600 dark:text-neutral-200">
           {title}
-        </h3>
-      )}
-      {description && (
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        </div>
+        <div className="font-sans text-xs font-normal text-neutral-600 dark:text-neutral-300">
           {description}
-        </p>
-      )}
+        </div>
+      </div>
       {children}
     </div>
   );
 };
-
