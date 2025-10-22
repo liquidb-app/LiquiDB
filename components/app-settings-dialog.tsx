@@ -465,100 +465,96 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                     </p>
                   </div>
                   
-                  {helperStatus && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium">Service Status</p>
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${helperStatus.running ? 'bg-green-500 animate-pulse' : 'bg-red-500 animate-pulse'} ${helperLoading ? 'opacity-50' : ''}`} />
-                            <span className="text-xs text-muted-foreground">
-                              {helperStatus.running ? 'Running' : 'Stopped'}
-                              {helperLoading && <span className="ml-1 text-blue-500">•</span>}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-muted-foreground">Installed</p>
-                          <span className="text-xs font-mono">
-                            {helperStatus.installed ? 'Yes' : 'No'}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {!helperStatus.installed && (
-                        <div className="space-y-2">
-                          <div className="p-3 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                            <div className="flex items-center gap-2">
-                              <Settings className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                              <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                                Helper Service Not Installed
-                              </span>
-                            </div>
-                            <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
-                              Install the helper service to enable automatic database process monitoring and cleanup.
-                            </p>
-                          </div>
-                          
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => handleHelperAction('install')}
-                            disabled={helperLoading}
-                            className="w-full bg-blue-600 hover:bg-blue-700"
-                          >
-                            <Settings className="h-3 w-3 mr-1" />
-                            Install Helper Service
-                          </Button>
-                        </div>
-                      )}
-                      
-                      {helperStatus.installed && !helperStatus.running && (
-                        <div className="space-y-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleHelperAction('start')}
-                            disabled={helperLoading}
-                            className="w-full"
-                          >
-                            <Play className="h-3 w-3 mr-1" />
-                            Start Service
-                          </Button>
-                          
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleHelperAction('cleanup')}
-                            disabled={helperLoading}
-                            className="w-full"
-                          >
-                            <Settings className="h-3 w-3 mr-1" />
-                            Cleanup Orphaned Processes
-                          </Button>
-                        </div>
-                      )}
-                      
-                      {helperStatus.running && (
-                        <div className="p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                            <span className="text-sm font-medium text-green-800 dark:text-green-200">
-                              Service is running and monitoring databases
-                            </span>
-                          </div>
-                          <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-                            The helper service is automatically managing database processes in the background.
-                          </p>
-                        </div>
-                      )}
+                  
+                  {helperLoading && (
+                    <div className="text-center py-8">
+                      <Settings className="h-8 w-8 mx-auto text-muted-foreground mb-2 animate-spin" />
+                      <p className="text-sm text-muted-foreground">Loading helper service status...</p>
                     </div>
                   )}
                   
-                  {!helperStatus && (
+                  {!helperLoading && !helperStatus && (
                     <div className="text-center py-8">
-                      <Settings className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                      <p className="text-sm text-muted-foreground">Loading helper service status...</p>
+                      <AlertTriangle className="h-8 w-8 mx-auto text-yellow-500 mb-4" />
+                      <h3 className="text-lg font-semibold text-foreground mb-2">Helper Service Not Available</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        The helper service is not initialized or installed. This service provides advanced features like port monitoring and system integration.
+                      </p>
+                      <div className="space-y-2">
+                        <Button 
+                          onClick={() => handleHelperAction('install')}
+                          disabled={helperLoading}
+                          className="w-full"
+                        >
+                          <Settings className="h-4 w-4 mr-2" />
+                          Install Helper Service
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          This will install the background service for advanced features
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!helperLoading && helperStatus && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-3 h-3 rounded-full ${helperStatus.running ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {helperStatus.installed ? 'Helper Service Installed' : 'Helper Service Not Installed'}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {helperStatus.running ? 'Service is running' : helperStatus.installed ? 'Service is stopped' : 'Service is not installed'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex space-x-2">
+                          {!helperStatus.installed && (
+                            <Button 
+                              onClick={() => handleHelperAction('install')}
+                              disabled={helperLoading}
+                              size="sm"
+                            >
+                              <Settings className="h-4 w-4 mr-2" />
+                              Install
+                            </Button>
+                          )}
+                          {helperStatus.installed && !helperStatus.running && (
+                            <Button 
+                              onClick={() => handleHelperAction('start')}
+                              disabled={helperLoading}
+                              size="sm"
+                            >
+                              <Play className="h-4 w-4 mr-2" />
+                              Start
+                            </Button>
+                          )}
+                          {helperStatus.running && (
+                            <Button 
+                              onClick={() => handleHelperAction('cleanup')}
+                              disabled={helperLoading}
+                              size="sm"
+                              variant="outline"
+                            >
+                              <RotateCcw className="h-4 w-4 mr-2" />
+                              Cleanup
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {helperStatus.running && (
+                        <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <p className="text-sm text-green-700 dark:text-green-300">
+                              The helper service is automatically managing database processes in the background.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
