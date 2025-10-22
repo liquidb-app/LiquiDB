@@ -2360,7 +2360,8 @@ ipcMain.handle("db:deleteAll", async (event) => {
 ipcMain.handle("helper:status", async (event) => {
   try {
     if (!helperService) {
-      return { success: false, error: "Helper service not initialized" }
+      console.log("[Helper Status] Initializing helper service...")
+      helperService = new HelperServiceManager(app)
     }
     const status = await helperService.getStatus()
     return { success: true, data: status }
@@ -2427,7 +2428,8 @@ ipcMain.handle("helper:install", async (event) => {
 ipcMain.handle("helper:cleanup", async (event) => {
   try {
     if (!helperService) {
-      return { success: false, error: "Helper service not initialized" }
+      console.log("[Helper Cleanup] Initializing helper service...")
+      helperService = new HelperServiceManager(app)
     }
     const result = await helperService.requestCleanup()
     return result
@@ -2441,7 +2443,8 @@ ipcMain.handle("helper:cleanup", async (event) => {
 ipcMain.handle("helper:health", async (event) => {
   try {
     if (!helperService) {
-      return { success: false, error: "Helper service not initialized" }
+      console.log("[Helper Health] Initializing helper service...")
+      helperService = new HelperServiceManager(app)
     }
     const isHealthy = await helperService.isHealthy()
     return { success: true, data: { isHealthy } }
