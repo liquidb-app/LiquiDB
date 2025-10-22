@@ -424,6 +424,14 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
       })()
     }
   }, [])
+  // Track navigation direction to drive grow/shrink effect between steps
+  useEffect(() => {
+    const previous = prevStepRef.current
+    if (step > previous) setTransitionDir('forward')
+    else if (step < previous) setTransitionDir('backward')
+    else setTransitionDir('none')
+    prevStepRef.current = step
+  }, [step])
 
   // Check helper status when reaching step 4 and set up periodic updates
   useEffect(() => {
