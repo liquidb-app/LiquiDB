@@ -847,42 +847,61 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
         </div>
       </div>
       
-      <div className="relative z-10 w-full max-w-4xl mx-4">
-        <Card className="relative overflow-hidden shadow-2xl border-border/20 bg-background/85 backdrop-blur-md text-foreground min-h-[500px]">
+      <div className="relative z-10 w-full max-w-2xl mx-4">
+        <Card className="relative overflow-hidden shadow-2xl border-border/20 bg-background/85 backdrop-blur-md text-foreground w-full transition-all duration-500 ease-in-out">
           {/* Subtle internal overlay placed behind content */}
           <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-background/40 via-background/30 to-background/40" />
-          <CardHeader className="relative z-0">
-            <CardTitle>{step === 1 ? "Create your profile" : step === 2 ? "Preferences" : step === 3 ? "Permissions" : step === 4 ? "Helper service" : "You're all set!"}</CardTitle>
+          <CardHeader className="relative z-0 pb-4">
+            <motion.div
+              key={`title-${step}`}
+              initial={{ opacity: 0.7, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            >
+              <CardTitle className="text-lg">{step === 1 ? "Create your profile" : step === 2 ? "Preferences" : step === 3 ? "Permissions" : step === 4 ? "Helper service" : "You're all set!"}</CardTitle>
+            </motion.div>
           </CardHeader>
-          <CardContent className="relative z-10 flex flex-col min-h-[400px]">
-            <div className="flex-1">
+          <CardContent className="relative z-10 flex flex-col transition-all duration-500 ease-in-out">
+            <motion.div 
+              className="flex-1 min-h-0"
+            >
               <AnimatePresence mode="wait">
                 <motion.div
                   key={`onboarding-step-${step}`}
-                  initial={{ opacity: 0, y: 16 }}
+                  initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -16 }}
-                  transition={{ type: "spring", stiffness: 120, damping: 16 }}
-                  className="relative z-10"
+                  exit={{ opacity: 0 }}
+                  transition={{ 
+                    duration: 0.3, 
+                    ease: "easeOut",
+                    opacity: { duration: 0.2 },
+                    y: { duration: 0.3 }
+                  }}
+                  className="relative z-10 break-words"
                 >
               {step === 1 && (
-                <div className="space-y-6">
-                  <div className="flex flex-col items-center text-center gap-3">
+                <motion.div 
+                  className="space-y-4"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                >
+                  <div className="flex flex-col items-center text-center gap-2">
                     <motion.div
                       className="relative"
                       initial={{ scale: 0.9, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ type: "spring", stiffness: 140, damping: 18 }}
                     >
-                      <div className="size-16 rounded-full bg-gradient-to-br from-primary/30 via-primary/10 to-transparent ring-2 ring-primary/40 flex items-center justify-center animate-in zoom-in-95">
-                        <img src="/globe.svg" alt="LiquiDB" className="size-8 opacity-90" />
+                      <div className="size-12 rounded-full bg-gradient-to-br from-primary/30 via-primary/10 to-transparent ring-2 ring-primary/40 flex items-center justify-center animate-in zoom-in-95">
+                        <img src="/globe.svg" alt="LiquiDB" className="size-6 opacity-90" />
                       </div>
                     </motion.div>
                     <motion.div initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.05 }}>
-                      <div className="text-xl font-semibold tracking-tight">LiquiDB</div>
+                      <div className="text-lg font-semibold tracking-tight whitespace-nowrap">LiquiDB</div>
                     </motion.div>
                     <motion.p
-                      className="text-sm text-muted-foreground max-w-[48ch]"
+                      className="text-sm text-muted-foreground max-w-[40ch] break-words leading-relaxed"
                       initial={{ y: 6, opacity: 0 }}
                       animate={{ y: 0, opacity: 1 }}
                       transition={{ delay: 0.1 }}
@@ -891,10 +910,10 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                     </motion.p>
                   </div>
 
-                  <div className="space-y-4 animate-in fade-in-50 slide-in-from-bottom-1">
-                    <div className="flex items-center gap-4">
+                  <div className="space-y-3 animate-in fade-in-50 slide-in-from-bottom-1">
+                    <div className="flex items-center gap-3">
                       <motion.div
-                        className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-lg font-semibold select-none"
+                        className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold select-none"
                         initial={{ rotate: -6, scale: 0.9, opacity: 0 }}
                         animate={{ rotate: 0, scale: 1, opacity: 1 }}
                         transition={{ type: "spring", stiffness: 150, damping: 16 }}
@@ -903,7 +922,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                         {avatar || initials}
                       </motion.div>
                       <div className="flex-1 relative z-10">
-                        <Label htmlFor="username">Choose a username</Label>
+                        <Label htmlFor="username" className="text-sm">Choose a username</Label>
                         <Input 
                           id="username" 
                           value={username} 
@@ -916,201 +935,239 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                       </div>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               )}
 
           {step === 2 && (
-            <div className="space-y-6">
+            <motion.div 
+              className="space-y-6"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            >
+              {/* Appearance Section */}
               <div className="space-y-4">
-                <div>
-                  <Label className="text-base font-medium">Theme</Label>
-                  <p className="text-sm text-muted-foreground mb-3">Choose your preferred theme</p>
-                  <div className="grid grid-cols-3 gap-3">
-                    <button
-                      onClick={() => {
-                        setThemeState("light")
-                        setTheme("light")
-                      }}
-                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
-                        theme === "light" 
-                          ? "border-primary bg-primary/5" 
-                          : "border-border hover:border-muted-foreground"
-                      }`}
-                    >
-                      <Sun className="h-5 w-5" />
-                      <div className="text-left">
-                        <div className="font-medium">Light</div>
-                        <div className="text-xs text-muted-foreground">Clean and bright</div>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setThemeState("dark")
-                        setTheme("dark")
-                      }}
-                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
-                        theme === "dark" 
-                          ? "border-primary bg-primary/5" 
-                          : "border-border hover:border-muted-foreground"
-                      }`}
-                    >
-                      <Moon className="h-5 w-5" />
-                      <div className="text-left">
-                        <div className="font-medium">Dark</div>
-                        <div className="text-xs text-muted-foreground">Easy on the eyes</div>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setThemeState("system")
-                        setTheme("system")
-                      }}
-                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
-                        theme === "system" 
-                          ? "border-primary bg-primary/5" 
-                          : "border-border hover:border-muted-foreground"
-                      }`}
-                    >
-                      <Monitor className="h-5 w-5" />
-                      <div className="text-left">
-                        <div className="font-medium">System</div>
-                        <div className="text-xs text-muted-foreground">Follows your OS</div>
-                      </div>
-                    </button>
-                  </div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <h3 className="text-base font-semibold">Appearance</h3>
                 </div>
-
-                <div>
-                  <Label className="text-base font-medium">Color Scheme</Label>
-                  <p className="text-sm text-muted-foreground mb-3">Pick your favorite accent color</p>
-                  <div className="grid grid-cols-5 gap-3">
-                    {colorSchemes.map((scheme) => (
+                
+                <div className="flex gap-6">
+                  {/* Theme Selection */}
+                  <div className="flex-1 space-y-3">
+                    <Label className="text-sm font-medium">Theme</Label>
+                    <div className="flex gap-2">
                       <button
-                        key={scheme.value}
-                        onClick={() => { 
-                          setColorScheme(scheme.value)
-                          document.documentElement.setAttribute("data-color-scheme", scheme.value)
+                        onClick={() => {
+                          setThemeState("light")
+                          setTheme("light")
                         }}
-                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                          colorScheme === scheme.value
-                            ? "border-primary bg-primary/5"
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
+                          theme === "light" 
+                            ? "border-primary bg-primary/5" 
                             : "border-border hover:border-muted-foreground"
                         }`}
                       >
-                        <div className={`w-full h-6 rounded ${resolvedTheme === 'dark' ? scheme.darkPreview : scheme.lightPreview}`} />
-                        <span className="text-xs font-medium">{scheme.label}</span>
+                        <Sun className="h-4 w-4" />
+                        <div className="text-sm font-medium">Light</div>
                       </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <Separator />
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center justify-between border rounded-md p-3">
-                  <div>
-                    <div className="text-sm font-medium">Start on boot</div>
-                    <div className="text-xs text-muted-foreground">Launch LiquiDB automatically</div>
-                  </div>
-                  <Switch checked={autoStart} onCheckedChange={handleAutoLaunchToggle} />
-                </div>
-                <div className="flex items-center justify-between border rounded-md p-3">
-                  <div>
-                    <div className="text-sm font-medium">Notifications</div>
-                    <div className="text-xs text-muted-foreground">Enable app notifications</div>
-                  </div>
-                  <Switch checked={notificationsEnabled} onCheckedChange={setNotificationsEnabled} />
-                </div>
-              </div>
-              <div>
-                <Label>Banned ports (optional, comma separated)</Label>
-                <div className="relative">
-                  <Input 
-                    value={bannedPortsInput} 
-                    onChange={(e) => handleBannedPortsChange(e.target.value)} 
-                    placeholder="5432, 6379" 
-                    className={bannedPortsError ? "border-red-500" : bannedPortsLocal.length > 0 ? "border-green-500" : ""}
-                  />
-                  {bannedPortsInput && (
-                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground">
-                      {bannedPortsInput.length} chars
+                      <button
+                        onClick={() => {
+                          setThemeState("dark")
+                          setTheme("dark")
+                        }}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
+                          theme === "dark" 
+                            ? "border-primary bg-primary/5" 
+                            : "border-border hover:border-muted-foreground"
+                        }`}
+                      >
+                        <Moon className="h-4 w-4" />
+                        <div className="text-sm font-medium">Dark</div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setThemeState("system")
+                          setTheme("system")
+                        }}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
+                          theme === "system" 
+                            ? "border-primary bg-primary/5" 
+                            : "border-border hover:border-muted-foreground"
+                        }`}
+                      >
+                        <Monitor className="h-4 w-4" />
+                        <div className="text-sm font-medium">System</div>
+                      </button>
                     </div>
-                  )}
+                  </div>
+
+                  {/* Color Scheme Selection */}
+                  <div className="flex-1 space-y-3">
+                    <Label className="text-sm font-medium">Accent Color</Label>
+                    <div className="flex gap-2">
+                      {colorSchemes.map((scheme) => (
+                        <button
+                          key={scheme.value}
+                          onClick={() => { 
+                            setColorScheme(scheme.value)
+                            document.documentElement.setAttribute("data-color-scheme", scheme.value)
+                          }}
+                          className={`relative w-12 h-8 rounded-lg border-2 transition-all overflow-hidden ${
+                            colorScheme === scheme.value
+                              ? "border-primary"
+                              : "border-border hover:border-muted-foreground"
+                          }`}
+                        >
+                          <div className={`w-full h-full ${resolvedTheme === 'dark' ? scheme.darkPreview : scheme.lightPreview} animate-pulse`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                {bannedPortsError && (
-                  <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                    <div className="flex items-start gap-2">
-                      <svg className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
-                      </svg>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-red-800 dark:text-red-200">Invalid port format</p>
-                        <p className="text-xs text-red-700 dark:text-red-300 mt-1">{bannedPortsError}</p>
-                        {bannedPortsSuggestion && (
-                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">{bannedPortsSuggestion}</p>
-                        )}
-                        <div className="flex gap-2 mt-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={applyBannedPortsFix}
-                            className="text-xs"
-                          >
-                            Apply Fix
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={clearBannedPorts}
-                            className="text-xs"
-                          >
-                            Clear All
-                          </Button>
+              </div>
+
+              {/* Behavior Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <h3 className="text-base font-semibold">Behavior</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">Start on boot</div>
+                        <div className="text-xs text-muted-foreground">Launch automatically</div>
+                      </div>
+                    </div>
+                    <Switch checked={autoStart} onCheckedChange={handleAutoLaunchToggle} />
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
+                        <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM4.828 7l2.586-2.586a2 2 0 012.828 0L12 5.172l1.586-1.586a2 2 0 012.828 0L18.172 7H4.828z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">Notifications</div>
+                        <div className="text-xs text-muted-foreground">App notifications</div>
+                      </div>
+                    </div>
+                    <Switch checked={notificationsEnabled} onCheckedChange={setNotificationsEnabled} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Advanced Settings Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                  <h3 className="text-base font-semibold">Advanced Settings</h3>
+                </div>
+                
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Banned Ports</Label>
+                  <p className="text-xs text-muted-foreground">Ports to avoid when starting databases (optional)</p>
+                  <div className="relative">
+                    <Input 
+                      value={bannedPortsInput} 
+                      onChange={(e) => handleBannedPortsChange(e.target.value)} 
+                      placeholder="5432, 6379, 3306" 
+                      className={bannedPortsError ? "border-red-500" : bannedPortsLocal.length > 0 ? "border-green-500" : ""}
+                    />
+                    {bannedPortsInput && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground">
+                        {bannedPortsInput.length} chars
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Status Messages */}
+                  {bannedPortsError && (
+                    <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <svg className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                        </svg>
+                        <div>
+                          <div className="text-sm font-medium text-red-800 dark:text-red-200">Invalid port format</div>
+                          <div className="text-xs text-red-600 dark:text-red-300 mt-1">
+                            Please enter valid port numbers separated by commas (e.g., 5432, 6379, 3306)
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-                {!bannedPortsError && bannedPortsLocal.length > 0 && (
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                    ✓ {bannedPortsLocal.length} valid port{bannedPortsLocal.length !== 1 ? 's' : ''} configured: {bannedPortsLocal.join(", ")}
-                  </p>
-                )}
-                {!bannedPortsError && bannedPortsLocal.length === 0 && bannedPortsInput.trim() && (
-                  <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
-                    ⚠ No valid ports found in input
-                  </p>
-                )}
+                  )}
+                  
+                  {!bannedPortsError && bannedPortsLocal.length > 0 && (
+                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                        </svg>
+                        <div>
+                          <div className="text-sm font-medium text-green-800 dark:text-green-200">
+                            {bannedPortsLocal.length} port{bannedPortsLocal.length !== 1 ? 's' : ''} configured
+                          </div>
+                          <div className="text-xs text-green-600 dark:text-green-300 mt-1">
+                            {bannedPortsLocal.join(', ')}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!bannedPortsError && bannedPortsLocal.length === 0 && bannedPortsInput.trim() && (
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                      ⚠ No valid ports found in input
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {step === 3 && (
-            <div className="space-y-6">
-              <p className="text-sm text-muted-foreground">We need a couple of permissions. You can grant them here without leaving onboarding.</p>
-              <div className="space-y-3">
+            <motion.div 
+              className="space-y-4"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            >
+              <p className="text-sm text-muted-foreground leading-relaxed">We need a couple of permissions. You can grant them here without leaving onboarding.</p>
+              <div className="space-y-2">
                 {permLoading ? (
-                  <div className="p-6 text-center text-sm text-muted-foreground">Checking permissions…</div>
+                  <div className="p-4 text-center text-sm text-muted-foreground">Checking permissions…</div>
                 ) : (
                   permissions.map((p) => (
                     <div 
                       key={p.name} 
-                      className={`flex items-start justify-between p-4 rounded-lg border-2 transition-all ${
+                      className={`flex items-start justify-between p-3 rounded-lg border-2 transition-all ${
                         p.granted 
                           ? "border-green-500/20 bg-green-500/5" 
                           : "border-orange-500/20 bg-orange-500/5"
                       }`}
                     >
                       <div className="flex-1 space-y-1">
-                        <div className="font-medium">{p.name}</div>
-                        <div className="text-sm text-muted-foreground">{p.description}</div>
+                        <div className="text-sm font-medium">{p.name}</div>
+                        <div className="text-xs text-muted-foreground">{p.description}</div>
                       </div>
-                      <div className="flex items-center gap-3 ml-4">
+                      <div className="flex items-center gap-2 ml-3">
                         {!p.granted && (
                           <Button size="sm" onClick={() => openPermissionPage(p.name)}>
                             Open
                           </Button>
                         )}
-                        <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium ${
+                        <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
                           p.granted 
                             ? "bg-green-600/10 text-green-600" 
                             : "bg-orange-600/10 text-orange-600"
@@ -1136,14 +1193,19 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                   ))
                 )}
               </div>
-            </div>
+            </motion.div>
           )}
 
           {step === 4 && (
-            <div className="space-y-6">
+            <motion.div 
+              className="space-y-4"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            >
               <div>
-                <p className="text-sm font-medium mb-1">Background Helper Service</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm font-medium mb-1 leading-tight">Background Helper Service</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
                   The helper service runs in the background to monitor database processes and prevent port conflicts.
                 </p>
               </div>
@@ -1154,7 +1216,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                     <div className="w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
                     <span className="text-yellow-600 dark:text-yellow-400">Service check timed out</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
                     The helper service check is taking longer than expected. You can continue without it or try to install it manually.
                   </p>
                   <div className="space-y-2">
@@ -1183,9 +1245,9 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                 <div className="p-6 text-center text-sm text-muted-foreground">
                   <div className="flex items-center justify-center gap-2 mb-2">
                     <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
-                    Checking service status…
+                    <span className="text-sm">Checking service status…</span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
+                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
                     This may take a few seconds. If it takes too long, you can continue without the helper service.
                   </p>
                 </div>
@@ -1193,22 +1255,22 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-4 border-2 rounded-lg bg-muted/20">
                     <div className="space-y-1">
-                      <p className="text-sm font-medium">Service Status</p>
+                      <p className="text-sm font-medium leading-tight">Service Status</p>
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${
                           helperStatus.running 
                             ? 'bg-green-500 animate-pulse' 
                             : 'bg-red-500 animate-pulse'
                         } ${helperLoading ? 'opacity-50' : ''}`} />
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs text-muted-foreground leading-relaxed">
                           {helperStatus.running ? 'Running' : 'Stopped'}
                           {helperLoading && ' •'}
                         </span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground">Installed</p>
-                      <span className="text-sm font-medium">
+                      <p className="text-xs text-muted-foreground leading-tight">Installed</p>
+                      <span className="text-sm font-medium leading-relaxed">
                         {helperStatus.installed ? 'Yes' : 'No'}
                       </span>
                     </div>
@@ -1277,19 +1339,23 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                    </p>
                  </div>
                )}
-            </div>
+            </motion.div>
           )}
 
           {step === 5 && (
-            <div className="space-y-8">
+            <motion.div 
+              className="space-y-4"
+              layout
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+            >
               {/* Celebration Header */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="text-center space-y-4"
+                className="text-center"
               >
-                <div className="relative">
+                <div className="flex items-center justify-center gap-3">
                   <motion.div
                     initial={{ scale: 0, rotate: -180 }}
                     animate={{ scale: 1, rotate: 0 }}
@@ -1299,7 +1365,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                       damping: 15,
                       delay: 0.4 
                     }}
-                    className="text-6xl mb-4"
+                    className="text-4xl"
                   >
                     🎉
                   </motion.div>
@@ -1307,7 +1373,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.6 }}
-                    className="text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent"
+                    className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent"
                   >
                     You're all set!
                   </motion.div>
@@ -1317,156 +1383,131 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.8 }}
-                  className="text-lg text-muted-foreground max-w-2xl mx-auto"
+                  className="text-sm text-muted-foreground mt-2"
                 >
                   Welcome to LiquiDB! You're ready to start managing your databases with powerful features.
                 </motion.p>
               </motion.div>
 
-              {/* Bento Grid with Features */}
+              {/* Modern Bento Grid */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 1 }}
               >
-                <BentoGrid className="max-w-4xl mx-auto">
-                  <BentoGridItem
-                    size="2"
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-4 lg:grid-cols-3">
+                  <BentoCard
+                    icon={<div className="text-lg">🗄️</div>}
                     title="Database Management"
                     description="Create, manage, and monitor your databases with ease"
-                    icon={<div className="text-2xl">🗄️</div>}
-                    className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20"
+                    completed={true}
+                    className="md:col-span-2 lg:col-span-1"
                   >
-                    <GlowingEffect variant="default" disabled={false} glow={true}>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm">
-                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                          <span>Auto-start configured</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                          <span>Port monitoring active</span>
-                        </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" style={{
+                          animation: 'flicker 2s infinite'
+                        }}></div>
+                        <span>Auto-start configured</span>
                       </div>
-                    </GlowingEffect>
-                  </BentoGridItem>
-
-                  <BentoGridItem
-                    size="1"
-                    title="Smart Monitoring"
-                    description="Intelligent port conflict detection"
-                    icon={<div className="text-2xl">🔍</div>}
-                    className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20"
-                  >
-                    <GlowingEffect variant="default" disabled={false}>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                          {bannedPortsLocal.length}
-                        </div>
-                        <div className="text-xs text-muted-foreground">Banned ports</div>
-                      </div>
-                    </GlowingEffect>
-                  </BentoGridItem>
-
-                  <BentoGridItem
-                    size="1"
-                    title="Auto-Launch"
-                    description="Start with your system"
-                    icon={<div className="text-2xl">🚀</div>}
-                    className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20"
-                  >
-                    <GlowingEffect variant="default" disabled={false}>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                          {autoStart ? "ON" : "OFF"}
-                        </div>
-                        <div className="text-xs text-muted-foreground">Boot startup</div>
-                      </div>
-                    </GlowingEffect>
-                  </BentoGridItem>
-
-                  <BentoGridItem
-                    size="2"
-                    title="Helper Service"
-                    description="Background service for advanced features"
-                    icon={<div className="text-2xl">⚙️</div>}
-                    className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20"
-                  >
-                    <GlowingEffect variant="default" disabled={false}>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm">
-                          <div className={`w-2 h-2 rounded-full ${helperStatus?.running ? 'bg-green-500' : 'bg-yellow-500'} animate-pulse`}></div>
-                          <span>{helperStatus?.running ? 'Service running' : 'Service available'}</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {helperStatus?.running ? 'All systems operational' : 'Can be installed later'}
-                        </div>
-                      </div>
-                    </GlowingEffect>
-                  </BentoGridItem>
-                </BentoGrid>
-              </motion.div>
-
-              {/* Tour Invitation */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.2 }}
-                className="max-w-2xl mx-auto"
-              >
-                <GlowingEffect variant="default" disabled={false} glow={true} className="rounded-xl">
-                  <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 dark:from-blue-900/20 dark:via-purple-900/20 dark:to-pink-900/20 rounded-xl p-8 border border-blue-200 dark:border-blue-800">
-                    <div className="text-center space-y-4">
-                      <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                        Ready to explore?
-                      </h3>
-                      <p className="text-muted-foreground">
-                        Take a quick 30-second tour to discover all the features and get the most out of LiquiDB.
-                      </p>
-                      
-                      <div className="flex items-center justify-center gap-6 text-sm">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                          <span>Database management</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-                          <span>Port monitoring</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-pink-500 rounded-full animate-pulse"></div>
-                          <span>Auto-start</span>
-                        </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" style={{
+                          animation: 'flicker 2s infinite'
+                        }}></div>
+                        <span>Port monitoring active</span>
                       </div>
                     </div>
-                  </div>
-                </GlowingEffect>
+                  </BentoCard>
+
+                  <BentoCard
+                    icon={<div className="text-lg">🔍</div>}
+                    title="Smart Monitoring"
+                    description="Intelligent port conflict detection and resolution"
+                    completed={true}
+                    className="md:col-span-2 lg:col-span-1"
+                  >
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                        {bannedPortsLocal.length}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Banned ports</div>
+                    </div>
+                  </BentoCard>
+
+                  <BentoCard
+                    icon={<div className="text-lg">🚀</div>}
+                    title="Auto-Launch"
+                    description="Start with your system for seamless experience"
+                    completed={autoStart}
+                    className="md:col-span-2 lg:col-span-1"
+                  >
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                        {autoStart ? "ON" : "OFF"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Boot startup</div>
+                    </div>
+                  </BentoCard>
+
+                  <BentoCard
+                    icon={<div className="text-lg">⚙️</div>}
+                    title="Helper Service"
+                    description="Background service for advanced features"
+                    completed={helperStatus?.running}
+                    className="md:col-span-3 lg:col-span-2"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className={`w-1.5 h-1.5 rounded-full ${helperStatus?.running ? 'bg-green-500' : 'bg-yellow-500'} animate-pulse`}></div>
+                        <span>{helperStatus?.running ? 'Service running' : 'Service available'}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {helperStatus?.running ? 'All systems operational' : 'Can be installed later'}
+                      </div>
+                    </div>
+                  </BentoCard>
+
+                  <BentoCard
+                    icon={<div className="text-lg">✨</div>}
+                    title="Ready to Go"
+                    description="Your LiquiDB setup is complete and optimized"
+                    completed={true}
+                    className="md:col-span-3 lg:col-span-1"
+                  >
+                    <div className="flex items-center gap-2 text-xs">
+                      <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>
+                      <span>All systems ready</span>
+                    </div>
+                  </BentoCard>
+                </div>
               </motion.div>
-            </div>
+
+            </motion.div>
           )}
                 </motion.div>
               </AnimatePresence>
-            </div>
+            </motion.div>
             
             {/* Fixed button bar at bottom - always in same position */}
-            <div className="pt-4 mt-4 relative z-10">
+            <div className="pt-3 mt-3 relative z-10">
               <div className="flex justify-between">
                 {step > 1 && step < 5 ? (
-                  <Button variant="ghost" onClick={() => setStep((s) => Math.max(1, s - 1) as Step)}>Back</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setStep((s) => Math.max(1, s - 1) as Step)}>Back</Button>
                 ) : (
                   <div />
                 )}
                 {step === 1 && (
-                  <Button onClick={saveAndNext} disabled={!username.trim()}>Continue</Button>
+                  <Button size="sm" onClick={saveAndNext} disabled={!username.trim()}>Continue</Button>
                 )}
                 {step === 2 && (
-                  <Button onClick={saveAndNext}>Continue</Button>
+                  <Button size="sm" onClick={saveAndNext}>Continue</Button>
                 )}
                 {step === 3 && (
-                  <Button onClick={saveAndNext}>Continue</Button>
+                  <Button size="sm" onClick={saveAndNext}>Continue</Button>
                 )}
                 {step === 4 && (
                   <Button 
+                    size="sm"
                     onClick={saveAndNext} 
                     disabled={!helperStatus?.running || helperLoading}
                   >
@@ -1483,22 +1524,26 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                     transition={{ delay: 1.4 }}
                     className="flex items-center justify-center gap-6 w-full"
                   >
-                    <GlowingEffect variant="white" disabled={false}>
+                    <div className="relative">
+                      <GlowingEffect variant="white" disabled={false} />
                       <Button 
                         id="onboarding-tour-skip" 
                         variant="ghost" 
+                        size="sm"
                         onClick={() => finish(false)}
-                        className="hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors px-8 py-3"
+                        className="hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors px-6 py-2"
                       >
                         Skip
                       </Button>
-                    </GlowingEffect>
+                    </div>
                     
-                    <GlowingEffect variant="default" disabled={false} glow={true}>
+                    <div className="relative">
+                      <GlowingEffect variant="default" disabled={false} glow={true} />
                       <Button 
                         id="onboarding-tour-start" 
+                        size="sm"
                         onClick={() => finish(true)}
-                        className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-8 py-3"
+                        className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 px-6 py-2"
                       >
                         <motion.span
                           initial={{ opacity: 0 }}
@@ -1519,7 +1564,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                           </motion.span>
                         </motion.span>
                       </Button>
-                    </GlowingEffect>
+                    </div>
                   </motion.div>
                 )}
               </div>
