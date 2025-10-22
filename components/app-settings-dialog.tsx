@@ -348,31 +348,32 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
               <TabsContent value="appearance" className="space-y-4 pt-4 mt-0">
                 <div className="space-y-2">
                   <Label>Theme</Label>
-                  <Select value={theme || "system"} onValueChange={handleThemePreview}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="light">
-                        <div className="flex items-center gap-2">
-                          <Sun className="h-4 w-4" />
-                          Light
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="dark">
-                        <div className="flex items-center gap-2">
-                          <Moon className="h-4 w-4" />
-                          Dark
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="system">
-                        <div className="flex items-center gap-2">
-                          <Monitor className="h-4 w-4" />
-                          System
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
+                    <Button
+                      variant={theme === "light" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => handleThemePreview("light")}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Sun className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={theme === "dark" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => handleThemePreview("dark")}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Moon className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={theme === "system" || !theme ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => handleThemePreview("system")}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Monitor className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Choose your preferred theme or sync with system settings
                   </p>
