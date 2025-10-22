@@ -248,11 +248,16 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   const loadHelperStatus = async () => {
     setHelperLoading(true)
     try {
+      console.log("Loading helper status...")
       // @ts-ignore
       const result = await window.electron?.getHelperStatus?.()
+      console.log("Helper status result:", result)
+      
       if (result?.success) {
         // When main app is running, helper should be off (this is normal)
         const status = result.data
+        console.log("Helper status data:", status)
+        
         if (status.installed && !status.running) {
           // Helper is installed but not running - this is expected when main app is running
           setHelperStatus({
@@ -263,9 +268,23 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
         } else {
           setHelperStatus(status)
         }
+      } else {
+        console.error("Helper status API failed:", result?.error)
+        // Set a default status when API fails
+        setHelperStatus({
+          installed: false,
+          running: false,
+          isRunning: false
+        })
       }
     } catch (error) {
       console.error("Failed to load helper status:", error)
+      // Set a default status when there's an error
+      setHelperStatus({
+        installed: false,
+        running: false,
+        isRunning: false
+      })
     } finally {
       setHelperLoading(false)
     }
