@@ -110,6 +110,7 @@ const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, class
 
 export default function DatabaseManager() {
   const [showOnboarding, setShowOnboarding] = useState(true) // Start with true to prevent flash
+  const [dashboardOpacity, setDashboardOpacity] = useState(0) // Start with 0, fade in when onboarding finishes
   const [databases, setDatabases] = useState<DatabaseContainer[]>([])
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
@@ -203,6 +204,17 @@ export default function DatabaseManager() {
       window.removeEventListener('storage', handleBannedPortsChange)
     }
   }, [])
+
+  // Dashboard fade-in effect when onboarding finishes
+  useEffect(() => {
+    if (!showOnboarding) {
+      // Fade in dashboard when onboarding is hidden
+      const timer = setTimeout(() => {
+        setDashboardOpacity(1)
+      }, 100) // Small delay to sync with stars fade-out
+      return () => clearTimeout(timer)
+    }
+  }, [showOnboarding])
 
   // Function to check if a port is banned
   const isPortBanned = (port: number): boolean => {
@@ -2107,7 +2119,12 @@ export default function DatabaseManager() {
           />
         )}
         <HelperHealthMonitor className="mx-6 mt-4" data-testid="helper-status" />
-      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border/50 cursor-move" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      <div 
+        className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border/50 cursor-move transition-opacity duration-1000 ease-out" 
+        style={{ 
+          WebkitAppRegion: 'drag',
+          opacity: dashboardOpacity 
+        } as React.CSSProperties}>
         <div className="container mx-auto px-6 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {selectedDatabases.size > 0 && (() => {
@@ -2198,7 +2215,9 @@ export default function DatabaseManager() {
         </div>
       )}
 
-      <div className="container mx-auto py-3 px-4">
+      <div 
+        className="container mx-auto py-3 px-4 transition-opacity duration-1000 ease-out" 
+        style={{ opacity: dashboardOpacity }}>
         {databases.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-12">
