@@ -16,7 +16,7 @@ type StarsBackgroundProps = React.ComponentProps<"div"> & {
 // Lightweight canvas starfield that avoids external deps
 export function StarsBackground({
   factor = 0.05,
-  speed = 50,
+  speed = 100,
   transition,
   starColor = "#fff",
   pointerEvents = true,
@@ -113,10 +113,14 @@ export function StarsBackground({
     }
     window.addEventListener("mousemove", onMouseMove, { passive: true })
 
-    ctx.fillStyle = colorRef.current
-    ctx.strokeStyle = colorRef.current
+    if (ctx) {
+      ctx.fillStyle = colorRef.current
+      ctx.strokeStyle = colorRef.current
+    }
 
     function draw() {
+      if (!ctx) return
+      
       ctx.clearRect(0, 0, cssWidth, cssHeight)
       ctx.fillStyle = colorRef.current
       const spd = Math.max(0, speedRef.current) * 0.1 // vertical drift
