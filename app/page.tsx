@@ -21,8 +21,9 @@ import { toast } from "sonner"
 import { notifySuccess, notifyError, notifyInfo, notifyWarning } from "@/lib/notifications"
 import type { DatabaseContainer } from "@/lib/types"
 import { OnboardingOverlay } from "@/components/onboarding"
-import { MaybeStartTour } from "@/components/tour"
+import { MaybeStartTour } from "@/components/custom-tour"
 import { ProfileMenuTrigger } from "@/components/profile-menu"
+import { LoadingScreen } from "@/components/loading-screen"
 import { isOnboardingComplete, wasTourRequested, setTourRequested } from "@/lib/preferences"
 
 // Helper function to render database icons (emoji or custom image)
@@ -109,7 +110,8 @@ const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, class
 }
 
 export default function DatabaseManager() {
-  const [showOnboarding, setShowOnboarding] = useState(true) // Start with true to prevent flash
+  const [isLoading, setIsLoading] = useState(true) // Show loading screen initially
+  const [showOnboarding, setShowOnboarding] = useState(false) // Don't show onboarding until loading is complete
   const [dashboardOpacity, setDashboardOpacity] = useState(0) // Start with 0, fade in when onboarding finishes
   const [databases, setDatabases] = useState<DatabaseContainer[]>([])
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -142,14 +144,30 @@ export default function DatabaseManager() {
   } = usePermissions()
   const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false)
 
-  // Onboarding gate - check immediately on mount
+  // App initialization - check onboarding status after loading
   useEffect(() => {
-    try {
-      const done = isOnboardingComplete()
-      setShowOnboarding(!done)
-    } catch {
-      setShowOnboarding(true) // Default to onboarding if check fails
+    const initializeApp = async () => {
+      try {
+        // Simulate app initialization time
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        // Check onboarding status
+        const done = isOnboardingComplete()
+        setShowOnboarding(!done)
+        
+        // If onboarding is complete, fade in dashboard
+        if (done) {
+          setDashboardOpacity(1)
+        }
+      } catch (error) {
+        console.error("App initialization error:", error)
+        setShowOnboarding(true) // Default to onboarding if check fails
+      } finally {
+        setIsLoading(false) // Hide loading screen
+      }
     }
+
+    initializeApp()
   }, [])
 
   // Allow profile menu to open settings via event
@@ -2108,6 +2126,9 @@ export default function DatabaseManager() {
 
   return (
     <TooltipProvider>
+      {isLoading && (
+        <LoadingScreen onComplete={() => setIsLoading(false)} />
+      )}
       <div className="min-h-screen bg-background">
         <MaybeStartTour />
         {showOnboarding && (
