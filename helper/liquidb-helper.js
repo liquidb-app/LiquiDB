@@ -1,26 +1,25 @@
 #!/usr/bin/env node
 
 /**
- * LiquiDB Helper - Background Process Monitor
+ * LiquiDB Helper Service - Focused Database Monitor
  * 
- * This process runs independently of the main LiquiDB app to:
- * - Monitor for orphaned database processes
- * - Clean up processes that should be stopped
- * - Detect and resolve port conflicts
- * - Log database process crashes and status changes
+ * This service has two core responsibilities:
+ * 1. Monitor for orphaned database processes that belong to LiquiDB
+ * 2. Monitor port conflicts and provide port availability information
  */
 
 const fs = require('fs')
 const path = require('path')
 const { exec } = require('child_process')
 const { promisify } = require('util')
+const net = require('net')
 
 const execAsync = promisify(exec)
 
 // Configuration
 const CONFIG = {
-  // Check interval in milliseconds (5 minutes)
-  CHECK_INTERVAL: 5 * 60 * 1000,
+  // Check interval in milliseconds (2 minutes for more responsive monitoring)
+  CHECK_INTERVAL: 2 * 60 * 1000,
   
   // App data directory
   APP_DATA_DIR: path.join(require('os').homedir(), 'Library', 'Application Support', 'LiquiDB'),
@@ -34,7 +33,10 @@ const CONFIG = {
   },
   
   // Log file
-  LOG_FILE: path.join(require('os').homedir(), 'Library', 'Logs', 'LiquiDB', 'helper.log')
+  LOG_FILE: path.join(require('os').homedir(), 'Library', 'Logs', 'LiquiDB', 'helper.log'),
+  
+  // Socket path for IPC communication
+  SOCKET_PATH: path.join(require('os').homedir(), 'Library', 'Application Support', 'LiquiDB', 'helper.sock')
 }
 
 // Ensure log directory exists
@@ -52,6 +54,22 @@ function log(message, level = 'INFO') {
   
   // Write to log file
   fs.appendFileSync(CONFIG.LOG_FILE, logMessage)
+}
+
+// Load database configurations from storage
+function loadDatabaseConfigs() {
+  try {
+    const configFile = path.join(CONFIG.APP_DATA_DIR, 'databases.json')
+    if (!fs.existsSync(configFile)) {
+      return []
+    }
+    
+    const data = fs.readFileSync(configFile, 'utf8')
+    return JSON.parse(data)
+  } catch (error) {
+    log(`Error loading database configs: ${error.message}`, 'ERROR')
+    return []
+  }
 }
 
 // Get all running database processes
@@ -95,22 +113,6 @@ async function getRunningDatabaseProcesses() {
   return processes
 }
 
-// Load database configurations from storage
-function loadDatabaseConfigs() {
-  try {
-    const configFile = path.join(CONFIG.APP_DATA_DIR, 'databases.json')
-    if (!fs.existsSync(configFile)) {
-      return []
-    }
-    
-    const data = fs.readFileSync(configFile, 'utf8')
-    return JSON.parse(data)
-  } catch (error) {
-    log(`Error loading database configs: ${error.message}`, 'ERROR')
-    return []
-  }
-}
-
 // Check if a process is legitimate (matches a known database config)
 function isLegitimateProcess(process, configs) {
   return configs.some(config => {
@@ -122,6 +124,9 @@ function isLegitimateProcess(process, configs) {
     
     // Check if process is marked as running in config
     if (config.status === 'running' || config.status === 'starting') return true
+    
+    // Additional check: if process has a PID that matches the stored PID
+    if (config.pid && config.pid === process.pid) return true
     
     return false
   })
@@ -183,41 +188,134 @@ async function cleanupOrphanedProcesses() {
   return cleanedCount
 }
 
-// Check for port conflicts
+// Check if a port is available
+async function checkPortAvailability(port) {
+  // Validate port number
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    return { available: false, reason: 'invalid_port', processInfo: null }
+  }
+  
+  // Check if port is privileged (requires root)
+  if (port < 1024) {
+    return { available: false, reason: 'privileged_port', processInfo: null }
+  }
+  
+  return new Promise((resolve) => {
+    const server = net.createServer()
+    
+    // Set timeout to prevent hanging
+    const timeout = setTimeout(() => {
+      server.close()
+      resolve({ available: false, reason: 'timeout', processInfo: null })
+    }, 5000)
+    
+    server.listen(port, '127.0.0.1', () => {
+      clearTimeout(timeout)
+      // Port is available
+      server.close(() => {
+        resolve({ available: true, reason: null, processInfo: null })
+      })
+    })
+    
+    server.on('error', (err) => {
+      clearTimeout(timeout)
+      if (err.code === 'EADDRINUSE') {
+        // Port is in use, get process info
+        getProcessUsingPort(port).then(processInfo => {
+          resolve({ 
+            available: false, 
+            reason: 'in_use',
+            processInfo: processInfo || { processName: 'Unknown', pid: 'Unknown' }
+          })
+        })
+      } else {
+        // Other error, assume port is available
+        resolve({ available: true, reason: null, processInfo: null })
+      }
+    })
+  })
+}
+
+// Get process information for a port
+async function getProcessUsingPort(port) {
+  return new Promise((resolve) => {
+    exec(`lsof -i :${port}`, (error, stdout, stderr) => {
+      if (error || !stdout.trim()) {
+        resolve(null)
+        return
+      }
+      
+      const lines = stdout.trim().split('\n')
+      if (lines.length > 1) {
+        // Skip header line, get first process
+        const processLine = lines[1]
+        const parts = processLine.split(/\s+/)
+        if (parts.length >= 2) {
+          const processName = parts[0]
+          const pid = parts[1]
+          resolve({ processName, pid })
+        }
+      }
+      resolve(null)
+    })
+  })
+}
+
+// Find next available port starting from a given port
+async function findNextAvailablePort(startPort, maxAttempts = 100) {
+  // Skip privileged ports (1-1023)
+  if (startPort < 1024) {
+    startPort = 1024
+  }
+  
+  // Skip well-known ports that are commonly used
+  const skipPorts = [3000, 3001, 3306, 5432, 6379, 27017, 8080, 8000, 9000]
+  
+  for (let port = startPort; port < startPort + maxAttempts; port++) {
+    // Skip well-known ports
+    if (skipPorts.includes(port)) {
+      continue
+    }
+    
+    const result = await checkPortAvailability(port)
+    if (result.available) {
+      return port
+    }
+  }
+  return null
+}
+
+// Check for port conflicts and suggest alternatives
 async function checkPortConflicts() {
   log('Checking for port conflicts...')
   
   const databaseConfigs = loadDatabaseConfigs()
-  const runningProcesses = await getRunningDatabaseProcesses()
+  const conflicts = []
   
-  // Group processes by port
-  const portMap = new Map()
-  for (const process of runningProcesses) {
-    if (process.port) {
-      if (!portMap.has(process.port)) {
-        portMap.set(process.port, [])
-      }
-      portMap.get(process.port).push(process)
-    }
-  }
-  
-  // Check for conflicts
-  for (const [port, processes] of portMap) {
-    if (processes.length > 1) {
-      log(`Port conflict detected on port ${port}: ${processes.length} processes`, 'WARN')
-      
-      // Find the legitimate process
-      const legitimateProcesses = processes.filter(p => isLegitimateProcess(p, databaseConfigs))
-      const orphanedProcesses = processes.filter(p => !isLegitimateProcess(p, databaseConfigs))
-      
-      if (legitimateProcesses.length > 0 && orphanedProcesses.length > 0) {
-        log(`Killing ${orphanedProcesses.length} orphaned processes on port ${port}`)
-        for (const process of orphanedProcesses) {
-          await killProcess(process.pid)
-        }
+  for (const config of databaseConfigs) {
+    if (config.status === 'running' || config.status === 'starting') {
+      const portCheck = await checkPortAvailability(config.port)
+      if (!portCheck.available) {
+        const suggestedPort = await findNextAvailablePort(config.port + 1)
+        conflicts.push({
+          database: config,
+          port: config.port,
+          conflict: portCheck.processInfo,
+          suggestedPort: suggestedPort
+        })
+        log(`Port conflict detected for ${config.name} on port ${config.port}`, 'WARN')
       }
     }
   }
+  
+  if (conflicts.length > 0) {
+    log(`Found ${conflicts.length} port conflicts`)
+    // Save conflicts to a file for the main app to read
+    const conflictsFile = path.join(CONFIG.APP_DATA_DIR, 'port-conflicts.json')
+    fs.writeFileSync(conflictsFile, JSON.stringify(conflicts, null, 2))
+  }
+  
+  return conflicts
 }
 
 // Update database statuses in storage
@@ -290,6 +388,186 @@ async function monitor() {
   }
 }
 
+// IPC Server for communication with main app
+function startIPCServer() {
+  const server = net.createServer((socket) => {
+    log('Client connected to helper IPC')
+    
+    socket.on('data', (data) => {
+      try {
+        const message = JSON.parse(data.toString())
+        handleIPCMessage(message, socket)
+      } catch (error) {
+        log('Error parsing IPC message:', error)
+        socket.write(JSON.stringify({ error: 'Invalid JSON' }))
+      }
+    })
+    
+    socket.on('close', () => {
+      log('Client disconnected from helper IPC')
+    })
+    
+    socket.on('error', (error) => {
+      log('Socket error:', error)
+    })
+  })
+  
+  // Ensure socket directory exists
+  const socketDir = path.dirname(CONFIG.SOCKET_PATH)
+  if (!fs.existsSync(socketDir)) {
+    fs.mkdirSync(socketDir, { recursive: true })
+  }
+  
+  // Remove existing socket file
+  if (fs.existsSync(CONFIG.SOCKET_PATH)) {
+    fs.unlinkSync(CONFIG.SOCKET_PATH)
+  }
+  
+  server.listen(CONFIG.SOCKET_PATH, () => {
+    log(`Helper IPC server listening on ${CONFIG.SOCKET_PATH}`)
+    
+    // Set socket permissions
+    try {
+      fs.chmodSync(CONFIG.SOCKET_PATH, 0o666)
+    } catch (error) {
+      log('Failed to set socket permissions:', error)
+    }
+  })
+  
+  server.on('error', (error) => {
+    log('IPC Server error:', error)
+  })
+  
+  return server
+}
+
+// Handle IPC messages
+function handleIPCMessage(message, socket) {
+  const { type, data } = message
+  
+  switch (type) {
+    case 'status':
+      handleStatusRequest(socket)
+      break
+      
+    case 'cleanup':
+      handleCleanupRequest(socket)
+      break
+      
+    case 'check-port':
+      handlePortCheckRequest(socket, data)
+      break
+      
+    case 'find-port':
+      handleFindPortRequest(socket, data)
+      break
+      
+    case 'ping':
+      socket.write(JSON.stringify({ type: 'pong', timestamp: Date.now() }))
+      break
+      
+    default:
+      socket.write(JSON.stringify({ error: 'Unknown message type' }))
+  }
+}
+
+// Handle status request
+function handleStatusRequest(socket) {
+  const status = {
+    type: 'status_response',
+    data: {
+      running: true,
+      pid: process.pid,
+      uptime: process.uptime(),
+      timestamp: Date.now()
+    }
+  }
+  
+  socket.write(JSON.stringify(status))
+}
+
+// Handle cleanup request
+async function handleCleanupRequest(socket) {
+  try {
+    const result = await cleanupOrphanedProcesses()
+    
+    socket.write(JSON.stringify({
+      type: 'cleanup_response',
+      data: {
+        success: true,
+        cleanedCount: result,
+        timestamp: Date.now()
+      }
+    }))
+  } catch (error) {
+    socket.write(JSON.stringify({
+      type: 'cleanup_response',
+      data: {
+        success: false,
+        error: error.message,
+        timestamp: Date.now()
+      }
+    }))
+  }
+}
+
+// Handle port check request
+async function handlePortCheckRequest(socket, data) {
+  try {
+    const port = data.port
+    const result = await checkPortAvailability(port)
+    
+    socket.write(JSON.stringify({
+      type: 'port_check_response',
+      data: {
+        success: true,
+        port: port,
+        available: result.available,
+        reason: result.reason,
+        processInfo: result.processInfo,
+        timestamp: Date.now()
+      }
+    }))
+  } catch (error) {
+    socket.write(JSON.stringify({
+      type: 'port_check_response',
+      data: {
+        success: false,
+        error: error.message,
+        timestamp: Date.now()
+      }
+    }))
+  }
+}
+
+// Handle find port request
+async function handleFindPortRequest(socket, data) {
+  try {
+    const startPort = data.startPort || 3000
+    const maxAttempts = data.maxAttempts || 100
+    const suggestedPort = await findNextAvailablePort(startPort, maxAttempts)
+    
+    socket.write(JSON.stringify({
+      type: 'find_port_response',
+      data: {
+        success: true,
+        suggestedPort: suggestedPort,
+        startPort: startPort,
+        timestamp: Date.now()
+      }
+    }))
+  } catch (error) {
+    socket.write(JSON.stringify({
+      type: 'find_port_response',
+      data: {
+        success: false,
+        error: error.message,
+        timestamp: Date.now()
+      }
+    }))
+  }
+}
+
 // Signal handlers for graceful shutdown
 process.on('SIGINT', () => {
   log('Received SIGINT, shutting down gracefully...')
@@ -306,26 +584,25 @@ module.exports = {
   cleanupOrphanedProcesses,
   checkPortConflicts,
   updateDatabaseStatuses,
-  monitor
+  monitor,
+  checkPortAvailability,
+  findNextAvailablePort
 }
 
-// Start monitoring
+// Start the service
 log('LiquiDB Helper started')
+log('Core responsibilities:')
+log('  1. Monitor orphaned database processes')
+log('  2. Monitor port conflicts and suggest alternatives')
+
+// Start IPC server
+const ipcServer = startIPCServer()
+
+// Start monitoring
 monitor()
 
 // Set up interval
 setInterval(monitor, CONFIG.CHECK_INTERVAL)
-
-// Start IPC server in the same process
-if (!process.env.IPC_SERVER_STARTED) {
-  try {
-    require('./ipc-server.js')
-    process.env.IPC_SERVER_STARTED = 'true'
-    log('IPC server started in same process')
-  } catch (error) {
-    log(`Failed to start IPC server: ${error.message}`, 'ERROR')
-  }
-}
 
 // Keep the process alive
 process.on('uncaughtException', (error) => {
