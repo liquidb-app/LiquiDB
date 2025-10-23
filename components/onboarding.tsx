@@ -347,7 +347,12 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
     const existing = loadProfile()
     if (existing) {
       setUsername(existing.username)
-      setAvatar(existing.avatar)
+      // Only set avatar if it's a valid data URL (custom image), not initials
+      if (existing.avatar && existing.avatar.startsWith('data:')) {
+        setAvatar(existing.avatar)
+      } else {
+        setAvatar(undefined)
+      }
     }
     
     // Check actual macOS auto-launch status and sync with toggle
