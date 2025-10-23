@@ -2206,9 +2206,21 @@ export default function DatabaseManager() {
               </Button>
             )}
             <Button
-              onClick={() => setAddDialogOpen(true)}
+              onClick={() => {
+                // Check if we're in tour mode, but allow when tour explicitly enables UI
+                const inTour = document.body.hasAttribute('data-tour-mode')
+                const tourAllowsUI = document.body.hasAttribute('data-tour-allow-ui')
+                if (inTour && !tourAllowsUI) {
+                  notifyInfo("Tour Mode", {
+                    description: "Database creation is disabled during the tour. Complete the tour to create databases."
+                  })
+                  return
+                }
+                setAddDialogOpen(true)
+              }}
               size="sm"
               id="btn-add-database"
+              data-testid="add-database-button"
               className="transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
               style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             >
@@ -2247,7 +2259,22 @@ export default function DatabaseManager() {
               <p className="text-sm text-muted-foreground mb-4 text-center max-w-md text-pretty">
                 Get started by adding your first database container.
               </p>
-              <Button onClick={() => setAddDialogOpen(true)} size="sm">
+              <Button 
+                onClick={() => {
+                  // Check if we're in tour mode, but allow when tour explicitly enables UI
+                  const inTour = document.body.hasAttribute('data-tour-mode')
+                  const tourAllowsUI = document.body.hasAttribute('data-tour-allow-ui')
+                  if (inTour && !tourAllowsUI) {
+                    notifyInfo("Tour Mode", {
+                      description: "Database creation is disabled during the tour. Complete the tour to create databases."
+                    })
+                    return
+                  }
+                  setAddDialogOpen(true)
+                }} 
+                size="sm"
+                data-testid="add-first-database-button"
+              >
                 <Plus className="mr-1.5 h-4 w-4" />
                 Add Your First Database
               </Button>
