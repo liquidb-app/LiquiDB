@@ -2703,6 +2703,33 @@ ipcMain.handle("get-saved-images", async () => {
   }
 })
 
+// IPC handler to save avatar image
+ipcMain.handle("save-avatar", async (event, dataUrl) => {
+  try {
+    console.log("[Avatar Save] Saving avatar image...")
+
+    if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+      throw new Error("Invalid avatar data URL")
+    }
+
+    const imagesDir = getImagesDirectory()
+    const timestamp = Date.now()
+    const extension = dataUrl.match(/data:image\/([^;]+)/)?.[1] || 'png'
+    const fileName = `avatar_${timestamp}.${extension}`
+    const filePath = path.join(imagesDir, fileName)
+
+    // Save data URL to file
+    await saveDataUrlToFile(dataUrl, filePath)
+
+    console.log(`[Avatar Save] Avatar saved successfully: ${filePath}`)
+    return { success: true, imagePath: `file://${filePath}`, fileName }
+
+  } catch (error) {
+    console.error("[Avatar Save] Error saving avatar:", error)
+    return { success: false, error: error.message }
+  }
+})
+
 // IPC handler to convert file URL to data URL
 ipcMain.handle("convert-file-to-data-url", async (event, fileUrl) => {
   try {

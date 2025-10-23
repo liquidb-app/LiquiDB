@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld("electron", {
   checkPortConflict: (port) => ipcRenderer.invoke("check-port-conflict", port),
   cleanupDeadProcesses: () => ipcRenderer.invoke("cleanup-dead-processes"),
   saveCustomImage: (imageData) => ipcRenderer.invoke("save-custom-image", imageData),
+  saveAvatar: (dataUrl) => ipcRenderer.invoke("save-avatar", dataUrl),
   getSavedImages: () => ipcRenderer.invoke("get-saved-images"),
   convertFileToDataUrl: (fileUrl) => ipcRenderer.invoke("convert-file-to-data-url", fileUrl),
   checkDatabasesFile: () => ipcRenderer.invoke("check-databases-file"),
