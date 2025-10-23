@@ -724,7 +724,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
   const saveAndNext = useCallback(async () => {
     if (step === 1) {
       if (!username.trim()) return notifyError("Please choose a username", undefined, true) // Critical - blocks progression
-      saveProfile({ username: username.trim(), avatar: avatar || initials })
+      saveProfile({ username: username.trim(), avatar: avatar })
       setStep(2)
       return
     }
