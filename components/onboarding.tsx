@@ -992,7 +992,9 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                           className="relative z-10"
                           style={{ pointerEvents: 'auto' }}
                         />
-                        <p className="text-xs text-muted-foreground mt-1">We'll use your initials as the avatar by default.</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {avatar && avatar.startsWith('data:') ? 'Custom image selected' : 'We\'ll use your initials as the avatar by default.'}
+                        </p>
                       </div>
                     </div>
                   </div>
