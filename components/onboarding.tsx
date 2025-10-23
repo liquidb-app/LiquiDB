@@ -322,7 +322,9 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
   const [step, setStep] = useState<Step>(1)
   const [transitionDir, setTransitionDir] = useState<'forward' | 'backward' | 'none'>('none')
   const prevStepRef = useRef<Step>(1)
-  const [bgSpeed, setBgSpeed] = useState(50)
+  const [bgSpeed, setBgSpeed] = useState(300)
+  const [bgFactor, setBgFactor] = useState(0.05)
+  const [starsOpacity, setStarsOpacity] = useState(1)
   const [username, setUsername] = useState("")
   const [avatar, setAvatar] = useState<string | undefined>(undefined)
   const [autoStart, setAutoStartPref] = useState(false)
@@ -479,7 +481,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
       // @ts-ignore
       const statusPromise = window.electron?.getHelperStatus?.()
       
-      const result = await Promise.race([statusPromise, timeoutPromise])
+      const result = await Promise.race([statusPromise, timeoutPromise]) as any
       
       if (result?.success) {
         setHelperStatus(result.data)
@@ -817,43 +819,47 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
       })
     }
 
-    // 2) Gradually slow stars from current speed to 0 within 5 seconds
+    // 2) Gradually slow stars from current speed to 0 and reduce opacity to 0 with shorter durations
     const start = performance.now()
     const startSpeed = bgSpeed
-    const duration = 5000
+    const startOpacity = starsOpacity
+    const speedDuration = 4000 // 4 seconds for speed
+    const opacityDuration = 2000 // 2 seconds for opacity (faster fade)
+    
     const animate = (t: number) => {
       const elapsed = t - start
-      const p = Math.min(1, Math.max(0, elapsed / duration))
-      const newSpeed = Math.max(0, Math.round(startSpeed + (0 - startSpeed) * p))
+      
+      // Speed animation (4 seconds)
+      const speedP = Math.min(1, Math.max(0, elapsed / speedDuration))
+      const newSpeed = Math.max(0, Math.round(startSpeed + (0 - startSpeed) * speedP))
+      
+      // Opacity animation (2 seconds - faster fade)
+      const opacityP = Math.min(1, Math.max(0, elapsed / opacityDuration))
+      const newOpacity = Math.max(0, startOpacity + (0 - startOpacity) * opacityP)
+      
       setBgSpeed(newSpeed)
-      if (p < 1) {
+      setStarsOpacity(newOpacity)
+      
+      if (speedP < 1 || opacityP < 1) {
         requestAnimationFrame(animate)
       } else {
-        // 3) After slowdown completes, fade the stars out, then proceed
-        const starsContainer = overlay?.firstElementChild as HTMLElement | null
-        if (starsContainer) {
-          starsContainer.style.transition = 'opacity 800ms ease'
-          starsContainer.style.opacity = '0'
-          setTimeout(() => {
-            if (takeTour) onStartTour()
-            onFinished()
-          }, 820)
-        } else {
+        // 3) After animation completes, proceed to dashboard with fade-in
+        setTimeout(() => {
           if (takeTour) onStartTour()
           onFinished()
-        }
+        }, 100) // Small delay to ensure smooth transition
       }
     }
     requestAnimationFrame(animate)
-  }, [bgSpeed, onFinished, onStartTour])
+  }, [bgSpeed, starsOpacity, onFinished, onStartTour])
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-start bg-background pt-8" data-onboarding-stars>
       {/* Full-screen stars background */}
-      <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute inset-0 pointer-events-none" style={{ opacity: starsOpacity }}>
         <StarsBackground
           speed={bgSpeed}
-          factor={0.05}
+          factor={bgFactor}
           pointerEvents={false}
           starColor={resolvedTheme === 'dark' ? '#ffffff' : '#000000'}
         />
