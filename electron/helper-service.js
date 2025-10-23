@@ -1,7 +1,7 @@
 /**
  * LiquiDB Helper Service Manager
  * 
- * Manages the background helper service that monitors database processes
+ * Manages the background helper service that monitors database processes and port conflicts
  */
 
 const { spawn, exec } = require('child_process')
@@ -14,6 +14,7 @@ class HelperServiceManager {
     this.app = app
     this.helperProcess = null
     this.isRunning = false
+    this.isInstalling = false // Prevent concurrent installations
     this.plistPath = path.join(os.homedir(), 'Library', 'LaunchAgents', 'com.liquidb.helper.plist')
     
     // Determine the correct path to helper files based on whether app is packaged
@@ -57,6 +58,13 @@ class HelperServiceManager {
   // Install helper service
   async install() {
     try {
+      // Prevent concurrent installations
+      if (this.isInstalling) {
+        console.log('[Helper] Installation already in progress, skipping...')
+        return true
+      }
+      
+      this.isInstalling = true
       console.log('[Helper] Installing helper service...')
       
       // Create LaunchAgents directory
@@ -82,10 +90,9 @@ class HelperServiceManager {
         fs.mkdirSync(logDir, { recursive: true })
       }
       
-      // Copy all helper files to app data directory
+      // Copy helper files to app data directory (only if needed)
       const helperFiles = [
         'liquidb-helper.js',
-        'ipc-server.js',
         'ipc-client.js'
       ]
       
@@ -98,8 +105,27 @@ class HelperServiceManager {
         const sourceFile = path.join(sourceDir, fileName)
         const targetFile = path.join(helperDir, fileName)
         if (fs.existsSync(sourceFile)) {
-          fs.copyFileSync(sourceFile, targetFile)
-          console.log('[Helper] Copied helper file to:', targetFile)
+          // Only copy if target doesn't exist or source is newer
+          let shouldCopy = false
+          if (!fs.existsSync(targetFile)) {
+            shouldCopy = true
+            console.log('[Helper] Target file does not exist, copying:', targetFile)
+          } else {
+            // Check if source is newer than target
+            const sourceStats = fs.statSync(sourceFile)
+            const targetStats = fs.statSync(targetFile)
+            if (sourceStats.mtime > targetStats.mtime) {
+              shouldCopy = true
+              console.log('[Helper] Source file is newer, updating:', targetFile)
+            } else {
+              console.log('[Helper] Target file is up to date, skipping:', targetFile)
+            }
+          }
+          
+          if (shouldCopy) {
+            fs.copyFileSync(sourceFile, targetFile)
+            console.log('[Helper] Copied helper file to:', targetFile)
+          }
         } else {
           console.warn('[Helper] Source file not found:', sourceFile)
         }
@@ -150,6 +176,8 @@ class HelperServiceManager {
     } catch (error) {
       console.error('[Helper] Installation failed:', error)
       return false
+    } finally {
+      this.isInstalling = false
     }
   }
 
@@ -360,6 +388,64 @@ class HelperServiceManager {
     }
   }
 
+  // Check port availability through helper
+  async checkPort(port) {
+    try {
+      const isRunning = await this.isServiceRunning()
+      if (!isRunning) {
+        // Fallback to direct port check
+        return await this.performDirectPortCheck(port)
+      }
+
+      const HelperClient = require('../helper/ipc-client')
+      const client = new HelperClient()
+      
+      await client.connect()
+      const result = await client.checkPort(port)
+      client.disconnect()
+      
+      return result
+    } catch (error) {
+      console.error('[Helper] Port check failed:', error)
+      
+      // Fallback to direct port check
+      if (error.message.includes('ECONNREFUSED') || error.message.includes('socket not found')) {
+        return await this.performDirectPortCheck(port)
+      }
+      
+      return { success: false, error: error.message }
+    }
+  }
+
+  // Find next available port through helper
+  async findPort(startPort = 3000, maxAttempts = 100) {
+    try {
+      const isRunning = await this.isServiceRunning()
+      if (!isRunning) {
+        // Fallback to direct port finding
+        return await this.performDirectPortFind(startPort, maxAttempts)
+      }
+
+      const HelperClient = require('../helper/ipc-client')
+      const client = new HelperClient()
+      
+      await client.connect()
+      const result = await client.findPort(startPort, maxAttempts)
+      client.disconnect()
+      
+      return result
+    } catch (error) {
+      console.error('[Helper] Find port failed:', error)
+      
+      // Fallback to direct port finding
+      if (error.message.includes('ECONNREFUSED') || error.message.includes('socket not found')) {
+        return await this.performDirectPortFind(startPort, maxAttempts)
+      }
+      
+      return { success: false, error: error.message }
+    }
+  }
+
   // Perform cleanup directly without helper service
   async performDirectCleanup() {
     try {
@@ -384,6 +470,95 @@ class HelperServiceManager {
       console.error('[Helper] Direct cleanup failed:', error)
       return { 
         success: false, 
+        error: error.message,
+        method: 'direct'
+      }
+    }
+  }
+
+  // Perform direct port check
+  async performDirectPortCheck(port) {
+    try {
+      const net = require('net')
+      
+      return new Promise((resolve) => {
+        const server = net.createServer()
+        
+        server.listen(port, '127.0.0.1', () => {
+          // Port is available
+          server.close(() => {
+            resolve({
+              success: true,
+              data: {
+                port: port,
+                available: true,
+                reason: null,
+                method: 'direct'
+              }
+            })
+          })
+        })
+        
+        server.on('error', (err) => {
+          if (err.code === 'EADDRINUSE') {
+            // Port is in use
+            resolve({
+              success: true,
+              data: {
+                port: port,
+                available: false,
+                reason: 'in_use',
+                method: 'direct'
+              }
+            })
+          } else {
+            // Other error, assume port is available
+            resolve({
+              success: true,
+              data: {
+                port: port,
+                available: true,
+                reason: null,
+                method: 'direct'
+              }
+            })
+          }
+        })
+      })
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        method: 'direct'
+      }
+    }
+  }
+
+  // Perform direct port finding
+  async performDirectPortFind(startPort, maxAttempts) {
+    try {
+      for (let port = startPort; port < startPort + maxAttempts; port++) {
+        const result = await this.performDirectPortCheck(port)
+        if (result.success && result.data.available) {
+          return {
+            success: true,
+            data: {
+              suggestedPort: port,
+              startPort: startPort,
+              method: 'direct'
+            }
+          }
+        }
+      }
+      
+      return {
+        success: false,
+        error: 'No available ports found',
+        method: 'direct'
+      }
+    } catch (error) {
+      return {
+        success: false,
         error: error.message,
         method: 'direct'
       }
