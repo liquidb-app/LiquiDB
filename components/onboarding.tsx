@@ -919,13 +919,68 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                   <div className="space-y-3 animate-in fade-in-50 slide-in-from-bottom-1">
                     <div className="flex items-center gap-3">
                       <motion.div
-                        className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold select-none"
+                        className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold select-none cursor-pointer hover:bg-primary/20 transition-colors relative overflow-hidden group"
                         initial={{ rotate: -6, scale: 0.9, opacity: 0 }}
                         animate={{ rotate: 0, scale: 1, opacity: 1 }}
                         transition={{ type: "spring", stiffness: 150, damping: 16 }}
-                        title="Profile picture"
+                        title={avatar && avatar.startsWith('data:') ? "Click to change image" : "Click to choose a custom image"}
+                        onClick={() => {
+                          const input = document.createElement('input')
+                          input.type = 'file'
+                          input.accept = 'image/*'
+                          input.onchange = (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0]
+                            if (file) {
+                              const reader = new FileReader()
+                              reader.onload = (e) => {
+                                const result = e.target?.result as string
+                                setAvatar(result)
+                              }
+                              reader.readAsDataURL(file)
+                            }
+                          }
+                          input.click()
+                        }}
                       >
-                        {avatar || initials}
+                        {avatar && avatar.startsWith('data:') ? (
+                          <>
+                            <img 
+                              src={avatar} 
+                              alt="Profile" 
+                              className="w-full h-full object-cover rounded-full"
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setAvatar(undefined)
+                              }}
+                              className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                              title="Remove custom image"
+                            >
+                              ×
+                            </button>
+                            {/* Camera icon for changing image */}
+                            <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-primary font-semibold">
+                              {initials}
+                            </span>
+                            {/* Camera icon for adding image */}
+                            <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                            </div>
+                          </>
+                        )}
                       </motion.div>
                       <div className="flex-1 relative z-10">
                         <Label htmlFor="username" className="text-sm">Choose a username</Label>
