@@ -802,21 +802,38 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
     markOnboardingComplete()
     setTourRequested(takeTour)
     setTourSkipped(!takeTour)
-    // speed up background to 100 over 5s
+
+    // 1) Fade out onboarding UI (keep stars visible)
+    const overlay = document.querySelector('[data-onboarding-stars]') as HTMLElement | null
+    if (overlay) {
+      const children = Array.from(overlay.children)
+      children.forEach((child, index) => {
+        if (index === 0) return // keep the first child (stars) visible
+        const el = child as HTMLElement
+        el.style.transition = 'opacity 600ms ease, transform 600ms ease'
+        el.style.opacity = '0'
+        el.style.transform = 'translateY(8px)'
+        el.style.pointerEvents = 'none'
+      })
+    }
+
+    // 2) Gradually slow stars from current speed to 0 within 5 seconds
     const start = performance.now()
     const startSpeed = bgSpeed
+    const duration = 5000
     const animate = (t: number) => {
-      const elapsed = (t - start) / 5000
-      const p = Math.min(1, Math.max(0, elapsed))
-      const newSpeed = Math.round(startSpeed + (100 - startSpeed) * p)
+      const elapsed = t - start
+      const p = Math.min(1, Math.max(0, elapsed / duration))
+      const newSpeed = Math.max(0, Math.round(startSpeed + (0 - startSpeed) * p))
       setBgSpeed(newSpeed)
-      if (p < 1) requestAnimationFrame(animate)
-      else {
-        // After speed up completes, fade the global background if any
-        const overlay = document.querySelector('[data-onboarding-stars]') as HTMLElement | null
-        if (overlay) {
-          overlay.style.transition = 'opacity 800ms ease'
-          overlay.style.opacity = '0'
+      if (p < 1) {
+        requestAnimationFrame(animate)
+      } else {
+        // 3) After slowdown completes, fade the stars out, then proceed
+        const starsContainer = overlay?.firstElementChild as HTMLElement | null
+        if (starsContainer) {
+          starsContainer.style.transition = 'opacity 800ms ease'
+          starsContainer.style.opacity = '0'
           setTimeout(() => {
             if (takeTour) onStartTour()
             onFinished()
