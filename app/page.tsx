@@ -2163,7 +2163,7 @@ export default function DatabaseManager() {
             })()}
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 align-middle">
             {databases.length > 0 && (
               <Button
                 onClick={() => {
@@ -2195,7 +2195,7 @@ export default function DatabaseManager() {
               Add Database
             </Button>
             {/* User/profile menu replacing gear */}
-            <div className="relative" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties} data-testid="profile-menu">
+            <div className="relative flex items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties} data-testid="profile-menu">
               <ProfileMenuTrigger />
             </div>
           </div>
