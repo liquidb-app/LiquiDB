@@ -1168,7 +1168,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                               : "border-border hover:border-muted-foreground"
                           }`}
                         >
-                          <div className={`w-full h-full ${resolvedTheme === 'dark' ? scheme.darkPreview : scheme.lightPreview} animate-pulse`} />
+                          <div className={`w-full h-full ${resolvedTheme === 'dark' ? scheme.darkPreview : scheme.lightPreview} gradient-pulse`} />
                         </button>
                       ))}
                     </div>
