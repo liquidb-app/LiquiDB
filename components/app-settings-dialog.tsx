@@ -348,31 +348,45 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
               <TabsContent value="appearance" className="space-y-4 pt-4 mt-0">
                 <div className="space-y-2">
                   <Label>Theme</Label>
-                  <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
-                    <Button
-                      variant={theme === "light" ? "default" : "ghost"}
-                      size="sm"
+                  <div className="space-y-1">
+                    <div
+                      className="flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent rounded-sm"
                       onClick={() => handleThemePreview("light")}
-                      className="h-8 w-8 p-0"
                     >
-                      <Sun className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant={theme === "dark" ? "default" : "ghost"}
-                      size="sm"
+                      <div className="flex items-center gap-2">
+                        <Sun className="h-4 w-4" />
+                        <span>Light</span>
+                      </div>
+                      {theme === "light" && (
+                        <div className="h-2 w-2 rounded-full bg-primary" />
+                      )}
+                    </div>
+                    
+                    <div
+                      className="flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent rounded-sm"
                       onClick={() => handleThemePreview("dark")}
-                      className="h-8 w-8 p-0"
                     >
-                      <Moon className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant={theme === "system" || !theme ? "default" : "ghost"}
-                      size="sm"
+                      <div className="flex items-center gap-2">
+                        <Moon className="h-4 w-4" />
+                        <span>Dark</span>
+                      </div>
+                      {theme === "dark" && (
+                        <div className="h-2 w-2 rounded-full bg-primary" />
+                      )}
+                    </div>
+                    
+                    <div
+                      className="flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent rounded-sm"
                       onClick={() => handleThemePreview("system")}
-                      className="h-8 w-8 p-0"
                     >
-                      <Monitor className="h-4 w-4" />
-                    </Button>
+                      <div className="flex items-center gap-2">
+                        <Monitor className="h-4 w-4" />
+                        <span>System</span>
+                      </div>
+                      {(theme === "system" || !theme) && (
+                        <div className="h-2 w-2 rounded-full bg-primary" />
+                      )}
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Choose your preferred theme or sync with system settings
