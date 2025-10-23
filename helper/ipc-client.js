@@ -3,7 +3,7 @@
 /**
  * LiquiDB Helper IPC Client
  * 
- * Provides communication from the main LiquiDB app to the helper process
+ * Simplified client for communicating with the helper service
  */
 
 const net = require('net')
@@ -86,6 +86,16 @@ class HelperClient {
     return this.sendMessage('cleanup')
   }
   
+  // Check port availability
+  async checkPort(port) {
+    return this.sendMessage('check-port', { port })
+  }
+  
+  // Find next available port
+  async findPort(startPort = 3000, maxAttempts = 100) {
+    return this.sendMessage('find-port', { startPort, maxAttempts })
+  }
+  
   // Ping helper
   async ping() {
     return this.sendMessage('ping')
@@ -107,6 +117,7 @@ if (require.main === module) {
   
   async function main() {
     const command = process.argv[2]
+    const arg = process.argv[3]
     
     try {
       await client.connect()
@@ -122,13 +133,25 @@ if (require.main === module) {
           console.log('Cleanup Result:', JSON.stringify(cleanup, null, 2))
           break
           
+        case 'check-port':
+          const port = parseInt(arg) || 3000
+          const portCheck = await client.checkPort(port)
+          console.log(`Port ${port} check:`, JSON.stringify(portCheck, null, 2))
+          break
+          
+        case 'find-port':
+          const startPort = parseInt(arg) || 3000
+          const findResult = await client.findPort(startPort)
+          console.log(`Find port starting from ${startPort}:`, JSON.stringify(findResult, null, 2))
+          break
+          
         case 'ping':
           const pong = await client.ping()
           console.log('Pong:', JSON.stringify(pong, null, 2))
           break
           
         default:
-          console.log('Usage: node ipc-client.js [status|cleanup|ping]')
+          console.log('Usage: node ipc-client.js [status|cleanup|check-port <port>|find-port <start>|ping]')
           process.exit(1)
       }
     } catch (error) {
@@ -143,4 +166,3 @@ if (require.main === module) {
 }
 
 module.exports = HelperClient
-
