@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator"
 import { StarsBackground } from "@/components/ui/stars-background"
 // import { GlowingEffect } from "@/components/ui/glowing-effect" // Using local implementation
 import { BentoGrid, BentoGridItem } from "@/components/ui/bento-grid"
-import { saveProfile, loadProfile, getInitials, loadPreferences, savePreferences, setAutoLaunch, getBannedPorts, setBannedPorts, markOnboardingComplete, setTourRequested, setTourSkipped, isOnboardingComplete } from "@/lib/preferences"
+import { saveProfile, loadProfile, getInitials, loadPreferences, savePreferences, setAutoLaunch, getBannedPorts, setBannedPorts, markOnboardingComplete, setTourRequested, isOnboardingComplete } from "@/lib/preferences"
 import { useTheme } from "next-themes"
 import { notifyError, notifySuccess, updateNotificationSetting } from "@/lib/notifications"
 import { usePermissions } from "@/lib/use-permissions"
@@ -802,8 +802,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
 
   const finish = useCallback((takeTour: boolean) => {
     markOnboardingComplete()
-    setTourRequested(takeTour)
-    setTourSkipped(!takeTour)
+    // Don't set tour request yet - wait for animation to complete
 
     // 1) Fade out onboarding UI (keep stars visible)
     const overlay = document.querySelector('[data-onboarding-stars]') as HTMLElement | null
@@ -845,7 +844,10 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
       } else {
         // 3) After animation completes, proceed to dashboard with fade-in
         setTimeout(() => {
-          if (takeTour) onStartTour()
+          if (takeTour) {
+            // Set tour request only after animation completes and dashboard appears
+            setTourRequested(true)
+          }
           onFinished()
         }, 100) // Small delay to ensure smooth transition
       }
