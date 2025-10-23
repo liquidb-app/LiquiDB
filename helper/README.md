@@ -1,13 +1,16 @@
-# LiquiDB Helper
+# LiquiDB Helper Service
 
-A background process monitor for LiquiDB that runs independently of the main application to maintain database process health and prevent port conflicts.
+A focused background process monitor for LiquiDB that handles two core responsibilities:
+
+1. **Monitor Orphaned Database Processes** - Detects and cleans up database processes that belong to LiquiDB but are running without the app knowing
+2. **Monitor Port Conflicts** - Detects when ports are taken by external processes and suggests alternatives
 
 ## Features
 
 - **Orphaned Process Detection**: Automatically detects and cleans up database processes that are running but not tracked by the main app
-- **Port Conflict Resolution**: Identifies and resolves port conflicts between legitimate and orphaned processes
-- **Status Synchronization**: Updates database statuses in storage to match actual running processes
-- **Continuous Monitoring**: Runs every 5 minutes to maintain system health
+- **Port Conflict Detection**: Identifies when requested ports are occupied by external processes
+- **Port Suggestion**: Finds alternative available ports when conflicts are detected
+- **Continuous Monitoring**: Runs every 2 minutes to maintain system health
 - **Automatic Startup**: Starts automatically when the system boots
 - **Comprehensive Logging**: Detailed logs for troubleshooting and monitoring
 - **Integrated Management**: Fully integrated into the main LiquiDB app
@@ -41,132 +44,61 @@ The helper service can be managed through the LiquiDB app settings:
 
 ## How It Works
 
-### Process Monitoring
+### Orphaned Process Monitoring
 
 The helper continuously monitors for database processes by:
 1. Scanning for running `mysqld`, `postgres`, `mongod`, and `redis-server` processes
 2. Extracting process information (PID, port, command)
 3. Cross-referencing with database configurations in storage
-4. Identifying orphaned processes (running but not in configs)
+4. Identifying processes that don't match any known database configuration
+5. Safely terminating orphaned processes
 
-### Cleanup Actions
+### Port Conflict Detection
 
-When orphaned processes are detected:
-1. Attempts graceful shutdown with `SIGTERM`
-2. Waits 2 seconds for process to exit
-3. Force kills with `SIGKILL` if still running
-4. Logs all actions for audit trail
+The helper monitors port availability by:
+1. Checking if requested ports are available
+2. Identifying which external processes are using occupied ports
+3. Finding alternative available ports when conflicts are detected
+4. Providing detailed information about port conflicts to the main app
 
-### Port Conflict Resolution
+## API
 
-When port conflicts are detected:
-1. Identifies all processes using the same port
-2. Determines which processes are legitimate (in database configs)
-3. Kills orphaned processes to free up ports
-4. Preserves legitimate processes
+The helper service provides an IPC interface for the main app to:
 
-### Status Synchronization
+- **Check Port Availability**: `checkPort(port)` - Returns whether a port is available
+- **Find Available Port**: `findPort(startPort, maxAttempts)` - Finds the next available port
+- **Request Cleanup**: `requestCleanup()` - Triggers immediate orphaned process cleanup
+- **Get Status**: `getStatus()` - Returns helper service status
 
-The helper maintains consistency between:
-- Actual running processes
-- Database status in storage
-- Process PIDs in configuration
+## Logs
 
-## Configuration
-
-### Check Interval
-
-The helper runs every 5 minutes by default. To change this, edit `liquidb-helper.js`:
-
-```javascript
-const CONFIG = {
-  CHECK_INTERVAL: 5 * 60 * 1000, // 5 minutes
-  // ... other config
-}
+Helper service logs are available at:
 ```
-
-### Logging
-
-Logs are written to:
-- Console output (if running manually)
-- `~/Library/Logs/LiquiDB/helper.log`
-
-Log levels:
-- `INFO` - Normal operations
-- `WARN` - Warnings (port conflicts, etc.)
-- `ERROR` - Errors and failures
+~/Library/Logs/LiquiDB/helper.log
+```
 
 ## Troubleshooting
 
 ### Service Not Starting
+1. Check if Node.js is installed: `node --version`
+2. Check service status: `launchctl list | grep com.liquidb.helper`
+3. Check logs: `tail -f ~/Library/Logs/LiquiDB/helper.log`
 
-1. Check if Node.js is installed:
-   ```bash
-   node --version
-   ```
+### Port Conflicts Not Detected
+1. Ensure the helper service is running
+2. Check if the port is actually in use: `lsof -i :PORT`
+3. Verify the helper service has proper permissions
 
-2. Check service status:
-   ```bash
-   ./manage.sh status
-   ```
+### Orphaned Processes Not Cleaned
+1. Check if the helper service is running
+2. Verify database configurations are properly stored
+3. Check helper service logs for error messages
 
-3. View logs for errors:
-   ```bash
-   ./manage.sh logs
-   ```
+## Development
 
-### Service Not Detecting Processes
+The helper service consists of:
+- `liquidb-helper.js` - Main helper service with monitoring logic
+- `ipc-client.js` - IPC client for communication with main app
+- `com.liquidb.helper.plist` - LaunchAgent configuration
 
-1. Verify database processes are running:
-   ```bash
-   ps aux | grep -E "(mysqld|postgres|mongod|redis-server)"
-   ```
-
-2. Check if processes match expected patterns
-3. Review logs for detection issues
-
-### Port Conflicts Persist
-
-1. Check for processes using specific ports:
-   ```bash
-   lsof -i :3306
-   ```
-
-2. Verify database configurations are correct
-3. Manually kill orphaned processes if needed
-
-## Uninstallation
-
-To remove the LiquiDB Helper:
-
-```bash
-./uninstall.sh
-```
-
-This will:
-- Stop the service
-- Remove the launchd plist
-- Optionally remove log files
-- Clean up the installation
-
-## Integration with Main App
-
-The helper works independently but can be integrated with the main LiquiDB app:
-
-1. **Status Updates**: The helper updates database statuses in the same storage file used by the main app
-2. **Process Cleanup**: Prevents the port conflict issues that were causing confusion
-3. **Health Monitoring**: Provides continuous monitoring even when the main app is closed
-
-## Security Considerations
-
-- The helper only kills processes that match database patterns
-- It cross-references with legitimate database configurations
-- All actions are logged for audit purposes
-- It runs with user-level permissions (not root)
-
-## Performance Impact
-
-- Minimal CPU usage (runs every 5 minutes)
-- Low memory footprint
-- Efficient process detection using system tools
-- Non-blocking operations
+The service is automatically installed and managed by the main LiquiDB application.
