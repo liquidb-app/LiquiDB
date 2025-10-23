@@ -23,32 +23,32 @@ const colorSchemes = [
   {
     value: "mono",
     label: "Monochrome",
-    lightPreview: "bg-gradient-to-r from-gray-300 to-gray-500",
-    darkPreview: "bg-gradient-to-r from-gray-600 to-gray-800",
+    lightPreview: "bg-gradient-to-r from-gray-300 via-gray-400 to-gray-500 gradient-animate",
+    darkPreview: "bg-gradient-to-r from-gray-600 via-gray-700 to-gray-800 gradient-animate",
   },
   {
     value: "blue",
     label: "Blue",
-    lightPreview: "bg-gradient-to-r from-blue-400 to-blue-600",
-    darkPreview: "bg-gradient-to-r from-blue-500 to-blue-700",
+    lightPreview: "bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 gradient-flow",
+    darkPreview: "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 gradient-flow",
   },
   {
     value: "green",
     label: "Green",
-    lightPreview: "bg-gradient-to-r from-green-400 to-green-600",
-    darkPreview: "bg-gradient-to-r from-green-500 to-green-700",
+    lightPreview: "bg-gradient-to-r from-green-400 via-green-500 to-green-600 gradient-animate",
+    darkPreview: "bg-gradient-to-r from-green-500 via-green-600 to-green-700 gradient-animate",
   },
   {
     value: "purple",
     label: "Purple",
-    lightPreview: "bg-gradient-to-r from-purple-400 to-purple-600",
-    darkPreview: "bg-gradient-to-r from-purple-500 to-purple-700",
+    lightPreview: "bg-gradient-to-r from-purple-400 via-purple-500 to-purple-600 gradient-flow",
+    darkPreview: "bg-gradient-to-r from-purple-500 via-purple-600 to-purple-700 gradient-flow",
   },
   {
     value: "orange",
     label: "Orange",
-    lightPreview: "bg-gradient-to-r from-orange-400 to-orange-600",
-    darkPreview: "bg-gradient-to-r from-orange-500 to-orange-700",
+    lightPreview: "bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600 gradient-animate",
+    darkPreview: "bg-gradient-to-r from-orange-500 via-orange-600 to-orange-700 gradient-animate",
   },
 ]
 
