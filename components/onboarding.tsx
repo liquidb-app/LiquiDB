@@ -334,6 +334,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
   const [bannedPortsError, setBannedPortsError] = useState<string | null>(null)
   const [bannedPortsSuggestion, setBannedPortsSuggestion] = useState<string | null>(null)
   const { setTheme, resolvedTheme } = useTheme()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // permissions hook for step 3
   const { permissions, isLoading: permLoading, checkPermissions, requestCriticalPermissions, openSystemPreferences, openPermissionPage } = usePermissions()
@@ -724,6 +725,26 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
   const saveAndNext = useCallback(async () => {
     if (step === 1) {
       if (!username.trim()) return notifyError("Please choose a username", undefined, true) // Critical - blocks progression
+
+      // Save avatar to disk if it exists and electron API is available
+      if (avatar && avatar.startsWith('data:')) {
+        try {
+          // @ts-ignore
+          if (window.electron?.saveAvatar) {
+            const saveResult = await window.electron.saveAvatar(avatar)
+            if (saveResult?.success) {
+              console.log('Avatar saved to disk during profile save:', saveResult.imagePath)
+            } else {
+              console.warn('Failed to save avatar to disk during profile save:', saveResult?.error)
+            }
+          } else {
+            console.log('Electron API not available during onboarding, avatar will be saved to profile only')
+          }
+        } catch (error) {
+          console.warn('Error saving avatar to disk during profile save:', error)
+        }
+      }
+
       saveProfile({ username: username.trim(), avatar: avatar })
       setStep(2)
       return
@@ -918,28 +939,70 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
 
                   <div className="space-y-3 animate-in fade-in-50 slide-in-from-bottom-1">
                     <div className="flex items-center gap-3">
+                      {/* Hidden file input for avatar selection (robust on macOS/Electron) */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', left: -9999 } as React.CSSProperties}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file || !file.type?.startsWith('image/')) return
+                          try {
+                            const reader = new FileReader()
+                            reader.onload = async (ev) => {
+                              const result = ev.target?.result as string
+                              if (!result) return
+                              setAvatar(result)
+                              try {
+                                // @ts-ignore
+                                if (window.electron?.saveAvatar) {
+                                  const saveResult = await window.electron.saveAvatar(result)
+                                  if (!saveResult?.success) {
+                                    console.warn('Failed to save avatar to disk:', saveResult?.error)
+                                  }
+                                }
+                              } catch (err) {
+                                console.warn('Error saving avatar to disk:', err)
+                              }
+                            }
+                            reader.readAsDataURL(file)
+                          } catch (err) {
+                            console.error('Failed to process selected image:', err)
+                          } finally {
+                            // Reset input so selecting the same file again still triggers change
+                            if (fileInputRef.current) fileInputRef.current.value = ''
+                          }
+                        }}
+                      />
+
                       <motion.div
                         className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold select-none cursor-pointer hover:bg-primary/20 transition-colors relative overflow-hidden group"
                         initial={{ rotate: -6, scale: 0.9, opacity: 0 }}
                         animate={{ rotate: 0, scale: 1, opacity: 1 }}
                         transition={{ type: "spring", stiffness: 150, damping: 16 }}
                         title={avatar && avatar.startsWith('data:') ? "Click to change image" : "Click to choose a custom image"}
-                        onClick={() => {
-                          const input = document.createElement('input')
-                          input.type = 'file'
-                          input.accept = 'image/*'
-                          input.onchange = (e) => {
-                            const file = (e.target as HTMLInputElement).files?.[0]
-                            if (file) {
-                              const reader = new FileReader()
-                              reader.onload = (e) => {
-                                const result = e.target?.result as string
-                                setAvatar(result)
+                        onClick={async () => {
+                          try {
+                            const input = fileInputRef.current
+                            if (!input) return
+                            // Prefer showPicker in Chromium/Electron when DevTools is open
+                            // Falls back to click when not available
+                            // @ts-ignore
+                            if (typeof input.showPicker === 'function') {
+                              try {
+                                // @ts-ignore
+                                await input.showPicker()
+                              } catch {
+                                input.click()
                               }
-                              reader.readAsDataURL(file)
+                            } else {
+                              input.click()
                             }
+                          } catch (err) {
+                            console.error('Failed to open file dialog:', err)
                           }
-                          input.click()
                         }}
                       >
                         {avatar && avatar.startsWith('data:') ? (
