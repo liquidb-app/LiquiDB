@@ -471,7 +471,12 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
   }, [step])
 
   const checkHelperStatus = async () => {
-    setHelperLoading(true)
+    // Only set loading if we don't have status yet
+    const isInitialCheck = !helperStatus
+    if (isInitialCheck) {
+      setHelperLoading(true)
+    }
+    
     try {
       // Add timeout to prevent getting stuck
       const timeoutPromise = new Promise((_, reject) => 
@@ -484,20 +489,38 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
       const result = await Promise.race([statusPromise, timeoutPromise]) as any
       
       if (result?.success) {
-        setHelperStatus(result.data)
+        const newStatus = result.data
+        
+        // Always clear loading state after first check
+        if (isInitialCheck) {
+          setHelperLoading(false)
+        }
+        
+        // Only update if the status has actually changed
+        setHelperStatus(prevStatus => {
+          if (!prevStatus || 
+              prevStatus.installed !== newStatus.installed || 
+              prevStatus.running !== newStatus.running || 
+              prevStatus.isRunning !== newStatus.isRunning) {
+            console.log("Helper status changed in onboarding, updating UI")
+            return newStatus
+          }
+          console.log("Helper status unchanged in onboarding, skipping UI update")
+          return prevStatus
+        })
       } else {
         setHelperStatus(null)
+        setHelperLoading(false)
       }
     } catch (error) {
       console.error("Failed to check helper status:", error)
       setHelperStatus(null)
+      setHelperLoading(false)
       
       // If it's a timeout, show a more helpful message
       if (error instanceof Error && error.message?.includes('timeout')) {
         console.warn("Helper status check timed out, assuming service is not available")
       }
-    } finally {
-      setHelperLoading(false)
     }
   }
 
@@ -1181,7 +1204,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
               {/* Behavior Section */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
                   <h3 className="text-base font-semibold">Behavior</h3>
                 </div>
                 
@@ -1408,7 +1431,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                     <div className="space-y-1">
                       <p className="text-sm font-medium leading-tight">Service Status</p>
                       <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${
+                        <div className={`w-1.5 h-1.5 rounded-full ${
                           helperStatus.running 
                             ? 'bg-green-500 animate-pulse' 
                             : 'bg-red-500 animate-pulse'

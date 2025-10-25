@@ -34,20 +34,69 @@ export function GlobalHelperAlert({ className }: GlobalHelperAlertProps) {
 
   // Check helper service status
   const checkHelperStatus = async () => {
-    setIsChecking(true)
+    // Only set checking if we don't have status yet
+    const isInitialCheck = !helperStatus
+    if (isInitialCheck) {
+      setIsChecking(true)
+    }
+    
     try {
       // @ts-ignore
       const result = await window.electron?.getHelperStatus?.()
       if (result?.success) {
-        setHelperStatus(result.data)
+        const newStatus = result.data
+        
+        // Always clear checking state after first check
+        if (isInitialCheck) {
+          setIsChecking(false)
+        }
+        
+        // Only update if the status has actually changed
+        setHelperStatus(prevStatus => {
+          if (!prevStatus || 
+              prevStatus.installed !== newStatus.installed || 
+              prevStatus.running !== newStatus.running || 
+              prevStatus.isRunning !== newStatus.isRunning) {
+            console.log("Helper status changed in global alert, updating UI")
+            return newStatus
+          }
+          console.log("Helper status unchanged in global alert, skipping UI update")
+          return prevStatus
+        })
       } else {
         setHelperStatus(null)
+        setIsChecking(false)
       }
     } catch (error) {
       console.error("Failed to check helper status:", error)
       setHelperStatus(null)
-    } finally {
       setIsChecking(false)
+    }
+  }
+
+  // Background status checking without UI updates
+  const checkHelperStatusBackground = async () => {
+    try {
+      // @ts-ignore
+      const result = await window.electron?.getHelperStatus?.()
+      if (result?.success) {
+        const newStatus = result.data
+        
+        // Only update if the status has actually changed
+        setHelperStatus(prevStatus => {
+          if (!prevStatus || 
+              prevStatus.installed !== newStatus.installed || 
+              prevStatus.running !== newStatus.running || 
+              prevStatus.isRunning !== newStatus.isRunning) {
+            console.log("Helper status changed in global alert background, updating UI")
+            return newStatus
+          }
+          console.log("Helper status unchanged in global alert background, skipping UI update")
+          return prevStatus
+        })
+      }
+    } catch (error) {
+      console.error("Background helper status check failed:", error)
     }
   }
 
@@ -127,8 +176,8 @@ export function GlobalHelperAlert({ className }: GlobalHelperAlertProps) {
   useEffect(() => {
     checkHelperStatus()
     
-    // Check every 5 seconds for more responsive updates
-    const interval = setInterval(checkHelperStatus, 5000)
+    // Background check every 5 seconds without UI updates
+    const interval = setInterval(checkHelperStatusBackground, 5000)
     
     // Check if recently dismissed
     if (isRecentlyDismissed()) {

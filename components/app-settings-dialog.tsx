@@ -106,8 +106,8 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   // Load helper service status
   loadHelperStatus()
   
-  // Refresh helper status every 3 seconds for more responsive updates
-  const statusInterval = setInterval(loadHelperStatus, 3000)
+  // Background check helper status every 3 seconds without UI updates
+  const statusInterval = setInterval(checkHelperStatusBackground, 3000)
   
   return () => clearInterval(statusInterval)
 }, [])
@@ -246,7 +246,12 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
 
   // Helper service functions
   const loadHelperStatus = async () => {
-    setHelperLoading(true)
+    // Only set loading if we don't have status yet
+    const isInitialLoad = !helperStatus
+    if (isInitialLoad) {
+      setHelperLoading(true)
+    }
+    
     try {
       console.log("Loading helper status...")
       // @ts-ignore
@@ -254,20 +259,26 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
       console.log("Helper status result:", result)
       
       if (result?.success) {
-        // When main app is running, helper should be off (this is normal)
         const status = result.data
         console.log("Helper status data:", status)
         
-        if (status.installed && !status.running) {
-          // Helper is installed but not running - this is expected when main app is running
-          setHelperStatus({
-            ...status,
-            running: false, // Show as stopped when main app is running
-            isRunning: false
-          })
-        } else {
-          setHelperStatus(status)
+        // Always clear loading state after first check
+        if (isInitialLoad) {
+          setHelperLoading(false)
         }
+        
+        // Only update if the status has actually changed
+        setHelperStatus(prevStatus => {
+          if (!prevStatus || 
+              prevStatus.installed !== status.installed || 
+              prevStatus.running !== status.running || 
+              prevStatus.isRunning !== status.isRunning) {
+            console.log("Helper status changed, updating UI")
+            return status
+          }
+          console.log("Helper status unchanged, skipping UI update")
+          return prevStatus
+        })
       } else {
         console.error("Helper status API failed:", result?.error)
         // Set a default status when API fails
@@ -276,6 +287,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
           running: false,
           isRunning: false
         })
+        setHelperLoading(false)
       }
     } catch (error) {
       console.error("Failed to load helper status:", error)
@@ -285,8 +297,34 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
         running: false,
         isRunning: false
       })
-    } finally {
       setHelperLoading(false)
+    }
+  }
+
+  // Background status checking without UI updates
+  const checkHelperStatusBackground = async () => {
+    try {
+      // @ts-ignore
+      const result = await window.electron?.getHelperStatus?.()
+      
+      if (result?.success) {
+        const status = result.data
+        
+        // Only update if the status has actually changed
+        setHelperStatus(prevStatus => {
+          if (!prevStatus || 
+              prevStatus.installed !== status.installed || 
+              prevStatus.running !== status.running || 
+              prevStatus.isRunning !== status.isRunning) {
+            console.log("Helper status changed in background, updating UI")
+            return status
+          }
+          console.log("Helper status unchanged in background, skipping UI update")
+          return prevStatus
+        })
+      }
+    } catch (error) {
+      console.error("Background helper status check failed:", error)
     }
   }
 
@@ -307,7 +345,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
         // Refresh status immediately after action
         await loadHelperStatus()
         // Also refresh again after a short delay to ensure status is accurate
-        setTimeout(loadHelperStatus, 1000)
+        setTimeout(checkHelperStatusBackground, 1000)
       } else {
         const errorMessage = result?.error || "Unknown error occurred"
         const isSocketError = errorMessage.includes('ECONNREFUSED') || errorMessage.includes('socket not found')
@@ -515,7 +553,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                     <div className="space-y-4">
                       <div className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center space-x-3">
-                          <div className={`w-3 h-3 rounded-full ${helperStatus.running ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                          <div className={`w-2 h-2 rounded-full ${helperStatus.running ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
                           <div>
                             <p className="font-medium text-foreground">
                               {helperStatus.installed ? 'Helper Service Installed' : 'Helper Service Not Installed'}
@@ -563,7 +601,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                       {helperStatus.running && (
                         <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                           <div className="flex items-center space-x-2">
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse flex-shrink-0" style={{ minWidth: '8px', minHeight: '8px' }}></div>
                             <p className="text-sm text-green-700 dark:text-green-300">
                               The helper service is automatically managing database processes in the background.
                             </p>
