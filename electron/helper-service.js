@@ -42,13 +42,14 @@ class HelperServiceManager {
           resolve(false)
           return
         }
-        // Check if the service is actually running (not just loaded)
+        // Check if the service is loaded and running
         const lines = stdout.trim().split('\n')
         const isRunning = lines.some(line => {
           const parts = line.trim().split(/\s+/)
           // Format: PID Status Label
-          // If PID is not 0, service is running
-          return parts.length >= 3 && parts[0] !== '0' && parts[0] !== '-'
+          // Service is running if it appears in the list (regardless of PID)
+          // PID can be a number, '-', or '0' depending on service state
+          return parts.length >= 3 && parts[2] === 'com.liquidb.helper'
         })
         resolve(isRunning)
       })
