@@ -96,8 +96,6 @@ export function CustomTour() {
   // Set tour mode flag to prevent database creation
   useEffect(() => {
     document.body.setAttribute('data-tour-mode', 'true')
-    // Allow the tour to temporarily open UI it needs to demo
-    document.body.setAttribute('data-tour-allow-ui', 'true')
     
     // Show tour mode notification after a short delay to ensure dashboard is visible
     const timer = setTimeout(() => {
@@ -109,72 +107,16 @@ export function CustomTour() {
     
     return () => {
       document.body.removeAttribute('data-tour-mode')
-      document.body.removeAttribute('data-tour-allow-ui')
       clearTimeout(timer)
     }
   }, [])
 
   const handleNext = () => {
-    // Drive real UI for Add Database flow
-    if (currentStepData.id === 'add-database') {
-      const addButton = document.querySelector('[data-testid="add-database-button"], #btn-add-database') as HTMLElement
-      if (addButton) {
-        addButton.click()
-        setTimeout(() => {
-          // highlight dialog content
-          const dialog = document.querySelector('[role="dialog"], [data-radix-dialog-content]') as HTMLElement
-          if (dialog) setTargetElement(dialog)
-          if (currentStep < tourSteps.length - 1) setCurrentStep(currentStep + 1)
-        }, 700)
-        return
-      }
-    }
-
-    // Special handling for settings step - open the menu and go to next step
-    if (currentStepData.id === 'settings') {
-      // Find and click the profile button
-      const profileButton = document.querySelector('[data-testid="profile-menu"] button, [aria-label="Open profile menu"]') as HTMLElement
-      if (profileButton) {
-        profileButton.click()
-        
-        // Wait for dropdown to open, then proceed to next step
-        setTimeout(() => {
-          if (currentStep < tourSteps.length - 1) {
-            setCurrentStep(currentStep + 1)
-          } else {
-            handleComplete()
-          }
-        }, 800) // Longer delay to ensure menu opens
-      } else {
-        // Fallback to normal progression if button not found
-        if (currentStep < tourSteps.length - 1) {
-          setCurrentStep(currentStep + 1)
-        } else {
-          handleComplete()
-        }
-      }
+    // Simple progression through tour steps - no more real UI interactions
+    if (currentStep < tourSteps.length - 1) {
+      setCurrentStep(currentStep + 1)
     } else {
-      // Normal auto-click for other steps
-      if (targetElement && currentStepData.target) {
-        const clickableElement = targetElement.closest('button, [role="button"], a, [onclick]')
-        if (clickableElement) {
-          setTimeout(() => {
-            (clickableElement as HTMLElement).click()
-          }, 200)
-        }
-      }
-
-      if (currentStep < tourSteps.length - 1) {
-        setCurrentStep(currentStep + 1)
-      } else {
-        handleComplete()
-      }
-    }
-  }
-
-  const handlePrevious = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1)
+      handleComplete()
     }
   }
 
