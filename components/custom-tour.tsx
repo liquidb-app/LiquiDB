@@ -437,7 +437,7 @@ export function CustomTour() {
                   variant="ghost"
                   size="sm"
                   onClick={handleSkip}
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 pointer-events-auto"
                 >
                   <X className="w-4 h-4" />
                 </Button>
@@ -461,40 +461,32 @@ export function CustomTour() {
                 
                 {/* Demo Content */}
                 {currentStepData.demo && currentStepData.demoContent && (
-                  <div className="bg-muted/50 rounded-lg p-4">
-                    {currentStepData.demoContent}
+                  <div className="bg-muted/50 rounded-lg p-4 flex justify-center">
+                    <div className="max-w-full overflow-hidden">
+                      {currentStepData.demoContent}
+                    </div>
                   </div>
                 )}
               </div>
 
               {/* Actions */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-end gap-2">
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  onClick={handlePrevious}
-                  disabled={currentStep === 0}
+                  onClick={handleSkip}
+                  className="pointer-events-auto"
                 >
-                  <ChevronLeft className="w-4 h-4 mr-1" />
-                  Previous
+                  Skip Tour
                 </Button>
-
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSkip}
-                  >
-                    Skip Tour
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleNext}
-                  >
-                    {currentStep === tourSteps.length - 1 ? 'Complete' : 'Next'}
-                    {currentStep < tourSteps.length - 1 && <ChevronRight className="w-4 h-4 ml-1" />}
-                  </Button>
-                </div>
+                <Button
+                  size="sm"
+                  onClick={handleNext}
+                  className="pointer-events-auto"
+                >
+                  {currentStep === tourSteps.length - 1 ? 'Complete' : 'Next'}
+                  {currentStep < tourSteps.length - 1 && <ChevronRight className="w-4 h-4 ml-1" />}
+                </Button>
               </div>
             </CardContent>
           </Card>
