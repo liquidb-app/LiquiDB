@@ -176,6 +176,92 @@ export function CustomTour() {
   }
 
   const currentStepData = tourSteps[currentStep]
+  
+  // Smart positioning function to ensure tour UI is always visible
+  const getTourPosition = () => {
+    const tourCardWidth = 400 // w-80 = 320px + padding
+    const tourCardHeight = 300 // estimated height
+    const margin = 20
+    
+    if (targetElement) {
+      const elementRect = targetElement.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+      
+      let left, top, transform = 'none'
+      
+      // Calculate horizontal position
+      if (currentStepData.placement === 'left') {
+        left = Math.max(elementRect.left - tourCardWidth - margin, margin)
+      } else if (currentStepData.placement === 'right') {
+        left = Math.min(elementRect.right + margin, viewportWidth - tourCardWidth - margin)
+      } else {
+        // Center horizontally relative to element
+        left = Math.max(
+          Math.min(
+            elementRect.left + elementRect.width / 2 - tourCardWidth / 2,
+            viewportWidth - tourCardWidth - margin
+          ),
+          margin
+        )
+      }
+      
+      // Calculate vertical position
+      if (currentStepData.placement === 'top') {
+        top = Math.max(elementRect.top - tourCardHeight - margin, margin)
+      } else {
+        // Try bottom first, then top if not enough space
+        const bottomSpace = viewportHeight - elementRect.bottom - margin
+        if (bottomSpace >= tourCardHeight) {
+          top = elementRect.bottom + margin
+        } else {
+          top = Math.max(elementRect.top - tourCardHeight - margin, margin)
+        }
+      }
+      
+      return {
+        left: `${left}px`,
+        top: `${top}px`,
+        transform,
+        maxHeight: `${Math.min(viewportHeight - top - margin, 400)}px`,
+        maxWidth: `${Math.min(viewportWidth - left - margin, tourCardWidth)}px`
+      }
+    } else {
+      // For center placement (mock dialogs), position tour card to the side to avoid overlap
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+      
+      // Position tour card on the right side when showing mock dialogs
+      return {
+        left: `${viewportWidth - 420}px`, // Position on right side
+        top: `${Math.max(viewportHeight * 0.1, 60)}px`, // Position in upper area
+        transform: 'none',
+        maxHeight: `${Math.min(viewportHeight * 0.6, 400)}px`,
+        maxWidth: '400px',
+        width: '400px'
+      }
+    }
+  }
+
+  // Recalculate position on window resize and scroll
+  useEffect(() => {
+    const handleResize = () => {
+      // Force re-render to recalculate position
+      setCurrentStep(prev => prev)
+    }
+    
+    const handleScroll = () => {
+      // Force re-render to recalculate position
+      setCurrentStep(prev => prev)
+    }
+    
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('scroll', handleScroll, true) // Use capture to catch all scroll events
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [])
 
   // Find target element for highlighting
   useEffect(() => {
@@ -235,7 +321,7 @@ export function CustomTour() {
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 z-[9999] tour-overlay"
+        className="fixed inset-0 z-[99998] tour-overlay"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -329,37 +415,17 @@ export function CustomTour() {
 
         {/* Tour Card */}
         <motion.div
-          className={`absolute z-[10000] tour-card ${!targetElement ? 'flex items-center justify-center' : ''}`}
+          className={`absolute z-[99999] tour-card ${!targetElement ? 'flex items-center justify-center' : ''}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          style={targetElement ? {
-            left: Math.min(
-              Math.max(targetElement.offsetLeft + targetElement.offsetWidth / 2 - 200, 20), 
-              window.innerWidth - 420
-            ),
-            top: currentStepData.placement === 'top' 
-              ? Math.max(targetElement.offsetTop - 300, 20)
-              : Math.min(targetElement.offsetTop + targetElement.offsetHeight + 20, window.innerHeight - 400),
-            transform: 'none',
-            maxHeight: '80vh',
-            overflowY: 'auto'
-          } : {
-            left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
-            maxHeight: '80vh',
-            overflowY: 'auto'
-          }}
+          style={getTourPosition()}
         >
-          <Card className="w-80 max-w-[calc(100vw-40px)] shadow-xl bg-card border-border">
+          <Card className="w-80 max-w-[calc(100vw-40px)] shadow-xl bg-card border-border pointer-events-auto relative z-[99999]">
             <CardContent className="p-6">
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                    <Database className="w-4 h-4 text-primary-foreground" />
-                  </div>
                   <div>
                     <h3 className="font-semibold">{currentStepData.title}</h3>
                     <div className="text-xs text-muted-foreground">
