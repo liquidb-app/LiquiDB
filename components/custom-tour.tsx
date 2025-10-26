@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { X, ChevronRight, Play, Square, Settings, Copy, Check } from "lucide-react"
+import { X, ChevronLeft, ChevronRight, Play, Square, Settings, Copy, Check } from "lucide-react"
 import { wasTourRequested, setTourRequested } from "@/lib/preferences"
 import { useTheme } from "next-themes"
 import { notifyInfo } from "@/lib/notifications"
@@ -30,36 +30,36 @@ const tourSteps: TourStep[] = [
   {
     id: "welcome",
     title: "Welcome to LiquiDB! 🎉",
-    description: "Let's quickly explore how to create and manage databases.",
+    description: "Let's take a quick tour to learn how to create and manage your databases. This tour will show you the key features with interactive mockups.",
     placement: "center"
   },
   {
     id: "add-database",
     title: "Create Your First Database",
-    description: "Click the 'Add Database' button to get started.",
+    description: "Let's walk through creating a database. Click 'Next' to see the complete process step by step with interactive mockups.",
     target: "[data-testid='add-database-button'], #btn-add-database",
     placement: "bottom"
   },
   {
     id: "database-type-selection",
-    title: "Choose Database Type",
-    description: "Select from PostgreSQL, MySQL, MongoDB, Redis, and more.",
+    title: "Step 1: Choose Database Type",
+    description: "Here's the database type selection dialog. You can choose from PostgreSQL, MySQL, MongoDB, Redis, MariaDB, and many others. Each database type has its own default port and configuration.",
     placement: "center",
     demo: true,
     demoContent: <MockAddDatabaseDialogStep1 />
   },
   {
     id: "database-configuration",
-    title: "Configure Database",
-    description: "Set name, port, credentials, and enable auto-start.",
+    title: "Step 2: Configure Database",
+    description: "After selecting PostgreSQL, you'll configure the database name, port, username, password, and version. The app automatically suggests available ports and you can enable auto-start.",
     placement: "center",
     demo: true,
     demoContent: <MockAddDatabaseDialogStep2 />
   },
   {
     id: "database-created",
-    title: "Database Created!",
-    description: "Your database is ready to use with start/stop controls.",
+    title: "Database Created Successfully!",
+    description: "Once configured, your database container will be created and ready to use. You'll see it appear in your database list with status indicators and management controls.",
     placement: "center",
     demo: true,
     demoContent: <MockDatabaseCard />
@@ -67,22 +67,22 @@ const tourSteps: TourStep[] = [
   {
     id: "database-grid",
     title: "Your Database Collection",
-    description: "All your databases appear here with status and controls.",
+    description: "This is where all your database containers will appear. Each card shows the database status, connection details, and quick actions like start, stop, and settings.",
     target: "[data-testid='database-grid'], .database-grid, #database-list, [data-testid*='database']",
     placement: "top"
   },
   {
     id: "database-actions",
-    title: "Database Management",
-    description: "Start, stop, and configure your databases easily.",
+    title: "Database Management Actions",
+    description: "Each database card provides quick actions: Play button to start, Square button to stop, and Settings button to configure. You can also see the current status and port information.",
     placement: "center",
     demo: true,
     demoContent: <MockDatabaseCard />
   },
   {
     id: "complete",
-    title: "You're All Set! 🚀",
-    description: "Start creating databases and enjoy LiquiDB!",
+    title: "Tour Complete! 🎉",
+    description: "You're all set! You now know how to create and manage databases in LiquiDB. Click 'Add Database' to create your first database, or explore the settings to customize your experience.",
     placement: "center"
   }
 ]
@@ -117,6 +117,12 @@ export function CustomTour() {
       setCurrentStep(currentStep + 1)
     } else {
       handleComplete()
+    }
+  }
+
+  const handlePrevious = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1)
     }
   }
 
@@ -470,23 +476,36 @@ export function CustomTour() {
               </div>
 
               {/* Actions */}
-              <div className="flex items-center justify-end gap-2">
+              <div className="flex items-center justify-between">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={handleSkip}
+                  onClick={handlePrevious}
+                  disabled={currentStep === 0}
                   className="pointer-events-auto"
                 >
-                  Skip Tour
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Previous
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={handleNext}
-                  className="pointer-events-auto"
-                >
-                  {currentStep === tourSteps.length - 1 ? 'Complete' : 'Next'}
-                  {currentStep < tourSteps.length - 1 && <ChevronRight className="w-4 h-4 ml-1" />}
-                </Button>
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSkip}
+                    className="pointer-events-auto"
+                  >
+                    Skip Tour
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleNext}
+                    className="pointer-events-auto"
+                  >
+                    {currentStep === tourSteps.length - 1 ? 'Complete' : 'Next'}
+                    {currentStep < tourSteps.length - 1 && <ChevronRight className="w-4 h-4 ml-1" />}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

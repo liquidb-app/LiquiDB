@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Plus, Database, Play, Square, SettingsIcon, Settings2, Copy, Check, RotateCw, Cog, CheckSquare, CheckSquare2, MousePointer2, Grid3X3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -15,7 +16,7 @@ import { PermissionsDialog } from "@/components/permissions-dialog"
 import { usePermissions } from "@/lib/use-permissions"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/animate-ui/components/radix/tooltip"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { notifySuccess, notifyError, notifyInfo, notifyWarning } from "@/lib/notifications"
@@ -2125,7 +2126,7 @@ export default function DatabaseManager() {
   }
 
   return (
-    <TooltipProvider>
+    <>
       {isLoading && (
         <LoadingScreen onComplete={() => setIsLoading(false)} />
       )}
@@ -2302,7 +2303,15 @@ export default function DatabaseManager() {
             </TabsList>
             
             <TabsContent value="all" className="mt-6">
-              <div className="mb-4">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key="all"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
+                >
+                  <div className="mb-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold">All Databases</h2>
@@ -2518,10 +2527,20 @@ export default function DatabaseManager() {
                   </Card>
                 ))}
               </div>
+                </motion.div>
+              </AnimatePresence>
             </TabsContent>
             
             <TabsContent value="active" className="mt-6">
-              <div className="mb-4">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key="active"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
+                >
+                  <div className="mb-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold">Active Databases</h2>
@@ -2751,10 +2770,20 @@ export default function DatabaseManager() {
               </Card>
                   ))}
               </div>
+                </motion.div>
+              </AnimatePresence>
             </TabsContent>
             
             <TabsContent value="inactive" className="mt-6">
-              <div className="mb-4">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key="inactive"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
+                >
+                  <div className="mb-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold">Inactive Databases</h2>
@@ -2915,6 +2944,8 @@ export default function DatabaseManager() {
                     </Card>
                   ))}
               </div>
+                </motion.div>
+              </AnimatePresence>
             </TabsContent>
           </Tabs>
         )}
@@ -3026,6 +3057,6 @@ export default function DatabaseManager() {
         </DialogContent>
       </Dialog>
       </div>
-    </TooltipProvider>
+    </>
   )
 }
