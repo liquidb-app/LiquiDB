@@ -5,11 +5,16 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { X, ChevronLeft, ChevronRight, Database, Play, Square, Settings, Copy, Check } from "lucide-react"
+import { X, ChevronRight, Play, Square, Settings, Copy, Check } from "lucide-react"
 import { wasTourRequested, setTourRequested } from "@/lib/preferences"
 import { useTheme } from "next-themes"
 import { notifyInfo } from "@/lib/notifications"
 import confetti from "canvas-confetti"
+import { 
+  MockAddDatabaseDialogStep1, 
+  MockAddDatabaseDialogStep2, 
+  MockDatabaseCard 
+} from "@/components/mock-tour-dialogs"
 
 interface TourStep {
   id: string
@@ -25,171 +30,59 @@ const tourSteps: TourStep[] = [
   {
     id: "welcome",
     title: "Welcome to LiquiDB! 🎉",
-    description: "Let's take a quick tour to learn how to create and manage your databases. This tour will show you the key features without actually creating anything.",
+    description: "Let's quickly explore how to create and manage databases.",
     placement: "center"
   },
   {
     id: "add-database",
     title: "Create Your First Database",
-    description: "Let's walk through creating a database. Click 'Next' and we'll show you the complete process step by step.",
+    description: "Click the 'Add Database' button to get started.",
     target: "[data-testid='add-database-button'], #btn-add-database",
     placement: "bottom"
   },
   {
-    id: "database-creation-intro",
-    title: "Database Creation Walkthrough",
-    description: "We'll now demonstrate how to create a database. This is a demo - no actual database will be created during the tour.",
-    placement: "center",
-    demo: false
-  },
-  {
     id: "database-type-selection",
-    title: "Step 1: Choose Database Type",
-    description: "First, you'll see a dialog where you select your database type. Choose from PostgreSQL, MySQL, MongoDB, Redis, MariaDB, and many others. Each database type has its own configuration options.",
+    title: "Choose Database Type",
+    description: "Select from PostgreSQL, MySQL, MongoDB, Redis, and more.",
     placement: "center",
     demo: true,
-    demoContent: (
-      <div className="space-y-3 max-w-sm">
-        <div className="text-sm font-medium mb-2">Available Database Types:</div>
-        <div className="grid grid-cols-2 gap-2">
-          {['PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'MariaDB', 'Cassandra'].map((db) => (
-            <div key={db} className="flex items-center gap-2 p-2 border rounded-lg bg-muted/50">
-              <Database className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">{db}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
+    demoContent: <MockAddDatabaseDialogStep1 />
   },
   {
     id: "database-configuration",
-    title: "Step 2: Configure Database",
-    description: "After selecting the database type, you'll configure: Port number, Database name, Username, Password, and Version. The app automatically suggests available ports.",
+    title: "Configure Database",
+    description: "Set name, port, credentials, and enable auto-start.",
     placement: "center",
     demo: true,
-    demoContent: (
-      <div className="space-y-2 max-w-sm">
-        <div className="text-sm font-medium mb-2">Configuration Options:</div>
-        <div className="space-y-2">
-          <div className="p-2 border rounded-lg bg-muted/50">
-            <div className="text-xs font-medium text-muted-foreground">Port</div>
-            <div className="text-sm">5432 (Auto-detected)</div>
-          </div>
-          <div className="p-2 border rounded-lg bg-muted/50">
-            <div className="text-xs font-medium text-muted-foreground">Database Name</div>
-            <div className="text-sm">my_database</div>
-          </div>
-          <div className="p-2 border rounded-lg bg-muted/50">
-            <div className="text-xs font-medium text-muted-foreground">Credentials</div>
-            <div className="text-sm">Username & Password</div>
-          </div>
-        </div>
-      </div>
-    )
-  },
-  {
-    id: "database-auto-start",
-    title: "Step 3: Auto-Start Options",
-    description: "Choose whether the database should automatically start when you open the app. This is useful for databases you use frequently.",
-    placement: "center",
-    demo: true,
-    demoContent: (
-      <div className="space-y-2 max-w-sm">
-        <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/50">
-          <input type="checkbox" className="w-4 h-4" checked readOnly />
-          <div className="text-sm">Start database automatically on app launch</div>
-        </div>
-        <div className="text-xs text-muted-foreground">
-          Enable this for databases you use regularly to save time.
-        </div>
-      </div>
-    )
+    demoContent: <MockAddDatabaseDialogStep2 />
   },
   {
     id: "database-created",
-    title: "Database Created Successfully!",
-    description: "Once configured, your database container will be created and ready to use. You'll see it appear in your database list with status indicators and management controls.",
+    title: "Database Created!",
+    description: "Your database is ready to use with start/stop controls.",
     placement: "center",
     demo: true,
-    demoContent: (
-      <div className="space-y-2 max-w-sm">
-        <div className="flex items-center gap-2 p-2 border rounded-lg bg-green-50 dark:bg-green-900/20">
-          <Check className="w-5 h-5 text-green-500" />
-          <div className="flex-1">
-            <div className="font-medium text-sm text-green-700 dark:text-green-300">PostgreSQL 15</div>
-            <div className="text-xs text-green-600 dark:text-green-400">Ready to use • Port: 5432</div>
-          </div>
-        </div>
-      </div>
-    )
+    demoContent: <MockDatabaseCard />
   },
   {
     id: "database-grid",
     title: "Your Database Collection",
-    description: "This is where all your database containers will appear. Each card shows the database status, connection details, and quick actions like start, stop, and settings.",
+    description: "All your databases appear here with status and controls.",
     target: "[data-testid='database-grid'], .database-grid, #database-list, [data-testid*='database']",
     placement: "top"
   },
   {
     id: "database-actions",
     title: "Database Management",
-    description: "Each database card provides quick actions:",
+    description: "Start, stop, and configure your databases easily.",
     placement: "center",
     demo: true,
-    demoContent: (
-      <div className="space-y-2 max-w-xs">
-        <div className="flex items-center gap-2 p-2 border rounded-lg bg-card">
-          <Database className="w-4 h-4 text-primary" />
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-sm">PostgreSQL 15</div>
-            <div className="text-xs text-muted-foreground">Port: 5432 • Running</div>
-          </div>
-          <div className="flex gap-1">
-            <Button size="sm" variant="outline" className="h-6 w-6 p-0">
-              <Play className="w-3 h-3" />
-            </Button>
-            <Button size="sm" variant="outline" className="h-6 w-6 p-0">
-              <Square className="w-3 h-3" />
-            </Button>
-            <Button size="sm" variant="outline" className="h-6 w-6 p-0">
-              <Settings className="w-3 h-3" />
-            </Button>
-          </div>
-        </div>
-        <div className="text-xs text-muted-foreground space-y-1">
-          <div>• <strong>Play:</strong> Start database</div>
-          <div>• <strong>Square:</strong> Stop database</div>
-          <div>• <strong>Settings:</strong> Configure database</div>
-        </div>
-      </div>
-    )
-  },
-  {
-    id: "settings",
-    title: "Application Settings",
-    description: "Click 'Next' to open your profile menu and see all available app preferences, theme settings, notification preferences, and helper service configuration options.",
-    target: "[data-testid='profile-menu'] button, .profile-menu button, [aria-label='Open profile menu']",
-    placement: "left"
-  },
-  {
-    id: "profile-menu-open",
-    title: "Profile Menu Opened",
-    description: "Perfect! This is your profile dropdown menu. It contains your user information, theme selection (light/dark/system), settings access, help & support, and account management options. You can see all the available settings here.",
-    target: "[role='menu'], [data-radix-dropdown-menu-content], [data-radix-popper-content-wrapper]",
-    placement: "left"
-  },
-  {
-    id: "profile",
-    title: "Your Profile Menu",
-    description: "This dropdown menu contains your user profile information, theme selection options, and application settings. You can change themes, access settings, and manage your account from here.",
-    target: "[role='menu'], [data-radix-dropdown-menu-content], [data-radix-popper-content-wrapper]",
-    placement: "bottom"
+    demoContent: <MockDatabaseCard />
   },
   {
     id: "complete",
-    title: "Tour Complete! 🎉",
-    description: "You're all set! You now know how to create and manage databases in LiquiDB. Click 'Add Database' to create your first database, or explore the settings to customize your experience.",
+    title: "You're All Set! 🚀",
+    description: "Start creating databases and enjoy LiquiDB!",
     placement: "center"
   }
 ]
