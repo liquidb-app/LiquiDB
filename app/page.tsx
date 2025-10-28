@@ -3,7 +3,19 @@
 import { useEffect, useState, useRef } from "react"
 import { log } from '../lib/logger'
 import { motion, AnimatePresence } from "framer-motion"
-import { Plus, Database, Play, Square, SettingsIcon, Settings2, Copy, Check, RotateCw, Cog, CheckSquare, CheckSquare2, MousePointer2, Grid3X3 } from "lucide-react"
+import { Plus, Square, RotateCw, CheckSquare, CheckSquare2, MousePointer2 } from "lucide-react"
+import { CogIcon } from "@/components/ui/cog"
+import { CopyIcon } from "@/components/ui/copy"
+import { PlayIcon } from "@/components/ui/play"
+import { PlusIcon } from "@/components/ui/plus"
+import { CheckIcon } from "@/components/ui/check"
+import { GripIcon } from "@/components/ui/grip"
+import { ActivityIcon } from "@/components/ui/activity"
+import { SettingsIcon } from "@/components/ui/settings"
+import { RefreshCCWIcon } from "@/components/ui/refresh-ccw"
+import { BoxesIcon } from "@/components/ui/boxes"
+import { useAnimatedIconHover } from "@/hooks/use-animated-icon-hover"
+import { useDatabaseIconHover } from "@/hooks/use-database-icon-hover"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -2394,10 +2406,12 @@ export default function DatabaseManager() {
                       onClick={handleBulkStartSelected}
                       size="sm"
                       variant="outline"
-                      className="h-7 px-3 text-xs cursor-pointer border-success/50 text-success hover:bg-success hover:text-success-foreground transition-all duration-200 hover:scale-105 active:scale-95"
+                      className="h-7 px-3 text-xs cursor-pointer border-success/50 text-success hover:bg-success hover:text-success-foreground"
                       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                      onMouseEnter={playIconHover.onMouseEnter}
+                      onMouseLeave={playIconHover.onMouseLeave}
                     >
-                      <Play className="mr-1 h-3 w-3" />
+                      <PlayIcon ref={playIconHover.iconRef} size={12} />
                       Start All
                     </Button>
                   )}
@@ -2430,13 +2444,15 @@ export default function DatabaseManager() {
                 }}
                 size="sm"
                 variant={showBulkActions ? "default" : "ghost"}
-                className={`transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${
+                className={`cursor-pointer ${
                   showBulkActions ? "bg-primary text-primary-foreground" : ""
                 }`}
                 style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 title={showBulkActions ? "Exit selection mode" : "Select multiple databases"}
+                onMouseEnter={gripIconHover.onMouseEnter}
+                onMouseLeave={gripIconHover.onMouseLeave}
               >
-                <Grid3X3 className={`h-4 w-4 transition-transform duration-200 ${showBulkActions ? 'rotate-12' : ''}`} />
+                <GripIcon ref={gripIconHover.iconRef} size={16} className={`transition-transform duration-200 ${showBulkActions ? 'rotate-12' : ''}`} />
               </Button>
             )}
             <Button
@@ -2455,10 +2471,12 @@ export default function DatabaseManager() {
               size="sm"
               id="btn-add-database"
               data-testid="add-database-button"
-              className="transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+              className="cursor-pointer"
               style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+              onMouseEnter={plusIconHover.onMouseEnter}
+              onMouseLeave={plusIconHover.onMouseLeave}
             >
-              <Plus className="mr-1.5 h-4 w-4" />
+              <PlusIcon ref={plusIconHover.iconRef} size={16} />
               Add Database
             </Button>
             {/* User/profile menu replacing gear */}
@@ -2488,7 +2506,7 @@ export default function DatabaseManager() {
         {databases.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-12">
-              <Database className="h-12 w-12 text-muted-foreground mb-3" />
+              <BoxesIcon size={48} className="text-muted-foreground mb-3" />
               <h3 className="text-base font-semibold mb-1">No databases yet</h3>
               <p className="text-sm text-muted-foreground mb-4 text-center max-w-md text-pretty">
                 Get started by adding your first database container.
@@ -2508,8 +2526,10 @@ export default function DatabaseManager() {
                 }} 
                 size="sm"
                 data-testid="add-first-database-button"
+                onMouseEnter={plusIconHover.onMouseEnter}
+                onMouseLeave={plusIconHover.onMouseLeave}
               >
-                <Plus className="mr-1.5 h-4 w-4" />
+                <PlusIcon ref={plusIconHover.iconRef} size={16} />
                 Add Your First Database
               </Button>
             </CardContent>
@@ -2518,7 +2538,7 @@ export default function DatabaseManager() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="all" className="flex items-center gap-2">
-                <Database className="h-4 w-4" />
+                <BoxesIcon size={16} />
                 All
               </TabsTrigger>
               <TabsTrigger value="active" className="flex items-center gap-2">
@@ -2564,7 +2584,7 @@ export default function DatabaseManager() {
                       </Button>
                     )}
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <Database className="h-4 w-4" />
+                      <BoxesIcon size={16} />
                       <span className="font-medium">{databases.length}</span>
                       <span>Total</span>
                     </div>
@@ -2650,16 +2670,18 @@ export default function DatabaseManager() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-4 w-4 p-0 shrink-0 transition-all duration-200 hover:scale-125 active:scale-90"
+                              className="h-4 w-4 p-0 shrink-0"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleCopyContainerId(db.containerId, db.id)
                               }}
+                              onMouseEnter={createHoverHandlers(db.id, 'copy').onMouseEnter}
+                              onMouseLeave={createHoverHandlers(db.id, 'copy').onMouseLeave}
                             >
                               {copiedId === db.id ? (
-                                <Check className="h-3 w-3 text-success" />
+                                <CheckIcon ref={createHoverHandlers(db.id, 'check').iconRef} size={12} />
                               ) : (
-                                <Copy className="h-3 w-3" />
+                                <CopyIcon ref={createHoverHandlers(db.id, 'copy').iconRef} size={12} />
                               )}
                             </Button>
                           </div>
@@ -2710,7 +2732,7 @@ export default function DatabaseManager() {
                               </>
                             ) : (
                               <>
-                                <Play className="mr-1 h-3 w-3" />
+                                <PlayIcon ref={createHoverHandlers(db.id, 'play').iconRef} size={12} />
                                 Start
                               </>
                             )}
@@ -2719,40 +2741,46 @@ export default function DatabaseManager() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-50"
+                              className="h-6 px-2 bg-transparent disabled:opacity-50"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleRefreshStatus(db.id)
                               }}
                               title="Restart database"
+                              onMouseEnter={createHoverHandlers(db.id, 'restart').onMouseEnter}
+                              onMouseLeave={createHoverHandlers(db.id, 'restart').onMouseLeave}
                             >
-                              <RotateCw className="h-3 w-3" />
+                              <RefreshCCWIcon ref={createHoverHandlers(db.id, 'restart').iconRef} size={12} />
                             </Button>
                           )}
                           {db.status === "running" && (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
+                              className="h-6 px-2 bg-transparent"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleDebugDatabase(db.id)
                               }}
                               title="Debug database"
+                              onMouseEnter={createHoverHandlers(db.id, 'debug').onMouseEnter}
+                              onMouseLeave={createHoverHandlers(db.id, 'debug').onMouseLeave}
                             >
-                              <Database className="h-3 w-3" />
+                              <ActivityIcon ref={createHoverHandlers(db.id, 'debug').iconRef} size={12} />
                             </Button>
                           )}
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
+                            className="h-6 px-2 bg-transparent"
                             onClick={(e) => {
                               e.stopPropagation()
                               handleSettings(db)
                             }}
+                            onMouseEnter={createHoverHandlers(db.id, 'settings').onMouseEnter}
+                            onMouseLeave={createHoverHandlers(db.id, 'settings').onMouseLeave}
                           >
-                            <Settings2 className="h-3 w-3" />
+                            <SettingsIcon ref={createHoverHandlers(db.id, 'settings').iconRef} size={12} />
                           </Button>
                         </div>
                       )}
@@ -2881,16 +2909,18 @@ export default function DatabaseManager() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-4 w-4 p-0 shrink-0 transition-all duration-200 hover:scale-125 active:scale-90"
+                          className="h-4 w-4 p-0 shrink-0"
                           onClick={(e) => {
                             e.stopPropagation()
                             handleCopyContainerId(db.containerId, db.id)
                           }}
+                          onMouseEnter={createHoverHandlers(db.id, 'copy').onMouseEnter}
+                          onMouseLeave={createHoverHandlers(db.id, 'copy').onMouseLeave}
                         >
                           {copiedId === db.id ? (
-                            <Check className="h-3 w-3 text-success" />
+                            <CheckIcon className="h-3 w-3 text-success" />
                           ) : (
-                            <Copy className="h-3 w-3" />
+                            <CopyIcon ref={createHoverHandlers(db.id, 'copy').iconRef} size={12} />
                           )}
                         </Button>
                       </div>
@@ -3008,7 +3038,7 @@ export default function DatabaseManager() {
                           </>
                         ) : (
                           <>
-                            <Play className="mr-1 h-3 w-3" />
+                            <PlayIcon ref={createHoverHandlers(db.id, 'play').iconRef} size={12} />
                             Start
                           </>
                         )}
@@ -3056,13 +3086,15 @@ export default function DatabaseManager() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
+                        className="h-6 px-2 bg-transparent"
                         onClick={(e) => {
                           e.stopPropagation()
                           handleSettings(db)
                         }}
+                        onMouseEnter={createHoverHandlers(db.id, 'settings').onMouseEnter}
+                        onMouseLeave={createHoverHandlers(db.id, 'settings').onMouseLeave}
                       >
-                        <Settings2 className="h-3 w-3" />
+                        <SettingsIcon ref={createHoverHandlers(db.id, 'settings').iconRef} size={12} />
                       </Button>
                     </div>
                   )}
@@ -3175,16 +3207,18 @@ export default function DatabaseManager() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-4 w-4 p-0 shrink-0 transition-all duration-200 hover:scale-125 active:scale-90"
+                                className="h-4 w-4 p-0 shrink-0"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   handleCopyContainerId(db.containerId, db.id)
                                 }}
+                                onMouseEnter={createHoverHandlers(db.id, 'copy').onMouseEnter}
+                                onMouseLeave={createHoverHandlers(db.id, 'copy').onMouseLeave}
                               >
                                 {copiedId === db.id ? (
-                                  <Check className="h-3 w-3 text-success" />
+                                  <CheckIcon ref={createHoverHandlers(db.id, 'check').iconRef} size={12} />
                                 ) : (
-                                  <Copy className="h-3 w-3" />
+                                  <CopyIcon ref={createHoverHandlers(db.id, 'copy').iconRef} size={12} />
                                 )}
                               </Button>
                             </div>
@@ -3196,7 +3230,7 @@ export default function DatabaseManager() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className={`flex-1 h-6 text-[11px] transition-all duration-200 hover:scale-105 active:scale-95 ${
+                              className={`flex-1 h-6 text-[11px] ${
                                 db.status === "stopping"
                                   ? "border-orange-500/50 text-orange-600"
                                   : "border-success/50 text-success hover:bg-success hover:text-success-foreground"
@@ -3214,7 +3248,7 @@ export default function DatabaseManager() {
                                 </>
                               ) : (
                                 <>
-                                  <Play className="mr-1 h-3 w-3" />
+                                  <PlayIcon ref={createHoverHandlers(db.id, 'play').iconRef} size={12} />
                                   Start
                                 </>
                               )}

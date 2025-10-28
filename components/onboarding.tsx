@@ -16,7 +16,9 @@ import { saveProfile, loadProfile, getInitials, loadPreferences, savePreferences
 import { useTheme } from "next-themes"
 import { notifyError, notifySuccess, updateNotificationSetting } from "@/lib/notifications"
 import { usePermissions } from "@/lib/use-permissions"
-import { Sun, Moon, Monitor } from "lucide-react"
+import { SunIcon } from "@/components/ui/sun"
+import { MoonIcon } from "@/components/ui/moon"
+import { Monitor } from "lucide-react"
 
 // Utility function
 function cn(...inputs: any[]) {
@@ -1142,7 +1144,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                             : "border-border hover:border-muted-foreground"
                         }`}
                       >
-                        <Sun className="h-4 w-4" />
+                        <SunIcon size={16} />
                         <div className="text-sm font-medium">Light</div>
                       </button>
                       <button
@@ -1156,7 +1158,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                             : "border-border hover:border-muted-foreground"
                         }`}
                       >
-                        <Moon className="h-4 w-4" />
+                        <MoonIcon size={16} />
                         <div className="text-sm font-medium">Dark</div>
                       </button>
                       <button

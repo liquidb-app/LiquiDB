@@ -6,7 +6,11 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Plus, X, Pencil, Check, AlertCircle } from "lucide-react"
+import { Plus, X, Pencil } from "lucide-react"
+import { BanIcon } from "@/components/ui/ban"
+import { CheckIcon } from "@/components/ui/check"
+import { PlusIcon } from "@/components/ui/plus"
+import { useAnimatedIconHover } from "@/hooks/use-animated-icon-hover"
 
 interface BannedPortsDialogProps {
   open: boolean
@@ -20,6 +24,10 @@ export function BannedPortsDialog({ open, onOpenChange }: BannedPortsDialogProps
   const [editValue, setEditValue] = useState("")
   const [error, setError] = useState<string>("")
   const [suggestedFix, setSuggestedFix] = useState<string>("")
+
+  // Animated icon hover hooks
+  const plusIconHover = useAnimatedIconHover()
+  const checkIconHover = useAnimatedIconHover()
 
   useEffect(() => {
     const load = async () => {
@@ -184,7 +192,7 @@ export function BannedPortsDialog({ open, onOpenChange }: BannedPortsDialogProps
             </p>
             {error && (
               <Alert variant="destructive" className="py-2">
-                <AlertCircle className="h-4 w-4" />
+                <BanIcon size={16} />
                 <AlertDescription className="text-xs flex items-center justify-between gap-2">
                   <span className="flex-1">{error}</span>
                   {suggestedFix && (

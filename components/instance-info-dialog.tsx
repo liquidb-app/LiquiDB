@@ -1,8 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Database, X, RefreshCw, Cpu, MemoryStick, Clock, Activity } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { X, RefreshCw, Cpu, MemoryStick, Clock } from "lucide-react"
+import { SettingsIcon } from "@/components/ui/settings"
+import { ActivityIcon } from "@/components/ui/activity"
+import { SquareActivityIcon } from "@/components/ui/square-activity"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -202,9 +205,12 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5" />
+            <SquareActivityIcon size={20} />
             Instance Information - {databaseName}
           </DialogTitle>
+          <DialogDescription>
+            Real-time monitoring and performance metrics for this database instance
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -230,7 +236,7 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm flex items-center gap-2">
-                    <Activity className="h-4 w-4" />
+                    <ActivityIcon size={16} />
                     Process Status
                   </CardTitle>
                 </CardHeader>
@@ -354,7 +360,7 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <Activity className="h-4 w-4" />
+                      <ActivityIcon size={16} />
                       Performance Charts
                     </CardTitle>
                   </CardHeader>

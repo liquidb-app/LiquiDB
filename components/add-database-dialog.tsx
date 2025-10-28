@@ -16,12 +16,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { IconPickerDialog } from "@/components/icon-picker-dialog"
-import type { DatabaseContainer, DatabaseType } from "@/lib/types"
+import { BoxesIcon } from "@/components/ui/boxes"
 
 // Helper function to render database icons (emoji or custom image)
 const renderDatabaseIcon = (icon: string | undefined, className: string = "w-full h-full object-cover") => {
   if (!icon) {
-    return <span className="text-lg">?</span>
+    return <BoxesIcon size={14} />
   }
   
   // Check if it's a custom image path (starts with file path or data URL)

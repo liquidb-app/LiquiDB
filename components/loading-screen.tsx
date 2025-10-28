@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
-import { Database } from "lucide-react"
+import { BoxesIcon } from "@/components/ui/boxes"
 
 interface LoadingScreenProps {
   onComplete?: () => void
@@ -43,7 +43,7 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
           ease: "easeInOut",
         }}
       >
-        <Database className="w-8 h-8 text-primary" />
+        <BoxesIcon size={32} className="text-primary" />
       </motion.div>
     </motion.div>
   )

@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { X, ChevronLeft, ChevronRight, Play, Square, Settings, Copy, Check, Database, Zap, Shield, Clock, ArrowRight, Info } from "lucide-react"
+import { X, ChevronLeft, ChevronRight, Play, Square, Settings, Copy, Check, Zap, Shield, Clock, ArrowRight, Info } from "lucide-react"
+import { BoxesIcon } from "@/components/ui/boxes"
 import { wasTourRequested, setTourRequested } from "@/lib/preferences"
 import { useTheme } from "next-themes"
 import { notifyInfo } from "@/lib/notifications"
@@ -41,7 +42,7 @@ const tourSteps: TourStep[] = [
       "Discover advanced features and tips"
     ],
     placement: "center",
-    icon: <Database className="w-6 h-6 text-primary" />
+    icon: <BoxesIcon size={24} className="text-primary" />
   },
   {
     id: "add-database",
@@ -72,7 +73,7 @@ const tourSteps: TourStep[] = [
     placement: "center",
     demo: true,
     demoContent: <MockAddDatabaseDialogStep1 />,
-    icon: <Database className="w-5 h-5 text-blue-500" />
+    icon: <BoxesIcon size={20} className="text-blue-500" />
   },
   {
     id: "database-configuration",
@@ -120,7 +121,7 @@ const tourSteps: TourStep[] = [
     target: "[data-testid='database-grid'], .database-grid, #database-list, [data-testid*='database'], .grid",
     placement: "left",
     highlight: true,
-    icon: <Database className="w-5 h-5 text-indigo-500" />
+    icon: <BoxesIcon size={20} className="text-indigo-500" />
   },
   {
     id: "database-actions",

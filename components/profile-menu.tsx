@@ -13,13 +13,26 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { loadProfile, getInitials } from "@/lib/preferences"
-import { Monitor, Moon, Sun, Cog, HelpCircle, LogOut, User } from "lucide-react"
+import { Monitor, User } from "lucide-react"
+import { CogIcon } from "@/components/ui/cog"
+import { CircleHelpIcon } from "@/components/ui/circle-help"
+import { LogoutIcon } from "@/components/ui/logout"
+import { SunIcon } from "@/components/ui/sun"
+import { MoonIcon } from "@/components/ui/moon"
+import { useAnimatedIconHover } from "@/hooks/use-animated-icon-hover"
 import { useTheme } from "next-themes"
 
 export function ProfileMenuTrigger() {
   const [username, setUsername] = useState<string>("")
   const [avatar, setAvatar] = useState<string | undefined>(undefined)
   const { theme, setTheme } = useTheme()
+
+  // Animated icon hover hooks
+  const settingsIconHover = useAnimatedIconHover()
+  const helpIconHover = useAnimatedIconHover()
+  const logoutIconHover = useAnimatedIconHover()
+  const sunIconHover = useAnimatedIconHover()
+  const moonIconHover = useAnimatedIconHover()
 
   useEffect(() => {
     const p = loadProfile()
@@ -100,16 +113,20 @@ export function ProfileMenuTrigger() {
                 size="sm"
                 onClick={() => setTheme("light")}
                 className="h-8 w-8 p-0"
+                onMouseEnter={sunIconHover.onMouseEnter}
+                onMouseLeave={sunIconHover.onMouseLeave}
               >
-                <Sun className="h-4 w-4" />
+                <SunIcon ref={sunIconHover.iconRef} size={16} />
               </Button>
               <Button
                 variant={theme === "dark" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setTheme("dark")}
                 className="h-8 w-8 p-0"
+                onMouseEnter={moonIconHover.onMouseEnter}
+                onMouseLeave={moonIconHover.onMouseLeave}
               >
-                <Moon className="h-4 w-4" />
+                <MoonIcon ref={moonIconHover.iconRef} size={16} />
               </Button>
               <Button
                 variant={theme === "system" || !theme ? "default" : "ghost"}
@@ -134,9 +151,11 @@ export function ProfileMenuTrigger() {
               const event = new CustomEvent("open-app-settings")
               window.dispatchEvent(event)
             }}
-            className="cursor-pointer"
+            className="cursor-pointer gap-2"
+            onMouseEnter={settingsIconHover.onMouseEnter}
+            onMouseLeave={settingsIconHover.onMouseLeave}
           >
-            <Cog className="mr-2 h-4 w-4" />
+            <CogIcon ref={settingsIconHover.iconRef} size={16} />
             <span>Settings</span>
           </DropdownMenuItem>
           
@@ -145,9 +164,11 @@ export function ProfileMenuTrigger() {
               // @ts-ignore
               window.electron?.openExternalLink?.("https://liquidb.app/help")
             }}
-            className="cursor-pointer"
+            className="cursor-pointer gap-2"
+            onMouseEnter={helpIconHover.onMouseEnter}
+            onMouseLeave={helpIconHover.onMouseLeave}
           >
-            <HelpCircle className="mr-2 h-4 w-4" />
+            <CircleHelpIcon ref={helpIconHover.iconRef} size={16} />
             <span>Help & Support</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
@@ -159,9 +180,11 @@ export function ProfileMenuTrigger() {
             // @ts-ignore
             window.electron?.quitApp?.()
           }}
-          className="cursor-pointer text-destructive focus:text-destructive"
+          className="cursor-pointer text-destructive focus:text-destructive gap-2"
+          onMouseEnter={logoutIconHover.onMouseEnter}
+          onMouseLeave={logoutIconHover.onMouseLeave}
         >
-          <LogOut className="mr-2 h-4 w-4" />
+          <LogoutIcon ref={logoutIconHover.iconRef} size={16} />
           <span>Quit LiquiDB</span>
         </DropdownMenuItem>
       </DropdownMenuContent>

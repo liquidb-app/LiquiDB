@@ -8,7 +8,14 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Monitor, Moon, Sun, Github, ExternalLink, Globe, Ban, Trash2, AlertTriangle, Settings, Play, RotateCcw } from "lucide-react"
+import { Monitor, ExternalLink, Globe, Ban, AlertTriangle, Settings } from "lucide-react"
+import { DeleteIcon } from "@/components/ui/delete"
+import { RotateCCWIcon } from "@/components/ui/rotate-ccw"
+import { GithubIcon } from "@/components/ui/github"
+import { PlayIcon } from "@/components/ui/play"
+import { SunIcon } from "@/components/ui/sun"
+import { MoonIcon } from "@/components/ui/moon"
+import { useAnimatedIconHover } from "@/hooks/use-animated-icon-hover"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { BannedPortsDialog } from "./banned-ports-dialog"
@@ -63,6 +70,14 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [autoLaunchEnabled, setAutoLaunchEnabled] = useState(false)
+
+  // Animated icon hover hooks
+  const deleteIconHover = useAnimatedIconHover()
+  const rotateIconHover = useAnimatedIconHover()
+  const githubIconHover = useAnimatedIconHover()
+  const playIconHover = useAnimatedIconHover()
+  const sunIconHover = useAnimatedIconHover()
+  const moonIconHover = useAnimatedIconHover()
   const [autoLaunchLoading, setAutoLaunchLoading] = useState(false)
   
   // Helper service state
@@ -391,9 +406,11 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                     <div
                       className="flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent rounded-sm"
                       onClick={() => handleThemePreview("light")}
+                      onMouseEnter={sunIconHover.onMouseEnter}
+                      onMouseLeave={sunIconHover.onMouseLeave}
                     >
                       <div className="flex items-center gap-2">
-                        <Sun className="h-4 w-4" />
+                        <SunIcon ref={sunIconHover.iconRef} size={16} />
                         <span>Light</span>
                       </div>
                       {theme === "light" && (
@@ -404,9 +421,11 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                     <div
                       className="flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent rounded-sm"
                       onClick={() => handleThemePreview("dark")}
+                      onMouseEnter={moonIconHover.onMouseEnter}
+                      onMouseLeave={moonIconHover.onMouseLeave}
                     >
                       <div className="flex items-center gap-2">
-                        <Moon className="h-4 w-4" />
+                        <MoonIcon ref={moonIconHover.iconRef} size={16} />
                         <span>Dark</span>
                       </div>
                       {theme === "dark" && (
@@ -499,8 +518,10 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                     variant="outline"
                     className="w-full justify-start bg-transparent border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground"
                     onClick={() => setDeleteConfirmOpen(true)}
+                    onMouseEnter={deleteIconHover.onMouseEnter}
+                    onMouseLeave={deleteIconHover.onMouseLeave}
                   >
-                    <Trash2 className="h-4 w-4 mr-2" />
+                    <DeleteIcon ref={deleteIconHover.iconRef} size={16} />
                     Delete All Databases
                   </Button>
                   <p className="text-xs text-muted-foreground">
@@ -580,8 +601,10 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                               onClick={() => handleHelperAction('start')}
                               disabled={helperLoading}
                               size="sm"
+                              onMouseEnter={playIconHover.onMouseEnter}
+                              onMouseLeave={playIconHover.onMouseLeave}
                             >
-                              <Play className="h-4 w-4 mr-2" />
+                              <PlayIcon ref={playIconHover.iconRef} size={16} />
                               Start
                             </Button>
                           )}
@@ -591,8 +614,10 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                               disabled={helperLoading}
                               size="sm"
                               variant="outline"
+                              onMouseEnter={rotateIconHover.onMouseEnter}
+                              onMouseLeave={rotateIconHover.onMouseLeave}
                             >
-                              <RotateCcw className="h-4 w-4 mr-2" />
+                              <RotateCCWIcon ref={rotateIconHover.iconRef} size={16} />
                               Cleanup
                             </Button>
                           )}
@@ -640,8 +665,10 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
                     variant="outline"
                     className="w-full justify-start bg-transparent"
                     onClick={() => handleOpenExternalLink("https://github.com/alexg-sh/LiquiDB")}
+                    onMouseEnter={githubIconHover.onMouseEnter}
+                    onMouseLeave={githubIconHover.onMouseLeave}
                   >
-                    <Github className="h-4 w-4 mr-2" />
+                    <GithubIcon ref={githubIconHover.iconRef} size={16} />
                     View on GitHub
                     <ExternalLink className="h-3 w-3 ml-auto" />
                   </Button>
