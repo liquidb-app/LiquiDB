@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { log } from '../lib/logger'
 import { useTheme } from "next-themes"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
@@ -316,15 +317,15 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
               prevStatus.installed !== status.installed || 
               prevStatus.running !== status.running || 
               prevStatus.isRunning !== status.isRunning) {
-            console.log("Helper status changed in background, updating UI")
+            log.debug("Helper status changed in background, updating UI")
             return status
           }
-          console.log("Helper status unchanged in background, skipping UI update")
+          log.debug("Helper status unchanged in background, skipping UI update")
           return prevStatus
         })
       }
     } catch (error) {
-      console.error("Background helper status check failed:", error)
+      log.error("Background helper status check failed:", error)
     }
   }
 

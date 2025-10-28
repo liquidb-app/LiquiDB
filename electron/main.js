@@ -1,5 +1,8 @@
 const { app, BrowserWindow, ipcMain, shell } = require("electron")
 
+// Import logging system
+const { log } = require('./logger')
+
 // Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock()
 

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
+import { log } from '../lib/logger'
 import { motion, AnimatePresence } from "framer-motion"
 import { Plus, Database, Play, Square, SettingsIcon, Settings2, Copy, Check, RotateCw, Cog, CheckSquare, CheckSquare2, MousePointer2, Grid3X3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
