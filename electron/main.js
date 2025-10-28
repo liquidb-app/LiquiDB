@@ -45,12 +45,12 @@ let permissionsManager = null
 // Auto-launch configuration
 let autoLauncher
 try {
-  console.log("[Auto-launch] App path:", process.execPath)
-  console.log("[Auto-launch] App name:", require('path').basename(process.execPath))
+  log.debug("App path:", process.execPath)
+  log.debug("App name:", require('path').basename(process.execPath))
   
   // Use the proper app name instead of executable name
   const appName = app.getName() || "LiquiDB"
-  console.log("[Auto-launch] Using app name:", appName)
+  log.debug("Using app name:", appName)
   
   // For macOS, try to use the app bundle path if available
   let appPath = process.execPath
@@ -60,7 +60,7 @@ try {
     const appIndex = pathParts.findIndex(part => part.endsWith('.app'))
     if (appIndex !== -1) {
       appPath = pathParts.slice(0, appIndex + 1).join('/')
-      console.log("[Auto-launch] Using app bundle path:", appPath)
+      log.debug("Using app bundle path:", appPath)
     }
   }
   
@@ -69,7 +69,7 @@ try {
     path: appPath,
     isHidden: true
   })
-  console.log("[Auto-launch] Auto-launch module initialized successfully")
+  log.info("Auto-launch module initialized successfully")
 } catch (error) {
   console.error("[Auto-launch] Failed to initialize auto-launch module:", error)
   autoLauncher = null
@@ -319,7 +319,7 @@ async function startDatabaseProcess(config) {
   const { id, type, version, port, username, password, containerId } = config
   
   // Return immediately to prevent UI freezing
-  console.log(`[Database] Starting ${type} database on port ${port}...`)
+  log.info(`Starting ${type} database on port ${port}...`)
   
   // Use process.nextTick to defer the heavy initialization work to the next event loop
   process.nextTick(async () => {
@@ -972,8 +972,9 @@ async function startDatabaseProcessAsync(config) {
     if (dbIndex >= 0) {
       databases[dbIndex].status = 'starting'
       databases[dbIndex].pid = child.pid
+      databases[dbIndex].lastStarted = Date.now() // Set start timestamp
       storage.saveDatabases(app, databases)
-      console.log(`[Database] ${id} PID ${child.pid} and starting status saved to storage`)
+      console.log(`[Database] ${id} PID ${child.pid}, starting status, and start time saved to storage`)
     }
   } catch (error) {
     console.error(`[Database] ${id} failed to save PID to storage:`, error)
@@ -1132,8 +1133,8 @@ ipcMain.handle("open-external-link", async (event, url) => {
 })
 
 app.whenReady().then(async () => {
-  console.log("[App] App is ready, initializing...")
-  console.log("[Auto-launch] Auto-launcher available:", !!autoLauncher)
+  log.info("App is ready, initializing...")
+  log.debug("Auto-launcher available:", !!autoLauncher)
   
   // Initialize permissions manager
   permissionsManager = new PermissionsManager()
@@ -1153,7 +1154,7 @@ app.whenReady().then(async () => {
       const isOnboardingComplete = await mainWindow?.webContents?.executeJavaScript('window.electron?.isOnboardingComplete ? window.electron.isOnboardingComplete() : false')
       
       if (isOnboardingComplete) {
-        console.log("[App] Onboarding complete, starting background processes...")
+        log.info("Onboarding complete, starting background processes...")
         
         // Start helper service after onboarding is complete
         helperService = new HelperServiceManager(app)
@@ -1191,12 +1192,12 @@ app.whenReady().then(async () => {
       } else if (onboardingCheckCount < maxOnboardingChecks) {
         // Only log every 5th check to reduce spam
         if (onboardingCheckCount % 5 === 0) {
-          console.log(`[App] Onboarding in progress, deferring background processes... (${onboardingCheckCount}/${maxOnboardingChecks})`)
+          log.info(`Onboarding in progress, deferring background processes... (${onboardingCheckCount}/${maxOnboardingChecks})`)
         }
         // Check again in 2 seconds (reduced frequency)
         setTimeout(checkOnboardingAndStartProcesses, 2000)
       } else {
-        console.log("[App] Onboarding check timeout reached, starting background processes anyway...")
+        log.warn("Onboarding check timeout reached, starting background processes anyway...")
         // Note: Helper service will be started by user interaction, not automatically
         
         setTimeout(() => {
@@ -1206,12 +1207,12 @@ app.whenReady().then(async () => {
         }, 2000)
       }
     } catch (error) {
-      console.log("[App] Error checking onboarding status:", error.message)
+      log.error("Error checking onboarding status:", error.message)
       // If we can't check, assume onboarding is complete and start processes
       if (onboardingCheckCount < maxOnboardingChecks) {
         setTimeout(checkOnboardingAndStartProcesses, 2000)
       } else {
-        console.log("[App] Starting background processes after error timeout...")
+        log.info("Starting background processes after error timeout...")
         // Note: Helper service will be started by user interaction, not automatically
         setTimeout(() => {
           if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1248,10 +1249,10 @@ app.on("activate", () => {
 
 // Cleanup on app termination
 app.on("before-quit", async () => {
-  console.log("[App Quit] Stopping all databases...")
+  log.info("Stopping all databases...")
   for (const [id, db] of runningDatabases) {
     try {
-      console.log(`[App Quit] Stopping database ${id}`)
+      log.debug(`Stopping database ${id}`)
       db.process.kill("SIGTERM")
     } catch (error) {
       console.error(`[App Quit] Error stopping database ${id}:`, error)
@@ -1448,33 +1449,33 @@ async function getProcessUsingPort(port) {
 // Simple and reliable database status check
 async function checkDatabaseStatus(id) {
   try {
-    console.log(`[Status Check] Checking database ${id}`)
+    log.debug(`Checking database ${id}`)
 
     // 1. Check if we have this database in our running map
     const db = runningDatabases.get(id)
     if (!db) {
-      console.log(`[Status Check] Database ${id} not in running map`)
+      log.debug(`Database ${id} not in running map`)
       return { status: "stopped" }
     }
 
     // 2. Check if the process is still alive
     if (db.process.killed || db.process.exitCode !== null) {
-      console.log(`[Status Check] Database ${id} process has died`)
+      log.warn(`Database ${id} process has died`)
       runningDatabases.delete(id)
       return { status: "stopped" }
     }
 
     // 3. For PostgreSQL, check if startup is complete
     if (db.config.type === "postgresql" && db.isStartupComplete && !db.isStartupComplete()) {
-      console.log(`[Status Check] Database ${id} is starting (PostgreSQL not ready yet)`)
+      log.debug(`Database ${id} is starting (PostgreSQL not ready yet)`)
       return { status: "starting", pid: db.process.pid }
     }
 
     // 4. Simple process check - if it exists and isn't killed, it's running
-    console.log(`[Status Check] Database ${id} is running (PID: ${db.process.pid})`)
+    log.debug(`Database ${id} is running (PID: ${db.process.pid})`)
     return { status: "running", pid: db.process.pid }
   } catch (error) {
-    console.log(`[Status Check] Error checking ${id}: ${error.message}`)
+    log.error(`Error checking ${id}: ${error.message}`)
     return { status: "stopped" }
   }
 }
@@ -1534,11 +1535,16 @@ ipcMain.handle("verify-database-instance", async (event, id) => {
   }
 })
 
+// Store previous CPU times for calculating CPU usage
+const previousCpuTimes = new Map()
+
 // Get system information for a database process
 ipcMain.handle("get-database-system-info", async (event, id) => {
   try {
+    log.debug(`Getting system info for database ${id}`)
     const db = runningDatabases.get(id)
     if (!db) {
+      log.warn(`Database ${id} not found in running databases`)
       return { 
         success: false, 
         error: "Database not running",
@@ -1549,27 +1555,56 @@ ipcMain.handle("get-database-system-info", async (event, id) => {
     }
     
     const pid = db.process.pid
+    log.debug(`Database ${id} found with PID ${pid}`)
     
-    // Get memory usage using ps command
+    // Get memory usage and CPU time using ps command
     let memoryUsage = null
+    let cpuUsage = 0
     try {
       const { execSync } = require('child_process')
+      
+      // Try to get real-time CPU usage using top command
+      try {
+        const topOutput = execSync(`top -l 1 -pid ${pid} -stats pid,cpu,mem,time | grep ${pid}`, { encoding: 'utf8', timeout: 3000 })
+        log.verbose(`TOP output for PID ${pid}:`, topOutput)
+        const topLines = topOutput.trim().split('\n')
+        if (topLines.length > 0) {
+          const topData = topLines[0].trim().split(/\s+/)
+          if (topData.length >= 4) {
+            cpuUsage = parseFloat(topData[1]) || 0
+            log.debug(`CPU usage from top: ${cpuUsage}%`)
+          }
+        }
+      } catch (topError) {
+        log.debug(`Top command failed, falling back to ps:`, topError.message)
+      }
+      
+      // Fallback to ps command for memory and basic info
       const psOutput = execSync(`ps -o pid,rss,vsz,pcpu,pmem,time,command -p ${pid}`, { encoding: 'utf8' })
+      log.verbose(`PS output for PID ${pid}:`, psOutput)
       const lines = psOutput.trim().split('\n')
       if (lines.length > 1) {
         const data = lines[1].trim().split(/\s+/)
+        log.verbose(`Parsed PS data:`, data)
         if (data.length >= 6) {
+          // Use CPU from top if available, otherwise use ps
+          const psCpu = parseFloat(data[3]) || 0
+          if (cpuUsage === 0) {
+            cpuUsage = psCpu
+          }
+          
           memoryUsage = {
             rss: parseInt(data[1]) * 1024, // Convert KB to bytes
             vsz: parseInt(data[2]) * 1024, // Convert KB to bytes
-            cpu: parseFloat(data[3]),
-            pmem: parseFloat(data[4]),
-            time: data[5]
+            cpu: cpuUsage,
+            pmem: parseFloat(data[4]) || 0,
+            time: data[5] || "00:00:00"
           }
+          log.debug(`Memory usage with CPU:`, memoryUsage)
         }
       }
     } catch (psError) {
-      console.log(`[System Info] Could not get process info for PID ${pid}:`, psError.message)
+      log.warn(`Could not get process info for PID ${pid}:`, psError.message)
     }
     
     // Get system memory info
@@ -1597,7 +1632,85 @@ ipcMain.handle("get-database-system-info", async (event, id) => {
         }
       }
     } catch (vmStatError) {
-      console.log(`[System Info] Could not get system memory info:`, vmStatError.message)
+      log.debug(`Could not get system memory info:`, vmStatError.message)
+    }
+    
+    // Get database connections - real database sessions
+    let connections = 0
+    try {
+      const { execSync } = require('child_process')
+      
+      if (db.config.type === "postgresql") {
+        // For PostgreSQL, get actual database sessions
+        try {
+          // Connect to the database and count active sessions
+          const psqlCommand = `psql -h localhost -p ${db.config.port} -U ${db.config.username} -d postgres -t -c "SELECT count(*) FROM pg_stat_activity WHERE state = 'active';" 2>/dev/null || echo "0"`
+          const sessionCount = execSync(psqlCommand, { encoding: 'utf8' }).trim()
+          connections = parseInt(sessionCount) || 0
+          log.debug(`PostgreSQL active sessions on port ${db.config.port}: ${connections}`)
+        } catch (psqlError) {
+          log.debug(`Could not get PostgreSQL sessions, falling back to network connections:`, psqlError.message)
+          // Fallback to network connection count
+          const lsofOutput = execSync(`lsof -i :${db.config.port} | wc -l`, { encoding: 'utf8' })
+          connections = Math.max(0, parseInt(lsofOutput.trim()) - 1)
+        }
+      } else if (db.config.type === "mysql") {
+        // For MySQL, get actual database sessions
+        try {
+          const mysqlCommand = `mysql -h localhost -P ${db.config.port} -u ${db.config.username} -p${db.config.password} -e "SHOW PROCESSLIST;" 2>/dev/null | wc -l || echo "0"`
+          const sessionCount = execSync(mysqlCommand, { encoding: 'utf8' }).trim()
+          connections = Math.max(0, parseInt(sessionCount) - 1) // Subtract header line
+          log.debug(`MySQL active sessions on port ${db.config.port}: ${connections}`)
+        } catch (mysqlError) {
+          log.debug(`Could not get MySQL sessions, falling back to network connections:`, mysqlError.message)
+          // Fallback to network connection count
+          const lsofOutput = execSync(`lsof -i :${db.config.port} | wc -l`, { encoding: 'utf8' })
+          connections = Math.max(0, parseInt(lsofOutput.trim()) - 1)
+        }
+      } else if (db.config.type === "mongodb") {
+        // For MongoDB, get actual database sessions
+        try {
+          const mongoCommand = `mongosh --host localhost:${db.config.port} --eval "db.serverStatus().connections.current" --quiet 2>/dev/null || echo "0"`
+          const sessionCount = execSync(mongoCommand, { encoding: 'utf8' }).trim()
+          connections = parseInt(sessionCount) || 0
+          log.debug(`MongoDB active sessions on port ${db.config.port}: ${connections}`)
+        } catch (mongoError) {
+          log.debug(`Could not get MongoDB sessions, falling back to network connections:`, mongoError.message)
+          // Fallback to network connection count
+          const lsofOutput = execSync(`lsof -i :${db.config.port} | wc -l`, { encoding: 'utf8' })
+          connections = Math.max(0, parseInt(lsofOutput.trim()) - 1)
+        }
+      } else if (db.config.type === "redis") {
+        // For Redis, get actual database sessions
+        try {
+          const redisCommand = `redis-cli -h localhost -p ${db.config.port} CLIENT LIST | wc -l 2>/dev/null || echo "0"`
+          const sessionCount = execSync(redisCommand, { encoding: 'utf8' }).trim()
+          connections = parseInt(sessionCount) || 0
+          log.debug(`Redis active sessions on port ${db.config.port}: ${connections}`)
+        } catch (redisError) {
+          log.debug(`Could not get Redis sessions, falling back to network connections:`, redisError.message)
+          // Fallback to network connection count
+          const lsofOutput = execSync(`lsof -i :${db.config.port} | wc -l`, { encoding: 'utf8' })
+          connections = Math.max(0, parseInt(lsofOutput.trim()) - 1)
+        }
+      }
+    } catch (connectionError) {
+      log.warn(`Could not get connection count for ${db.config.type}:`, connectionError.message)
+      // Set a default value if we can't get connections
+      connections = 1 // At least 1 connection (the database itself)
+    }
+    
+    // Calculate uptime based on lastStarted timestamp
+    let uptimeSeconds = 0
+    try {
+      const databases = storage.loadDatabases(app)
+      const dbData = databases.find(d => d.id === id)
+      if (dbData && dbData.lastStarted) {
+        uptimeSeconds = Math.floor((Date.now() - dbData.lastStarted) / 1000)
+        log.debug(`Database ${id} uptime: ${uptimeSeconds} seconds (started at ${new Date(dbData.lastStarted).toISOString()})`)
+      }
+    } catch (uptimeError) {
+      log.warn(`Could not get uptime for database ${id}:`, uptimeError.message)
     }
     
     return {
@@ -1605,12 +1718,14 @@ ipcMain.handle("get-database-system-info", async (event, id) => {
       pid: pid,
       memory: memoryUsage,
       systemMemory: systemMemory,
+      connections: connections,
+      uptime: uptimeSeconds,
       isRunning: !db.process.killed && db.process.exitCode === null,
       killed: db.process.killed,
       exitCode: db.process.exitCode
     }
   } catch (error) {
-    console.error(`[System Info] Error getting system info for database ${id}:`, error)
+    log.error(`Error getting system info for database ${id}:`, error)
     return { 
       success: false, 
       error: error.message,
