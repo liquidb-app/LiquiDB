@@ -67,7 +67,7 @@ const formatUptime = (seconds: number) => {
 // Helper function to render database icons (emoji or custom image)
 const renderDatabaseIcon = (icon: string | undefined, className: string = "w-full h-full object-cover") => {
   if (!icon) {
-    return <Database className="h-3.5 w-3.5" />
+    return <BoxesIcon size={14} />
   }
   
   // Check if it's a custom image path (starts with file path or data URL)
@@ -130,11 +130,11 @@ const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, class
   }, [src])
 
   if (isLoading) {
-    return <Database className="h-3.5 w-3.5 animate-pulse" />
+    return <BoxesIcon size={14} />
   }
 
   if (hasError || !imageSrc) {
-    return <Database className="h-3.5 w-3.5" />
+    return <BoxesIcon size={14} />
   }
 
   return (
