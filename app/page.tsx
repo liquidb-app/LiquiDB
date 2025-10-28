@@ -28,6 +28,30 @@ import { ProfileMenuTrigger } from "@/components/profile-menu"
 import { LoadingScreen } from "@/components/loading-screen"
 import { isOnboardingComplete, wasTourRequested, setTourRequested } from "@/lib/preferences"
 
+// Helper function to format bytes
+const formatBytes = (bytes: number) => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+}
+
+// Helper function to format uptime
+const formatUptime = (seconds: number) => {
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const secs = Math.floor(seconds % 60)
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${secs}s`
+  } else if (minutes > 0) {
+    return `${minutes}m ${secs}s`
+  } else {
+    return `${secs}s`
+  }
+}
+
 // Helper function to render database icons (emoji or custom image)
 const renderDatabaseIcon = (icon: string | undefined, className: string = "w-full h-full object-cover") => {
   if (!icon) {
@@ -116,6 +140,48 @@ export default function DatabaseManager() {
   const [showOnboarding, setShowOnboarding] = useState(false) // Don't show onboarding until loading is complete
   const [dashboardOpacity, setDashboardOpacity] = useState(0) // Start with 0, fade in when onboarding finishes
   const [databases, setDatabases] = useState<DatabaseContainer[]>([])
+  
+  // Update databases ref whenever databases state changes
+  useEffect(() => {
+    databasesRef.current = databases
+  }, [databases])
+
+  // Real-time uptime counter that updates every second
+  useEffect(() => {
+    const uptimeInterval = setInterval(() => {
+      setDatabases(prevDatabases => {
+        // Only update if there are changes to avoid unnecessary re-renders
+        let hasChanges = false
+        const updatedDatabases = prevDatabases.map(db => {
+          if (db.status === "running" && db.lastStarted) {
+            const currentTime = Date.now()
+            const uptimeSeconds = Math.floor((currentTime - db.lastStarted) / 1000)
+            
+            // Only update if uptime has actually changed
+            if (db.systemInfo?.uptime !== uptimeSeconds) {
+              hasChanges = true
+              return {
+                ...db,
+                systemInfo: {
+                  cpu: db.systemInfo?.cpu || 0,
+                  memory: db.systemInfo?.memory || 0,
+                  connections: db.systemInfo?.connections || 0,
+                  uptime: uptimeSeconds
+                }
+              }
+            }
+          }
+          return db
+        })
+        
+        // Only return updated databases if there were actual changes
+        return hasChanges ? updatedDatabases : prevDatabases
+      })
+    }, 1000) // Update every second
+
+    return () => clearInterval(uptimeInterval)
+  }, [])
+  
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [appSettingsOpen, setAppSettingsOpen] = useState(false)
@@ -125,6 +191,8 @@ export default function DatabaseManager() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [lastStatusCheck, setLastStatusCheck] = useState<Record<string, number>>({})
   const lastStatusCheckRef = useRef<Record<string, number>>({})
+  const [lastSystemInfoCheck, setLastSystemInfoCheck] = useState<Record<string, number>>({})
+  const databasesRef = useRef<DatabaseContainer[]>([])
   const [activeTab, setActiveTab] = useState<string>("all")
   const [selectedDatabases, setSelectedDatabases] = useState<Set<string>>(new Set())
   const [showBulkActions, setShowBulkActions] = useState(false)
@@ -408,10 +476,80 @@ export default function DatabaseManager() {
     return startPort
   }
 
+  // Function to fetch system info for running databases
+  const fetchSystemInfo = async (databaseId: string) => {
+    try {
+      log.debug(`Fetching system info for database ${databaseId}`)
+      // @ts-ignore
+      const systemInfo = await window.electron?.getDatabaseSystemInfo?.(databaseId)
+      
+      log.verbose(`Raw system info for ${databaseId}:`, systemInfo)
+      
+      if (systemInfo?.success && systemInfo.memory) {
+        const newSystemInfo = {
+          cpu: Math.max(0, systemInfo.memory.cpu || 0), // Ensure non-negative
+          memory: Math.max(0, systemInfo.memory.rss || 0), // Ensure non-negative
+          connections: Math.max(0, systemInfo.connections || 0), // Use real connections from API
+          uptime: Math.max(0, systemInfo.uptime || 0) // Use calculated uptime from API
+        }
+        
+        log.debug(`Processed system info for ${databaseId}:`, newSystemInfo)
+        
+        // Debug CPU values specifically
+        log.debug(`CPU debug for ${databaseId}:`, {
+          rawCpu: systemInfo.memory.cpu,
+          processedCpu: newSystemInfo.cpu
+        })
+        
+        // Update only the specific database with optimized state update
+        setDatabases(prevDatabases => {
+          const updated = prevDatabases.map(db => {
+            if (db.id === databaseId) {
+              // Only update if the system info has actually changed
+              const currentSystemInfo = db.systemInfo
+              if (!currentSystemInfo || 
+                  currentSystemInfo.cpu !== newSystemInfo.cpu ||
+                  currentSystemInfo.memory !== newSystemInfo.memory ||
+                  currentSystemInfo.connections !== newSystemInfo.connections) {
+                log.debug(`Updating system info for database ${databaseId}`)
+                return {
+                  ...db,
+                  systemInfo: newSystemInfo
+                }
+              }
+            }
+            return db
+          })
+          
+          // Only return updated array if there were actual changes
+          const hasChanges = updated.some((db, index) => db !== prevDatabases[index])
+          return hasChanges ? updated : prevDatabases
+        })
+        
+        log.debug(`Successfully updated database ${databaseId} with system info`)
+      } else {
+        log.warn(`No valid system info for database ${databaseId}:`, systemInfo)
+      }
+    } catch (error) {
+      log.error(`Error fetching system info for database ${databaseId}:`, error)
+    }
+  }
+
+  // Helper function to parse uptime string to seconds
+  const parseUptimeToSeconds = (uptimeStr: string): number => {
+    // Parse format like "00:02:34" or "2:34:56"
+    const parts = uptimeStr.split(':').map(part => parseInt(part, 10))
+    if (parts.length === 3) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2]
+    }
+    return 0
+  }
+
   // Main useEffect to load databases and set up monitoring
   useEffect(() => {
     let isMounted = true
     let statusInterval: NodeJS.Timeout | null = null
+    let systemInfoInterval: NodeJS.Timeout | null = null
     let lastDatabaseCount = 0
     let noActiveDatabasesCount = 0
 
@@ -459,6 +597,17 @@ export default function DatabaseManager() {
           
           if (isMounted) {
             setDatabases(updatedDatabases)
+            
+            // Fetch system info for already running databases
+            updatedDatabases.forEach(db => {
+              if (db.status === "running") {
+                console.log(`[System Info] Database ${db.id} is already running, fetching system info`)
+                setTimeout(() => {
+                  setLastSystemInfoCheck(prev => ({ ...prev, [db.id]: Date.now() }))
+                  fetchSystemInfo(db.id)
+                }, 2000) // Wait 2 seconds for initial load
+              }
+            })
             
             // Clean up any dead processes first
             try {
@@ -573,6 +722,17 @@ export default function DatabaseManager() {
                           d.id === db.id ? { ...d, status: status.status, pid: status.pid || d.pid } : d
                         ))
                         
+                        // Fetch system info for running databases
+                        if (status.status === "running") {
+                          const now = Date.now()
+                          const lastCheck = lastSystemInfoCheck[db.id] || 0
+                          // Only fetch system info every 30 seconds to avoid excessive calls
+                          if (now - lastCheck > 30000) {
+                            setLastSystemInfoCheck(prev => ({ ...prev, [db.id]: now }))
+                            fetchSystemInfo(db.id)
+                          }
+                        }
+                        
                         // Notifications are handled by the real-time listener to avoid duplicates
                       }
                     } catch (error) {
@@ -590,15 +750,45 @@ export default function DatabaseManager() {
           
           statusInterval = startStatusMonitoring()
           
+          // Set up system info monitoring for running databases
+          const startSystemInfoMonitoring = () => {
+            return setInterval(async () => {
+              if (!isMounted) return
+              
+              try {
+                // Get current databases state from ref
+                const currentDatabases = databasesRef.current.filter(db => db.status === "running")
+                log.debug(`Found ${currentDatabases.length} running databases`)
+                
+                // Fetch system info for each running database
+                for (const db of currentDatabases) {
+                  const now = Date.now()
+                  const lastCheck = lastSystemInfoCheck[db.id] || 0
+                  
+                  // Update system info every 5 seconds for live updates (reduced frequency to avoid re-renders)
+                  if (now - lastCheck > 5000) {
+                    log.debug(`Updating system info for database ${db.id}`)
+                    setLastSystemInfoCheck(prev => ({ ...prev, [db.id]: now }))
+                    await fetchSystemInfo(db.id)
+                  }
+                }
+              } catch (error) {
+                log.error(`System Info Monitoring Error:`, error)
+              }
+            }, 5000) // Update every 5 seconds for live metrics (reduced frequency)
+          }
+          
+          systemInfoInterval = startSystemInfoMonitoring()
+          
           // Set up real-time status change listener from electron main process
           // @ts-ignore
           if (window.electron?.onDatabaseStatusChanged) {
-            console.log(`[Listener Setup] Setting up database status listener`)
+            log.debug(`Setting up database status listener`)
             // @ts-ignore
             window.electron.onDatabaseStatusChanged((data: { id: string, status: string, error?: string, exitCode?: number, ready?: boolean, pid?: number }) => {
               if (!isMounted) return
               
-              console.log(`[Real-time Status] Database ${data.id} status changed to ${data.status}${data.ready ? ' (ready)' : ''} (PID: ${data.pid})`)
+              log.debug(`Database ${data.id} status changed to ${data.status}${data.ready ? ' (ready)' : ''} (PID: ${data.pid})`)
               
               // Create a simple event key to prevent duplicate processing
               // For stopped events, use a simpler key to prevent duplicates from error/exit events
@@ -611,11 +801,11 @@ export default function DatabaseManager() {
               const lastProcessed = lastStatusCheckRef.current[eventKey] || 0
               
               if (now - lastProcessed < 500) {
-                console.log(`[Real-time Status] Duplicate event ignored: ${eventKey} (last processed: ${new Date(lastProcessed).toISOString()})`)
+                log.debug(`Duplicate event ignored: ${eventKey} (last processed: ${new Date(lastProcessed).toISOString()})`)
                 return
               }
               
-              console.log(`[Real-time Status] Processing event: ${eventKey} (time since last: ${now - lastProcessed}ms)`)
+              log.debug(`Processing event: ${eventKey} (time since last: ${now - lastProcessed}ms)`)
               
               // Update the last processed time (both ref and state)
               lastStatusCheckRef.current[eventKey] = now
@@ -626,13 +816,26 @@ export default function DatabaseManager() {
                 }))
               }
               
-              console.log(`[Real-time Status] Processing event: ${eventKey}`)
+              log.debug(`Processing event: ${eventKey}`)
               
               // Update database status immediately
               if (isMounted) {
                 setDatabases(prev => {
                   const updated = prev.map(db => 
-                    db.id === data.id ? { ...db, status: data.status as any, pid: data.pid } : db
+                    db.id === data.id ? { 
+                      ...db, 
+                      status: data.status as any, 
+                      pid: data.pid,
+                      // Set lastStarted timestamp when database starts running
+                      lastStarted: data.status === "running" ? Date.now() : db.lastStarted,
+                      // Initialize systemInfo when database starts running
+                      systemInfo: data.status === "running" ? {
+                        cpu: 0,
+                        memory: 0,
+                        connections: 0,
+                        uptime: 0
+                      } : db.systemInfo
+                    } : db
                   )
                   
                   // Show notifications only for actual status changes
@@ -666,6 +869,12 @@ export default function DatabaseManager() {
                         description: `${db.name} is now running on port ${db.port}.`,
                         id: `db-started-${db.id}-${now}`, // Unique ID to prevent duplicates
                       })
+                      
+                      // Fetch system info for newly started database
+                      setTimeout(() => {
+                        setLastSystemInfoCheck(prev => ({ ...prev, [data.id]: now }))
+                        fetchSystemInfo(data.id)
+                      }, 2000) // Wait 2 seconds for database to fully initialize
                     }
                   }
                   
@@ -749,6 +958,9 @@ export default function DatabaseManager() {
         isMounted = false
         if (statusInterval) {
           clearInterval(statusInterval)
+        }
+        if (systemInfoInterval) {
+          clearInterval(systemInfoInterval)
         }
         // @ts-ignore
         if (window.electron?.removeAllListeners) {
@@ -895,7 +1107,17 @@ export default function DatabaseManager() {
 
     // First, set all valid databases to "starting" status immediately to prevent race conditions
     setDatabases(prev => prev.map(db => 
-      validDatabaseIds.includes(db.id) ? { ...db, status: "starting" as const, lastStarted: Date.now() } : db
+      validDatabaseIds.includes(db.id) ? { 
+        ...db, 
+        status: "starting" as const, 
+        lastStarted: Date.now(),
+        systemInfo: {
+          cpu: 0,
+          memory: 0,
+          connections: 0,
+          uptime: 0
+        }
+      } : db
     ))
 
     // Start all valid databases using the existing startDatabaseWithErrorHandling function
@@ -1725,7 +1947,17 @@ export default function DatabaseManager() {
     // Set status to starting and show starting toast
     setDatabases((prev) =>
       prev.map((db) =>
-        db.id === id ? { ...db, status: "starting" as const, lastStarted: Date.now() } : db
+        db.id === id ? { 
+          ...db, 
+          status: "starting" as const, 
+          lastStarted: Date.now(),
+          systemInfo: {
+            cpu: 0,
+            memory: 0,
+            connections: 0,
+            uptime: 0
+          }
+        } : db
       )
     )
 
@@ -2664,6 +2896,73 @@ export default function DatabaseManager() {
                       </div>
                     </div>
                   </div>
+
+                  {/* System Metrics - Only show for running instances */}
+                  {(() => {
+                    if (db.status === "running") {
+                      log.debug(`Database ${db.id} status: ${db.status}, systemInfo:`, db.systemInfo)
+                      if (db.systemInfo) {
+                        return (
+                          <div className="space-y-1 mb-2 pt-2 border-t border-border/50">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-muted-foreground">Uptime</span>
+                              <span className="font-mono font-medium text-success">{formatUptime(db.systemInfo.uptime)}</span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div>
+                                <div className="text-[10px] text-muted-foreground">CPU</div>
+                                <div className="text-[11px] font-medium">{db.systemInfo.cpu.toFixed(1)}%</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-muted-foreground">Memory</div>
+                                <div className="text-[11px] font-medium">{formatBytes(db.systemInfo.memory)}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-muted-foreground">Connections</div>
+                                <div className="text-[11px] font-medium">{db.systemInfo.connections}</div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      } else {
+                        log.debug(`Database ${db.id} is running but has no systemInfo - triggering fetch`)
+                        // Trigger system info fetch if not available
+                        setTimeout(() => {
+                          const now = Date.now()
+                          const lastCheck = lastSystemInfoCheck[db.id] || 0
+                          if (now - lastCheck > 5000) { // Allow more frequent checks for missing data
+                            setLastSystemInfoCheck(prev => ({ ...prev, [db.id]: now }))
+                            fetchSystemInfo(db.id)
+                          }
+                        }, 1000)
+                        
+                        // Show placeholder while loading
+                        return (
+                          <div className="space-y-1 mb-2 pt-2 border-t border-border/50">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-muted-foreground">Uptime</span>
+                              <span className="font-mono font-medium text-muted-foreground">Loading...</span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div>
+                                <div className="text-[10px] text-muted-foreground">CPU</div>
+                                <div className="text-[11px] font-medium text-muted-foreground">--</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-muted-foreground">Memory</div>
+                                <div className="text-[11px] font-medium text-muted-foreground">--</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-muted-foreground">Connections</div>
+                                <div className="text-[11px] font-medium text-muted-foreground">--</div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      }
+                    }
+                    return null
+                  })()}
 
                   {!showBulkActions && (
                     <div className="flex gap-1">

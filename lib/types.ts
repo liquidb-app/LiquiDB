@@ -19,4 +19,10 @@ export interface DatabaseContainer {
   pid?: number
   homebrewPath?: string
   dataPath?: string
+  systemInfo?: {
+    cpu: number
+    memory: number
+    connections: number
+    uptime: number
+  }
 }
