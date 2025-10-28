@@ -370,6 +370,7 @@ export default function DatabaseManager() {
   const PortConflictWarning = ({ port, databaseId, databaseStatus }: { port: number; databaseId: string; databaseStatus: string }) => {
     const [conflictInfo, setConflictInfo] = useState<{ processName: string; pid: string } | null>(null)
     const [isChecking, setIsChecking] = useState(false)
+    const [hasInitialized, setHasInitialized] = useState(false)
 
     useEffect(() => {
       let isMounted = true
@@ -396,6 +397,9 @@ export default function DatabaseManager() {
           }
           
           // Only check for external conflicts if no internal conflicts found
+          // Add a small delay to ensure system is stable
+          await new Promise(resolve => setTimeout(resolve, 100))
+          
           const externalConflict = await getPortConflictInfo(port)
           if (isMounted) {
             // Only set conflict info if there's actually a conflict
@@ -413,16 +417,27 @@ export default function DatabaseManager() {
         }
       }
       
-      checkConflict()
+      // Add a delay before the first check to allow the system to stabilize after reload
+      const initialTimeout = setTimeout(() => {
+        if (isMounted) {
+          checkConflict()
+          setHasInitialized(true)
+        }
+      }, 2000) // Wait 2 seconds before first check
       
-      // Re-check every 5 seconds
-      const interval = setInterval(checkConflict, 5000)
+      // Re-check every 5 seconds, but only after initial check
+      const interval = setInterval(() => {
+        if (isMounted && hasInitialized) {
+          checkConflict()
+        }
+      }, 5000)
       
       return () => {
         isMounted = false
+        clearTimeout(initialTimeout)
         clearInterval(interval)
       }
-    }, [port, databaseId, databaseStatus])
+    }, [port, databaseId, databaseStatus, databases, hasInitialized])
 
     if (!conflictInfo && !isChecking) return null
 
