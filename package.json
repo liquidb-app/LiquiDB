@@ -22,6 +22,11 @@
   "private": true,
   "scripts": {
     "dev": "concurrently \"next dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "dev:minimal": "LOG_LEVEL=ERROR concurrently \"next dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "dev:quiet": "LOG_LEVEL=WARN concurrently \"next dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "dev:normal": "LOG_LEVEL=INFO concurrently \"next dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "dev:debug": "LOG_LEVEL=DEBUG concurrently \"next dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "dev:verbose": "LOG_LEVEL=VERBOSE concurrently \"next dev\" \"wait-on http://localhost:3000 && electron .\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
