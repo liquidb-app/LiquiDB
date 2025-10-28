@@ -183,8 +183,8 @@ export function BannedPortsDialog({ open, onOpenChange }: BannedPortsDialogProps
                 onKeyDown={(e) => e.key === "Enter" && handleAddPort()}
                 className="flex-1"
               />
-              <Button size="sm" onClick={handleAddPort} disabled={!newPort}>
-                <Plus className="h-4 w-4" />
+              <Button size="sm" onClick={handleAddPort} disabled={!newPort} onMouseEnter={plusIconHover.onMouseEnter} onMouseLeave={plusIconHover.onMouseLeave}>
+                <PlusIcon ref={plusIconHover.iconRef} size={16} />
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -233,8 +233,8 @@ export function BannedPortsDialog({ open, onOpenChange }: BannedPortsDialogProps
                           autoFocus
                         />
                         <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" onClick={handleSaveEdit} className="h-6 w-6 p-0">
-                            <Check className="h-3 w-3" />
+                          <Button size="sm" variant="ghost" onClick={handleSaveEdit} className="h-6 w-6 p-0" onMouseEnter={checkIconHover.onMouseEnter} onMouseLeave={checkIconHover.onMouseLeave}>
+                            <CheckIcon ref={checkIconHover.iconRef} size={12} />
                           </Button>
                           <Button size="sm" variant="ghost" onClick={handleCancelEdit} className="h-6 w-6 p-0">
                             <X className="h-3 w-3" />

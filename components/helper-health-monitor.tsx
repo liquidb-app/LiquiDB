@@ -19,6 +19,9 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
   const [isChecking, setIsChecking] = useState(false)
   const [isReinstalling, setIsReinstalling] = useState(false)
 
+  // Animated icon hover hook
+  const rotateIconHover = useAnimatedIconHover()
+
   // Check helper service health
   const checkHealth = async () => {
     setIsChecking(true)
@@ -134,8 +137,10 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
             onClick={handleReinstall}
             disabled={isReinstalling}
             className="bg-red-600 hover:bg-red-700 text-white"
+            onMouseEnter={rotateIconHover.onMouseEnter}
+            onMouseLeave={rotateIconHover.onMouseLeave}
           >
-            <RotateCcw className="h-3 w-3 mr-1" />
+            <RotateCCWIcon ref={rotateIconHover.iconRef} size={12} />
             {isReinstalling ? "Reinstalling..." : "Reinstall"}
           </Button>
         </div>

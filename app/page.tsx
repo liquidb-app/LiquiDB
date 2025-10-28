@@ -153,6 +153,19 @@ export default function DatabaseManager() {
   const [dashboardOpacity, setDashboardOpacity] = useState(0) // Start with 0, fade in when onboarding finishes
   const [databases, setDatabases] = useState<DatabaseContainer[]>([])
   
+  // Animated icon hover hooks
+  const settingsIconHover = useAnimatedIconHover()
+  const copyIconHover = useAnimatedIconHover()
+  const playIconHover = useAnimatedIconHover()
+  const plusIconHover = useAnimatedIconHover()
+  const checkIconHover = useAnimatedIconHover()
+  const gripIconHover = useAnimatedIconHover()
+  const debugIconHover = useAnimatedIconHover()
+  const restartIconHover = useAnimatedIconHover()
+  
+  // Database-specific icon hover hook
+  const { createHoverHandlers } = useDatabaseIconHover()
+  
   // Update databases ref whenever databases state changes
   useEffect(() => {
     databasesRef.current = databases
@@ -2709,6 +2722,8 @@ export default function DatabaseManager() {
                               handleStartStop(db.id)
                             }}
                             disabled={db.status === "installing" || db.status === "starting" || db.status === "stopping"}
+                            onMouseEnter={createHoverHandlers(db.id, 'play').onMouseEnter}
+                            onMouseLeave={createHoverHandlers(db.id, 'play').onMouseLeave}
                           >
                             {db.status === "running" ? (
                               <>
@@ -2999,7 +3014,7 @@ export default function DatabaseManager() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className={`flex-1 h-6 text-[11px] transition-all duration-200 hover:scale-105 active:scale-95 ${
+                        className={`flex-1 h-6 text-[11px] ${
                           db.status === "running"
                             ? "border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground"
                             : db.status === "starting"
@@ -3015,6 +3030,8 @@ export default function DatabaseManager() {
                           handleStartStop(db.id)
                         }}
                         disabled={db.status === "installing" || db.status === "starting" || db.status === "stopping"}
+                        onMouseEnter={createHoverHandlers(db.id, 'play').onMouseEnter}
+                        onMouseLeave={createHoverHandlers(db.id, 'play').onMouseLeave}
                       >
                         {db.status === "running" ? (
                           <>
@@ -3049,13 +3066,15 @@ export default function DatabaseManager() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-50"
+                              className="h-6 px-2 bg-transparent disabled:opacity-50"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleRefreshStatus(db.id)
                               }}
+                              onMouseEnter={createHoverHandlers(db.id, 'restart').onMouseEnter}
+                              onMouseLeave={createHoverHandlers(db.id, 'restart').onMouseLeave}
                             >
-                              <RotateCw className="h-3 w-3" />
+                              <RefreshCCWIcon ref={createHoverHandlers(db.id, 'restart').iconRef} size={12} />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -3069,13 +3088,15 @@ export default function DatabaseManager() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
+                              className="h-6 px-2 bg-transparent"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleDebugDatabase(db.id)
                               }}
+                              onMouseEnter={createHoverHandlers(db.id, 'debug').onMouseEnter}
+                              onMouseLeave={createHoverHandlers(db.id, 'debug').onMouseLeave}
                             >
-                              <Database className="h-3 w-3" />
+                              <ActivityIcon ref={createHoverHandlers(db.id, 'debug').iconRef} size={12} />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -3240,6 +3261,8 @@ export default function DatabaseManager() {
                                 handleStartStop(db.id)
                               }}
                               disabled={db.status === "installing" || db.status === "starting" || db.status === "stopping"}
+                              onMouseEnter={createHoverHandlers(db.id, 'play').onMouseEnter}
+                              onMouseLeave={createHoverHandlers(db.id, 'play').onMouseLeave}
                             >
                               {db.status === "stopping" ? (
                                 <>
@@ -3258,14 +3281,16 @@ export default function DatabaseManager() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-6 px-2 bg-transparent transition-all duration-200 hover:scale-110 active:scale-95"
+                                  className="h-6 px-2 bg-transparent"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     setSelectedDatabase(db)
                                     setSettingsDialogOpen(true)
                                   }}
+                                  onMouseEnter={createHoverHandlers(db.id, 'settings').onMouseEnter}
+                                  onMouseLeave={createHoverHandlers(db.id, 'settings').onMouseLeave}
                                 >
-                                  <Settings2 className="h-3 w-3" />
+                                  <SettingsIcon ref={createHoverHandlers(db.id, 'settings').iconRef} size={12} />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>
