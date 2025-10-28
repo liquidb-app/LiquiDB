@@ -2448,7 +2448,7 @@ export default function DatabaseManager() {
                       onClick={handleBulkStopSelected}
                       size="sm"
                       variant="outline"
-                      className="h-7 px-3 text-xs cursor-pointer border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all duration-200 hover:scale-105 active:scale-95"
+                      className="h-7 px-3 text-xs cursor-pointer border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground"
                       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     >
                       <Square className="mr-1 h-3 w-3" />
@@ -2721,7 +2721,7 @@ export default function DatabaseManager() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className={`flex-1 h-6 text-[11px] transition-all duration-200 hover:scale-105 active:scale-95 ${
+                            className={`flex-1 h-6 text-[11px] ${
                               db.status === "running"
                                 ? "border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground"
                                 : db.status === "starting"

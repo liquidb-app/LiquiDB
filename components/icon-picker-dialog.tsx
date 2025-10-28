@@ -226,7 +226,7 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
                   <button
                     key={emoji}
                     onClick={() => setSelectedIcon(emoji)}
-                    className={`w-10 h-10 flex items-center justify-center text-2xl border-2 rounded-lg hover:bg-accent transition-all duration-200 hover:scale-110 ${
+                    className={`w-10 h-10 flex items-center justify-center text-2xl border-2 rounded-lg hover:bg-accent transition-all duration-200 ${
                       selectedIcon === emoji ? "border-primary bg-accent" : "border-border"
                     }`}
                   >
@@ -316,7 +316,7 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
                         <button
                           key={image.fileName}
                           onClick={() => setImageUrl(image.path)}
-                          className={`w-12 h-12 flex items-center justify-center border-2 rounded-lg hover:bg-accent transition-all duration-200 hover:scale-110 ${
+                          className={`w-12 h-12 flex items-center justify-center border-2 rounded-lg hover:bg-accent transition-all duration-200 ${
                             imageUrl === image.path ? "border-primary bg-accent" : "border-border"
                           }`}
                         >

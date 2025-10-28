@@ -423,7 +423,7 @@ export function DatabaseSettingsDialog({
                     variant="outline"
                     size="sm"
                     onClick={handleExport}
-                    className="w-full transition-all duration-200 hover:scale-105 active:scale-95 bg-transparent"
+                    className="w-full transition-all duration-200 bg-transparent"
                   >
                     <Download className="mr-2 h-4 w-4" />
                     Export Database
@@ -447,7 +447,7 @@ export function DatabaseSettingsDialog({
                     variant="destructive"
                     size="sm"
                     onClick={handleDeleteClick}
-                    className="w-full transition-all duration-200 hover:scale-105 active:scale-95"
+                    className="w-full transition-all duration-200"
                   >
                     Delete Database
                   </Button>
