@@ -3,9 +3,9 @@
 import React, { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { X, ChevronLeft, ChevronRight, Play, Square, Settings, Copy, Check } from "lucide-react"
+import { X, ChevronLeft, ChevronRight, Play, Square, Settings, Copy, Check, Database, Zap, Shield, Clock, ArrowRight, Info } from "lucide-react"
 import { wasTourRequested, setTourRequested } from "@/lib/preferences"
 import { useTheme } from "next-themes"
 import { notifyInfo } from "@/lib/notifications"
@@ -20,70 +20,137 @@ interface TourStep {
   id: string
   title: string
   description: string
+  details?: string[]
   target?: string
   placement?: "top" | "bottom" | "left" | "right" | "center"
   demo?: boolean
   demoContent?: React.ReactNode
+  highlight?: boolean
+  icon?: React.ReactNode
 }
 
 const tourSteps: TourStep[] = [
   {
     id: "welcome",
     title: "Welcome to LiquiDB! 🎉",
-    description: "Let's take a quick tour to learn how to create and manage your databases. This tour will show you the key features with interactive mockups.",
-    placement: "center"
+    description: "Let's take a comprehensive tour to learn how to create and manage your databases. This interactive tour will show you all the key features with live mockups.",
+    details: [
+      "Learn how to create databases in just 2 steps",
+      "Understand database management controls",
+      "See how to configure ports and settings",
+      "Discover advanced features and tips"
+    ],
+    placement: "center",
+    icon: <Database className="w-6 h-6 text-primary" />
   },
   {
     id: "add-database",
     title: "Create Your First Database",
-    description: "Let's walk through creating a database. Click 'Next' to see the complete process step by step with interactive mockups.",
-    target: "[data-testid='add-database-button'], #btn-add-database",
-    placement: "bottom"
+    description: "The 'Add Database' button is your gateway to creating new database containers. Click it to start the simple 2-step process.",
+    details: [
+      "Supports PostgreSQL, MySQL, MongoDB, Redis, MariaDB",
+      "Automatic port detection and conflict resolution",
+      "One-click database creation and startup",
+      "Built-in health monitoring and status tracking"
+    ],
+    target: "[data-testid='add-database-button'], #btn-add-database, button:has-text('Add Database')",
+    placement: "left",
+    highlight: true,
+    icon: <Zap className="w-5 h-5 text-green-500" />
   },
   {
     id: "database-type-selection",
-    title: "Step 1: Choose Database Type",
-    description: "Here's the database type selection dialog. You can choose from PostgreSQL, MySQL, MongoDB, Redis, MariaDB, and many others. Each database type has its own default port and configuration.",
+    title: "Step 1: Choose Your Database Type",
+    description: "Select from a wide variety of database engines. Each type comes with optimized default configurations and automatic port assignment.",
+    details: [
+      "PostgreSQL: Advanced relational database",
+      "MySQL: Popular web application database", 
+      "MongoDB: Document-based NoSQL database",
+      "Redis: High-performance in-memory database",
+      "MariaDB: MySQL-compatible alternative"
+    ],
     placement: "center",
     demo: true,
-    demoContent: <MockAddDatabaseDialogStep1 />
+    demoContent: <MockAddDatabaseDialogStep1 />,
+    icon: <Database className="w-5 h-5 text-blue-500" />
   },
   {
     id: "database-configuration",
-    title: "Step 2: Configure Database",
-    description: "After selecting PostgreSQL, you'll configure the database name, port, username, password, and version. The app automatically suggests available ports and you can enable auto-start.",
+    title: "Step 2: Configure Your Database",
+    description: "Customize your database settings including name, credentials, port, and version. The app intelligently suggests available ports and optimal configurations.",
+    details: [
+      "Smart port conflict detection",
+      "Auto-generated secure passwords",
+      "Version selection for compatibility",
+      "Auto-start option for convenience",
+      "Environment variable management"
+    ],
     placement: "center",
     demo: true,
-    demoContent: <MockAddDatabaseDialogStep2 />
+    demoContent: <MockAddDatabaseDialogStep2 />,
+    icon: <Settings className="w-5 h-5 text-purple-500" />
   },
   {
     id: "database-created",
-    title: "Database Created Successfully!",
-    description: "Once configured, your database container will be created and ready to use. You'll see it appear in your database list with status indicators and management controls.",
+    title: "Database Successfully Created!",
+    description: "Your database container is now running and ready to use. The card shows real-time status, connection details, and management controls.",
+    details: [
+      "Real-time status monitoring",
+      "Quick connection details",
+      "One-click start/stop controls",
+      "Port and process information",
+      "Health status indicators"
+    ],
     placement: "center",
     demo: true,
-    demoContent: <MockDatabaseCard />
+    demoContent: <MockDatabaseCard />,
+    icon: <Check className="w-5 h-5 text-green-500" />
   },
   {
     id: "database-grid",
     title: "Your Database Collection",
-    description: "This is where all your database containers will appear. Each card shows the database status, connection details, and quick actions like start, stop, and settings.",
-    target: "[data-testid='database-grid'], .database-grid, #database-list, [data-testid*='database']",
-    placement: "top"
+    description: "This is your central dashboard where all database containers are displayed. Each card provides quick access to essential information and controls.",
+    details: [
+      "Visual status indicators (Running, Stopped, Error)",
+      "Quick action buttons for common tasks",
+      "Connection details and port information",
+      "Resource usage monitoring",
+      "Bulk operations support"
+    ],
+    target: "[data-testid='database-grid'], .database-grid, #database-list, [data-testid*='database'], .grid",
+    placement: "left",
+    highlight: true,
+    icon: <Database className="w-5 h-5 text-indigo-500" />
   },
   {
     id: "database-actions",
-    title: "Database Management Actions",
-    description: "Each database card provides quick actions: Play button to start, Square button to stop, and Settings button to configure. You can also see the current status and port information.",
+    title: "Database Management Controls",
+    description: "Each database card includes powerful management controls. Learn how to start, stop, configure, and monitor your databases efficiently.",
+    details: [
+      "▶️ Start: Launch stopped databases",
+      "⏹️ Stop: Gracefully shutdown databases", 
+      "⚙️ Settings: Configure ports, versions, and more",
+      "📋 Copy: Quick access to connection strings",
+      "📊 Monitor: View logs and performance metrics"
+    ],
     placement: "center",
     demo: true,
-    demoContent: <MockDatabaseCard />
+    demoContent: <MockDatabaseCard />,
+    icon: <Play className="w-5 h-5 text-orange-500" />
   },
   {
     id: "complete",
-    title: "Tour Complete! 🎉",
-    description: "You're all set! You now know how to create and manage databases in LiquiDB. Click 'Add Database' to create your first database, or explore the settings to customize your experience.",
-    placement: "center"
+    title: "Tour Complete! You're Ready to Go! 🎉",
+    description: "Congratulations! You now have all the knowledge needed to effectively use LiquiDB. Start creating your databases and explore the advanced features.",
+    details: [
+      "Create your first database now",
+      "Explore settings and preferences",
+      "Try different database types",
+      "Set up auto-start for convenience",
+      "Join our community for tips and support"
+    ],
+    placement: "center",
+    icon: <Shield className="w-6 h-6 text-primary" />
   }
 ]
 
@@ -183,70 +250,64 @@ export function CustomTour() {
 
   const currentStepData = tourSteps[currentStep]
   
-  // Smart positioning function to ensure tour UI is always visible
+  // Smart positioning function for side-by-side layout
   const getTourPosition = () => {
-    const tourCardWidth = 400 // w-80 = 320px + padding
-    const tourCardHeight = 300 // estimated height
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    const tourCardWidth = 420
     const margin = 20
     
-    if (targetElement) {
-      const elementRect = targetElement.getBoundingClientRect()
-      const viewportWidth = window.innerWidth
-      const viewportHeight = window.innerHeight
-      
-      let left, top, transform = 'none'
-      
-      // Calculate horizontal position
-      if (currentStepData.placement === 'left') {
-        left = Math.max(elementRect.left - tourCardWidth - margin, margin)
-      } else if (currentStepData.placement === 'right') {
-        left = Math.min(elementRect.right + margin, viewportWidth - tourCardWidth - margin)
-      } else {
-        // Center horizontally relative to element
-        left = Math.max(
-          Math.min(
-            elementRect.left + elementRect.width / 2 - tourCardWidth / 2,
-            viewportWidth - tourCardWidth - margin
-          ),
-          margin
-        )
-      }
-      
-      // Calculate vertical position
-      if (currentStepData.placement === 'top') {
-        top = Math.max(elementRect.top - tourCardHeight - margin, margin)
-      } else {
-        // Try bottom first, then top if not enough space
-        const bottomSpace = viewportHeight - elementRect.bottom - margin
-        if (bottomSpace >= tourCardHeight) {
-          top = elementRect.bottom + margin
-        } else {
-          top = Math.max(elementRect.top - tourCardHeight - margin, margin)
-        }
-      }
-      
+    if (currentStepData.demo) {
+      // For demo steps, use side-by-side layout
       return {
-        left: `${left}px`,
-        top: `${top}px`,
-        transform,
-        maxHeight: `${Math.min(viewportHeight - top - margin, 400)}px`,
-        maxWidth: `${Math.min(viewportWidth - left - margin, tourCardWidth)}px`
+        left: `${margin}px`,
+        top: `${margin}px`,
+        width: `${tourCardWidth}px`,
+        height: `${viewportHeight - margin * 2}px`,
+        position: 'fixed' as const,
+        zIndex: 99999
+      }
+    } else if (targetElement && currentStepData.highlight) {
+      // For highlighting steps, position tour card on the left
+      return {
+        left: `${margin}px`,
+        top: `${margin}px`,
+        width: `${tourCardWidth}px`,
+        height: `${viewportHeight - margin * 2}px`,
+        position: 'fixed' as const,
+        zIndex: 99999
       }
     } else {
-      // For center placement (mock dialogs), position tour card to the side to avoid overlap
-      const viewportWidth = window.innerWidth
-      const viewportHeight = window.innerHeight
-      
-      // Position tour card on the right side when showing mock dialogs
+      // For center placement (welcome/completion), center the tour card
       return {
-        left: `${viewportWidth - 420}px`, // Position on right side
-        top: `${Math.max(viewportHeight * 0.1, 60)}px`, // Position in upper area
-        transform: 'none',
-        maxHeight: `${Math.min(viewportHeight * 0.6, 400)}px`,
-        maxWidth: '400px',
-        width: '400px'
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: `${Math.min(tourCardWidth, viewportWidth - margin * 2)}px`,
+        position: 'fixed' as const,
+        zIndex: 99999
       }
     }
+  }
+
+  // Get mockup position for side-by-side layout
+  const getMockupPosition = () => {
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    const tourCardWidth = 420
+    const margin = 20
+    
+    if (currentStepData.demo) {
+      return {
+        left: `${tourCardWidth + margin * 2}px`,
+        top: `${margin}px`,
+        width: `${viewportWidth - tourCardWidth - margin * 3}px`,
+        height: `${viewportHeight - margin * 2}px`,
+        position: 'fixed' as const,
+        zIndex: 99998
+      }
+    }
+    return null
   }
 
   // Recalculate position on window resize and scroll
@@ -324,6 +385,8 @@ export function CustomTour() {
 
   if (!isOpen) return null
 
+  const mockupPosition = getMockupPosition()
+
   return (
     <AnimatePresence>
       <motion.div
@@ -333,7 +396,7 @@ export function CustomTour() {
         exit={{ opacity: 0 }}
       >
         {/* Overlay with proper cutout for target element */}
-        {targetElement ? (
+        {targetElement && currentStepData.highlight ? (
           <>
             {/* Top overlay */}
             <motion.div
@@ -390,17 +453,17 @@ export function CustomTour() {
               transition={{ duration: 0.2, ease: "easeOut" }}
             />
           </>
-        ) : (
+        ) : !currentStepData.demo ? (
           <motion.div
             className="absolute inset-0 bg-black/60"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           />
-        )}
+        ) : null}
 
         {/* Highlight Box */}
-        {targetElement && (
+        {targetElement && currentStepData.highlight && (
           <motion.div
             className="absolute border-4 border-primary rounded-lg pointer-events-none shadow-lg"
             style={{
@@ -419,21 +482,43 @@ export function CustomTour() {
           />
         )}
 
+        {/* Mockup Display Area */}
+        {currentStepData.demo && mockupPosition && (
+          <motion.div
+            className="absolute bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-xl"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 50 }}
+            style={mockupPosition}
+          >
+            <div className="p-6 h-full overflow-auto">
+              <div className="flex items-center gap-2 mb-4">
+                <Info className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold text-lg">Interactive Demo</h3>
+              </div>
+              <div className="flex justify-center items-center h-full min-h-[400px]">
+                {currentStepData.demoContent}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Tour Card */}
         <motion.div
-          className={`absolute z-[99999] tour-card ${!targetElement ? 'flex items-center justify-center' : ''}`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          className="absolute z-[99999] tour-card"
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -50 }}
           style={getTourPosition()}
         >
-          <Card className="w-80 max-w-[calc(100vw-40px)] shadow-xl bg-card border-border pointer-events-auto relative z-[99999]">
-            <CardContent className="p-6">
+          <Card className="w-full h-full shadow-xl bg-card border-border pointer-events-auto relative z-[99999] overflow-hidden">
+            <CardContent className="p-6 h-full flex flex-col">
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                  {currentStepData.icon}
                   <div>
-                    <h3 className="font-semibold">{currentStepData.title}</h3>
+                    <h3 className="font-semibold text-lg">{currentStepData.title}</h3>
                     <div className="text-xs text-muted-foreground">
                       Step {currentStep + 1} of {tourSteps.length}
                     </div>
@@ -450,9 +535,9 @@ export function CustomTour() {
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full bg-muted rounded-full h-1 mb-4">
+              <div className="w-full bg-muted rounded-full h-2 mb-6">
                 <motion.div
-                  className="bg-primary h-1 rounded-full"
+                  className="bg-primary h-2 rounded-full"
                   initial={{ width: 0 }}
                   animate={{ width: `${((currentStep + 1) / tourSteps.length) * 100}%` }}
                   transition={{ duration: 0.3 }}
@@ -460,23 +545,32 @@ export function CustomTour() {
               </div>
 
               {/* Content */}
-              <div className="mb-6">
-                <p className="text-sm text-muted-foreground mb-4">
+              <div className="flex-1 overflow-auto">
+                <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
                   {currentStepData.description}
                 </p>
                 
-                {/* Demo Content */}
-                {currentStepData.demo && currentStepData.demoContent && (
-                  <div className="bg-muted/50 rounded-lg p-4 flex justify-center">
-                    <div className="max-w-full overflow-hidden">
-                      {currentStepData.demoContent}
-                    </div>
+                {/* Details List */}
+                {currentStepData.details && (
+                  <div className="space-y-2 mb-6">
+                    {currentStepData.details.map((detail, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="flex items-start gap-2 text-sm"
+                      >
+                        <ArrowRight className="w-3 h-3 text-primary mt-1 flex-shrink-0" />
+                        <span className="text-muted-foreground">{detail}</span>
+                      </motion.div>
+                    ))}
                   </div>
                 )}
               </div>
 
               {/* Actions */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pt-4 border-t">
                 <Button
                   variant="outline"
                   size="sm"
