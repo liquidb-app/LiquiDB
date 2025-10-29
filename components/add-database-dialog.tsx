@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Kbd } from "@/components/ui/kbd"
 import { IconPickerDialog } from "@/components/icon-picker-dialog"
 import { BoxesIcon } from "@/components/ui/boxes"
 
@@ -647,6 +648,49 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
     onOpenChange(false)
   }
 
+  const handleBack = () => {
+    if (step === "config") {
+      setStep("type")
+    }
+  }
+
+  // Keyboard event handlers
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!open) return
+      
+      // Don't handle shortcuts when typing in inputs
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      switch (event.key) {
+        case 'Enter':
+          event.preventDefault()
+          if (step === 'form') {
+            handleSubmit()
+          } else if (step === 'install') {
+            // Allow Enter to proceed if installation is complete
+            if (!installing && canStart) {
+              handleSubmit()
+            }
+          }
+          break
+        case 'Escape':
+          event.preventDefault()
+          if (step === 'form') {
+            handleClose()
+          } else if (step === 'install') {
+            handleBack()
+          }
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, step, installing, canStart, handleSubmit, handleClose, handleBack])
+
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
@@ -851,7 +895,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                   size="sm"
                   className="mr-auto"
                 >
-                  Back
+                  Back <Kbd>Esc</Kbd>
                 </Button>
                 <Button 
                   onClick={handleSubmit} 
@@ -865,7 +909,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                     : canStart 
                     ? "Create Database" 
                     : "Install & Create"
-                  }
+                  } <Kbd>⏎</Kbd>
                 </Button>
               </>
             )}

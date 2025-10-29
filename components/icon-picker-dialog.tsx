@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Kbd } from "@/components/ui/kbd"
 import { Upload, LinkIcon } from "lucide-react"
 
 // Component to handle custom image loading with file:// URL conversion
@@ -194,6 +195,34 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
     onOpenChange(false)
   }
 
+  // Keyboard event handlers
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!open) return
+      
+      // Don't handle shortcuts when typing in inputs
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      switch (event.key) {
+        case 'Enter':
+          event.preventDefault()
+          if ((selectedIcon || imageUrl) && !isSaving) {
+            handleSave()
+          }
+          break
+        case 'Escape':
+          event.preventDefault()
+          onOpenChange(false)
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, selectedIcon, imageUrl, isSaving, handleSave, onOpenChange])
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -337,10 +366,10 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} size="sm">
-            Cancel
+            Cancel <Kbd>Esc</Kbd>
           </Button>
           <Button onClick={handleSave} size="sm" disabled={(!selectedIcon && !imageUrl) || isSaving}>
-            {isSaving ? "Saving..." : "Save Icon"}
+            {isSaving ? "Saving..." : "Save Icon"} <Kbd>⏎</Kbd>
           </Button>
         </DialogFooter>
       </DialogContent>

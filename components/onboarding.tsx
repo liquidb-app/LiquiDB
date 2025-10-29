@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { StarsBackground } from "@/components/ui/stars-background"
+import { Kbd } from "@/components/ui/kbd"
 // import { GlowingEffect } from "@/components/ui/glowing-effect" // Using local implementation
 import { BentoGrid, BentoGridItem } from "@/components/ui/bento-grid"
 import { saveProfile, loadProfile, getInitials, loadPreferences, savePreferences, setAutoLaunch, getBannedPorts, setBannedPorts, markOnboardingComplete, setTourRequested, isOnboardingComplete } from "@/lib/preferences"
@@ -825,6 +826,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
     }
   }, [step, username, avatar, initials, theme, notificationsEnabled, autoStart, bannedPortsLocal, colorScheme, setTheme, requestCriticalPermissions])
 
+
   const finish = useCallback((takeTour: boolean) => {
     markOnboardingComplete()
     // Don't set tour request yet - wait for animation to complete
@@ -879,6 +881,49 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
     }
     requestAnimationFrame(animate)
   }, [bgSpeed, starsOpacity, onFinished, onStartTour])
+
+  // Keyboard event handlers
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Don't handle shortcuts when typing in inputs
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      switch (event.key) {
+        case 'Enter':
+          event.preventDefault()
+          if (step === 1 && username.trim()) {
+            saveAndNext()
+          } else if (step === 2) {
+            saveAndNext()
+          } else if (step === 3) {
+            saveAndNext()
+          } else if (step === 4 && helperStatus?.running && !helperLoading) {
+            saveAndNext()
+          } else if (step === 5) {
+            finish(true) // Take the tour
+          }
+          break
+        case 'ArrowLeft':
+        case 'Backspace':
+          event.preventDefault()
+          if (step > 1 && step < 5) {
+            setStep((s) => Math.max(1, s - 1) as Step)
+          }
+          break
+        case 'Escape':
+          event.preventDefault()
+          if (step === 5) {
+            finish(false) // Skip tour
+          }
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [step, username, helperStatus, helperLoading, saveAndNext, finish])
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-start bg-background pt-8" data-onboarding-stars>
@@ -1644,18 +1689,18 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
             <div className="pt-3 mt-3 relative z-10">
               <div className="flex justify-between">
                 {step > 1 && step < 5 ? (
-                  <Button variant="ghost" size="sm" onClick={() => setStep((s) => Math.max(1, s - 1) as Step)}>Back</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setStep((s) => Math.max(1, s - 1) as Step)}>Back <Kbd>←</Kbd></Button>
                 ) : (
                   <div />
                 )}
                 {step === 1 && (
-                  <Button size="sm" onClick={saveAndNext} disabled={!username.trim()}>Continue</Button>
+                  <Button size="sm" onClick={saveAndNext} disabled={!username.trim()}>Continue <Kbd>⏎</Kbd></Button>
                 )}
                 {step === 2 && (
-                  <Button size="sm" onClick={saveAndNext}>Continue</Button>
+                  <Button size="sm" onClick={saveAndNext}>Continue <Kbd>⏎</Kbd></Button>
                 )}
                 {step === 3 && (
-                  <Button size="sm" onClick={saveAndNext}>Continue</Button>
+                  <Button size="sm" onClick={saveAndNext}>Continue <Kbd>⏎</Kbd></Button>
                 )}
                 {step === 4 && (
                   <Button 
@@ -1666,7 +1711,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                     {helperLoading ? 'Checking...' : 
                      !helperStatus?.installed ? 'Install Service First' :
                      !helperStatus?.running ? 'Start Service First' : 
-                     'Continue'}
+                     'Continue'} <Kbd>⏎</Kbd>
                   </Button>
                 )}
                 {step === 5 && (
@@ -1685,7 +1730,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                         onClick={() => finish(false)}
                         className="hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors px-6 py-2"
                       >
-                        Skip
+                        Skip <Kbd>Esc</Kbd>
                       </Button>
                     </div>
                     
@@ -1714,6 +1759,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                           >
                             →
                           </motion.span>
+                          <Kbd>⏎</Kbd>
                         </motion.span>
                       </Button>
                     </div>

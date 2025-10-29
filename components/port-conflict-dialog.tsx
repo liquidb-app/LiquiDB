@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Kbd } from "@/components/ui/kbd"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertTriangle } from "lucide-react"
 
@@ -29,6 +30,32 @@ export function PortConflictDialog({ open, onOpenChange, port, onResolve }: Port
     onResolve(Number.parseInt(newPort))
     onOpenChange(false)
   }
+
+  // Keyboard event handlers
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!open) return
+      
+      // Don't handle shortcuts when typing in inputs
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      switch (event.key) {
+        case 'Enter':
+          event.preventDefault()
+          handleResolve()
+          break
+        case 'Escape':
+          event.preventDefault()
+          onOpenChange(false)
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, handleResolve, onOpenChange])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -64,9 +91,9 @@ export function PortConflictDialog({ open, onOpenChange, port, onResolve }: Port
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            Cancel <Kbd>Esc</Kbd>
           </Button>
-          <Button onClick={handleResolve}>Use Port {newPort}</Button>
+          <Button onClick={handleResolve}>Use Port {newPort} <Kbd>⏎</Kbd></Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -27,6 +27,7 @@ import { Switch } from "@/components/ui/switch"
 import { AlertTriangle, Download } from "lucide-react"
 import { IconPickerDialog } from "@/components/icon-picker-dialog"
 import { BoxesIcon } from "@/components/ui/boxes"
+import { Kbd } from "@/components/ui/kbd"
 import type { DatabaseContainer } from "@/lib/types"
 
 // Helper function to render database icons (emoji or custom image)
@@ -213,6 +214,7 @@ export function DatabaseSettingsDialog({
     onOpenChange(false)
   }
 
+
   const handleSave = () => {
     // Validate name length
     if (!validateName(name)) {
@@ -276,6 +278,32 @@ export function DatabaseSettingsDialog({
     // Placeholder for export functionality
     console.log("Exporting database:", database.name)
   }
+
+  // Keyboard event handlers
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!open) return
+      
+      // Don't handle shortcuts when typing in inputs
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      switch (event.key) {
+        case 'Enter':
+          event.preventDefault()
+          handleSave()
+          break
+        case 'Escape':
+          event.preventDefault()
+          handleCancel()
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, handleSave, handleCancel])
 
   return (
     <>
@@ -458,10 +486,10 @@ export function DatabaseSettingsDialog({
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCancel} size="sm">
-              Cancel
+              Cancel <Kbd>Esc</Kbd>
             </Button>
             <Button onClick={handleSave} size="sm">
-              Save Changes
+              Save Changes <Kbd>⏎</Kbd>
             </Button>
           </DialogFooter>
         </DialogContent>

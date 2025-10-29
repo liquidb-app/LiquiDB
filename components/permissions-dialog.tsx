@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Kbd } from "@/components/ui/kbd"
 import { CheckCircle, XCircle, AlertTriangle, ExternalLink, Settings, Shield } from "lucide-react"
 import { toast } from "sonner"
 
@@ -61,6 +62,35 @@ export function PermissionsDialog({
       description: "Please grant the required permissions and return to LiquiDB."
     })
   }
+
+  // Keyboard event handlers
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!open) return
+      
+      // Don't handle shortcuts when typing in inputs
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      switch (event.key) {
+        case 'Enter':
+          event.preventDefault()
+          onSkip()
+          break
+        case 'r':
+        case 'R':
+          event.preventDefault()
+          if (!isRetrying) {
+            handleRetry()
+          }
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, onSkip, handleRetry, isRetrying])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -212,7 +242,7 @@ export function PermissionsDialog({
               variant="outline"
               className="flex-1"
             >
-              {isRetrying ? "Checking..." : "Retry Check"}
+              {isRetrying ? "Checking..." : "Retry Check"} <Kbd>R</Kbd>
             </Button>
           </div>
           
@@ -223,7 +253,7 @@ export function PermissionsDialog({
                 className="flex-1"
                 variant="default"
               >
-                Continue
+                Continue <Kbd>⏎</Kbd>
               </Button>
             ) : (
               <Button
@@ -231,7 +261,7 @@ export function PermissionsDialog({
                 className="flex-1"
                 variant="outline"
               >
-                Continue Anyway
+                Continue Anyway <Kbd>⏎</Kbd>
               </Button>
             )}
           </div>
