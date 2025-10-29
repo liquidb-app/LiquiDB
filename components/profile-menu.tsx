@@ -25,6 +25,7 @@ import { useTheme } from "next-themes"
 export function ProfileMenuTrigger() {
   const [username, setUsername] = useState<string>("")
   const [avatar, setAvatar] = useState<string | undefined>(undefined)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   const { theme, setTheme } = useTheme()
 
   // Animated icon hover hooks
@@ -42,11 +43,21 @@ export function ProfileMenuTrigger() {
     }
   }, [])
 
+  // Handle open-app-settings event to close dropdown when settings open
+  useEffect(() => {
+    const handleOpenAppSettings = () => {
+      setDropdownOpen(false)
+    }
+    
+    window.addEventListener('open-app-settings', handleOpenAppSettings)
+    return () => window.removeEventListener('open-app-settings', handleOpenAppSettings)
+  }, [])
+
   const initials = getInitials(username || "User")
   const hasValidAvatar = avatar && avatar.startsWith('data:')
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
@@ -148,6 +159,7 @@ export function ProfileMenuTrigger() {
         <DropdownMenuGroup>
           <DropdownMenuItem
             onClick={() => {
+              setDropdownOpen(false)
               const event = new CustomEvent("open-app-settings")
               window.dispatchEvent(event)
             }}
@@ -161,6 +173,7 @@ export function ProfileMenuTrigger() {
           
           <DropdownMenuItem
             onClick={() => {
+              setDropdownOpen(false)
               // @ts-ignore
               window.electron?.openExternalLink?.("https://liquidb.app/help")
             }}
@@ -177,6 +190,7 @@ export function ProfileMenuTrigger() {
         
         <DropdownMenuItem
           onClick={() => {
+            setDropdownOpen(false)
             // @ts-ignore
             window.electron?.quitApp?.()
           }}
