@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useRef } from "react"
+import React, { useEffect, useState, useRef, useMemo } from "react"
 import { log } from '../lib/logger'
 import { motion, AnimatePresence } from "framer-motion"
 import { Plus, Square, RotateCw, CheckSquare, CheckSquare2, MousePointer2 } from "lucide-react"
