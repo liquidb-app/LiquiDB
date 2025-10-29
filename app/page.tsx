@@ -2635,37 +2635,68 @@ export default function DatabaseManager() {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2, ease: "easeInOut" }}
                 >
-                  <div className="mb-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold">All Databases</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Complete list of all databases
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {showBulkActions && getVisibleDatabases().length > 0 && (
-                      <Button
-                        onClick={toggleSelectAll}
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-3 text-xs"
-                      >
-                        {getSelectAllButtonText()}
-                      </Button>
-                    )}
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <BoxesIcon size={16} />
-                      <span className="font-medium">{databases.length}</span>
-                      <span>Total</span>
+                  {/* All Databases Header */}
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-lg font-semibold">All Databases</h2>
+                        <p className="text-sm text-muted-foreground">
+                          Complete overview of all your databases
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {showBulkActions && getVisibleDatabases().length > 0 && (
+                          <Button
+                            onClick={toggleSelectAll}
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-3 text-xs"
+                          >
+                            {getSelectAllButtonText()}
+                          </Button>
+                        )}
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <BoxesIcon size={16} />
+                          <span className="text-foreground font-semibold">{databases.length}</span>
+                          <span>Total</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-              <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-testid="database-grid" data-tour="database-cards">
-                {databases.map((db) => (
+
+                  {/* Active Databases Section */}
+                  {databases.filter(db => db.status === "running" || db.status === "starting" || db.status === "stopping").length > 0 && (
+                    <>
+                      <div className="flex items-center gap-2 mb-3 mt-6">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <span className="text-sm font-medium text-muted-foreground">
+                        <span className="text-foreground font-semibold">{databases.filter(db => db.status === "running" || db.status === "starting" || db.status === "stopping").length}</span> Active 
+                        </span>
+                      </div>
+                      <AnimatePresence mode="popLayout">
+                        <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8" data-testid="database-grid" data-tour="database-cards">
+                          {databases
+                            .filter(db => db.status === "running" || db.status === "starting" || db.status === "stopping")
+                            .map((db) => (
+                  <motion.div
+                    key={db.id}
+                    layoutId={activeTab === "all" ? `database-${db.id}` : undefined}
+                    layout={activeTab === "all" ? true : false}
+                    initial={false}
+                    animate={activeTab === "all" ? { opacity: 1 } : undefined}
+                    exit={activeTab === "all" ? { opacity: 0 } : undefined}
+                    transition={{
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 35,
+                      layout: {
+                        type: "spring",
+                        stiffness: 400,
+                        damping: 35
+                      }
+                    }}
+                  >
                   <Card 
-                    key={db.id} 
                     className={`relative overflow-hidden border-dashed transition-opacity ${
                       showBulkActions 
                         ? (selectedDatabases.has(db.id) ? 'opacity-100' : 'opacity-60')
@@ -2859,8 +2890,191 @@ export default function DatabaseManager() {
                       )}
                     </CardContent>
                   </Card>
-                ))}
-              </div>
+                  </motion.div>
+                          ))}
+                        </div>
+                      </AnimatePresence>
+                    </>
+                  )}
+
+                  {/* Inactive Databases Section */}
+                  {databases.filter(db => db.status === "stopped").length > 0 && (
+                    <>
+                      <div className="flex items-center gap-2 mb-3 mt-8">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                        <span className="text-sm font-medium text-muted-foreground">
+                        <span className="text-foreground font-semibold">{databases.filter(db => db.status === "stopped").length}</span> Inactive 
+                        </span>
+                      </div>
+                      <AnimatePresence mode="popLayout">
+                        <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-testid="database-grid" data-tour="database-cards">
+                          {databases
+                            .filter(db => db.status === "stopped")
+                            .map((db) => (
+                            <motion.div
+                              key={db.id}
+                              layoutId={activeTab === "all" ? `database-${db.id}` : undefined}
+                              layout={activeTab === "all" ? true : false}
+                              initial={false}
+                              animate={activeTab === "all" ? { opacity: 1 } : undefined}
+                              exit={activeTab === "all" ? { opacity: 0 } : undefined}
+                              transition={{
+                                type: "spring",
+                                stiffness: 400,
+                                damping: 35,
+                                layout: {
+                                  type: "spring",
+                                  stiffness: 400,
+                                  damping: 35
+                                }
+                              }}
+                            >
+                            <Card 
+                              className={`relative overflow-hidden border-dashed ${selectedDatabases.has(db.id) ? 'ring-2 ring-primary' : ''} ${
+                                showBulkActions ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''
+                              } ${selectedDatabases.has(db.id) ? '' : 'opacity-60'}`}
+                              onClick={showBulkActions ? () => toggleDatabaseSelection(db.id) : undefined}
+                            >
+                              <CardContent className="p-3">
+                                <div className="flex items-center justify-between mb-2">
+                                  {showBulkActions && (
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedDatabases.has(db.id)}
+                                      onChange={() => toggleDatabaseSelection(db.id)}
+                                      className="mr-2 h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  )}
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <div className="flex items-center justify-center w-7 h-7 shrink-0">
+                                      {renderDatabaseIcon(db.icon, "w-7 h-7 object-cover rounded")}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <h3 className="text-sm font-semibold leading-tight truncate">{db.name}</h3>
+                                      <p className="text-[10px] text-muted-foreground leading-tight">
+                                        {db.type} {db.version}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <Badge
+                                    variant="secondary"
+                                    className={`text-[10px] px-1.5 py-0 h-4 shrink-0 ${
+                                      db.status === "stopping"
+                                        ? "bg-status-stopping text-status-stopping-foreground hover:opacity-90"
+                                        : "bg-muted text-muted-foreground"
+                                    }`}
+                                  >
+                                    {db.status}
+                                  </Badge>
+                                </div>
+
+                                <div className="space-y-1 mb-2">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-muted-foreground">Port</span>
+                                    <div className="flex items-center gap-1">
+                                      <span className="font-mono font-medium text-success">{db.port}</span>
+                                      {isPortBanned(db.port) && (
+                                        <span className="text-destructive text-[10px]" title="This port is banned and cannot be used">
+                                          🚫
+                                        </span>
+                                      )}
+                                      <PortConflictWarning port={db.port} databaseId={db.id} databaseStatus={db.status} />
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center justify-between text-[11px] gap-2">
+                                    <span className="text-muted-foreground">Container</span>
+                                    <div className="flex items-center gap-1 min-w-0">
+                                      <span className="font-mono text-[10px] truncate max-w-[90px]">{db.containerId}</span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-4 w-4 p-0 shrink-0"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleCopyContainerId(db.containerId, db.id)
+                                        }}
+                                        onMouseEnter={createHoverHandlers(db.id, 'copy').onMouseEnter}
+                                        onMouseLeave={createHoverHandlers(db.id, 'copy').onMouseLeave}
+                                      >
+                                        {copiedId === db.id ? (
+                                          <CheckIcon ref={createHoverHandlers(db.id, 'check').iconRef} size={12} />
+                                        ) : (
+                                          <CopyIcon ref={createHoverHandlers(db.id, 'copy').iconRef} size={12} />
+                                        )}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {!showBulkActions && (
+                                  <div className="flex gap-1">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className={`flex-1 h-6 text-[11px] ${
+                                        db.status === "stopping"
+                                          ? "border-orange-500/50 text-orange-600"
+                                          : "border-success/50 text-success hover:bg-success hover:text-success-foreground"
+                                      }`}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleStartStop(db.id)
+                                      }}
+                                      disabled={db.status === "installing" || db.status === "starting" || db.status === "stopping"}
+                                      onMouseEnter={createHoverHandlers(db.id, 'play').onMouseEnter}
+                                      onMouseLeave={createHoverHandlers(db.id, 'play').onMouseLeave}
+                                    >
+                                      {db.status === "stopping" ? (
+                                        <>
+                                          <RotateCw className="mr-1 h-3 w-3 animate-spin" />
+                                          Stopping
+                                        </>
+                                      ) : (
+                                        <>
+                                          <PlayIcon ref={createHoverHandlers(db.id, 'play').iconRef} size={12} />
+                                          Start
+                                        </>
+                                      )}
+                                    </Button>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-6 px-2 bg-transparent"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setSelectedDatabase(db)
+                                            setSettingsDialogOpen(true)
+                                          }}
+                                          onMouseEnter={createHoverHandlers(db.id, 'settings').onMouseEnter}
+                                          onMouseLeave={createHoverHandlers(db.id, 'settings').onMouseLeave}
+                                        >
+                                          <SettingsIcon ref={createHoverHandlers(db.id, 'settings').iconRef} size={12} />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Database settings</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </div>
+                                )}
+                              </CardContent>
+                            </Card>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </AnimatePresence>
+                    </>
+                  )}
+
+                  {/* Show message if no databases at all */}
+                  {databases.length === 0 && (
+                    <div className="text-center py-12">
+                      <p className="text-muted-foreground">No databases found</p>
+                    </div>
+                  )}
                 </motion.div>
               </AnimatePresence>
             </TabsContent>
@@ -2899,7 +3113,7 @@ export default function DatabaseManager() {
                           ? "bg-yellow-500 animate-pulse"
                           : "bg-red-500"
                       }`}></div>
-                      <span className="font-medium">{databases.filter(db => db.status === "running" || db.status === "starting").length}</span>
+                      <span className="text-foreground font-semibold">{databases.filter(db => db.status === "running" || db.status === "starting").length}</span>
                       <span>Active</span>
                     </div>
                   </div>
@@ -3215,7 +3429,7 @@ export default function DatabaseManager() {
                     )}
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                      <span className="font-medium">{databases.filter(db => db.status === "stopped").length}</span>
+                      <span className="text-foreground font-semibold">{databases.filter(db => db.status === "stopped").length}</span>
                       <span>Inactive</span>
                     </div>
                   </div>
