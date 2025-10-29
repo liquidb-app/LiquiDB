@@ -640,6 +640,8 @@ export default function DatabaseManager() {
     let systemInfoInterval: NodeJS.Timeout | null = null
     let lastDatabaseCount = 0
     let noActiveDatabasesCount = 0
+    // Track all pending timeouts to clear them on unmount
+    const pendingTimeouts = new Set<NodeJS.Timeout>()
 
     const load = async (retryCount = 0) => {
       const maxRetries = 3
@@ -690,10 +692,14 @@ export default function DatabaseManager() {
             updatedDatabases.forEach(db => {
               if (db.status === "running") {
                 console.log(`[System Info] Database ${db.id} is already running, fetching system info`)
-                setTimeout(() => {
-                  setLastSystemInfoCheck(prev => ({ ...prev, [db.id]: Date.now() }))
-                  fetchSystemInfo(db.id)
+                const timeoutId = setTimeout(() => {
+                  pendingTimeouts.delete(timeoutId)
+                  if (isMounted) {
+                    setLastSystemInfoCheck(prev => ({ ...prev, [db.id]: Date.now() }))
+                    fetchSystemInfo(db.id)
+                  }
                 }, 2000) // Wait 2 seconds for initial load
+                pendingTimeouts.add(timeoutId)
               }
             })
             
@@ -863,16 +869,23 @@ export default function DatabaseManager() {
                     log.debug(`Updating system info for database ${db.id}`)
                     setLastSystemInfoCheck(prev => ({ ...prev, [db.id]: now }))
                     
-                    // Stagger the requests to avoid overwhelming the system
-                    setTimeout(() => {
-                      if (isMounted) {
-                        fetchSystemInfo(db.id)
-                      }
-                    }, i * 1000) // 1 second delay between each request
+                    // Process sequentially with delay to prevent timeout accumulation
+                    await new Promise(resolve => {
+                      const timeoutId = setTimeout(() => {
+                        pendingTimeouts.delete(timeoutId)
+                        if (isMounted) {
+                          fetchSystemInfo(db.id)
+                        }
+                        resolve(undefined)
+                      }, i * 1000) // 1 second delay between each request
+                      pendingTimeouts.add(timeoutId)
+                    })
                   }
                 }
               } catch (error) {
                 log.error(`System Info Monitoring Error:`, error)
+              } finally {
+                isRunning = false
               }
             }, 10000) // Update every 10 seconds instead of 5 seconds
           }
@@ -970,10 +983,14 @@ export default function DatabaseManager() {
                       })
                       
                       // Fetch system info for newly started database
-                      setTimeout(() => {
-                        setLastSystemInfoCheck(prev => ({ ...prev, [data.id]: now }))
-                        fetchSystemInfo(data.id)
+                      const timeoutId = setTimeout(() => {
+                        pendingTimeouts.delete(timeoutId)
+                        if (isMounted) {
+                          setLastSystemInfoCheck(prev => ({ ...prev, [data.id]: now }))
+                          fetchSystemInfo(data.id)
+                        }
                       }, 2000) // Wait 2 seconds for database to fully initialize
+                      pendingTimeouts.add(timeoutId)
                     }
                   }
                   
@@ -1055,12 +1072,23 @@ export default function DatabaseManager() {
       // Clean up interval and listeners on unmount
       return () => {
         isMounted = false
+        
+        // Clear all intervals
         if (statusInterval) {
           clearInterval(statusInterval)
+          statusInterval = null
         }
         if (systemInfoInterval) {
           clearInterval(systemInfoInterval)
+          systemInfoInterval = null
         }
+        
+        // Clear all pending timeouts to prevent memory leaks
+        pendingTimeouts.forEach(timeoutId => {
+          clearTimeout(timeoutId)
+        })
+        pendingTimeouts.clear()
+        
         // @ts-ignore
         if (window.electron?.removeAllListeners) {
           // @ts-ignore
@@ -1538,13 +1566,15 @@ export default function DatabaseManager() {
   useEffect(() => {
     let statusInterval: NodeJS.Timeout | null = null
     let isMounted = true
+    const pendingTimeouts = new Set<NodeJS.Timeout>()
 
     const load = async () => {
       // Check if Electron is available
       // @ts-ignore
       if (!window.electron) {
         console.log("[Debug] Electron not available yet, retrying in 1 second")
-        setTimeout(load, 1000)
+        const timeoutId = setTimeout(load, 1000)
+        pendingTimeouts.add(timeoutId)
         return
       }
       
@@ -1597,7 +1627,8 @@ export default function DatabaseManager() {
         if (isMounted) setDatabases(updatedDatabases)
         
         // Force immediate status check for all databases
-        setTimeout(async () => {
+        const timeoutId = setTimeout(async () => {
+          pendingTimeouts.delete(timeoutId)
           if (!isMounted) return
           for (const db of updatedDatabases) {
             try {
@@ -1614,6 +1645,7 @@ export default function DatabaseManager() {
             }
           }
         }, 1000)
+        pendingTimeouts.add(timeoutId)
         
         // Optimized status monitoring with adaptive frequency and memory management
         let fileCheckCounter = 0
@@ -1881,7 +1913,15 @@ export default function DatabaseManager() {
       isMounted = false
       if (statusInterval) {
         clearInterval(statusInterval)
+        statusInterval = null
       }
+      
+      // Clear all pending timeouts to prevent memory leaks
+      pendingTimeouts.forEach(timeoutId => {
+        clearTimeout(timeoutId)
+      })
+      pendingTimeouts.clear()
+      
       // @ts-ignore
       if (window.electron?.removeDatabaseStatusListener) {
         // @ts-ignore
