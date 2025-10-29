@@ -857,20 +857,28 @@ export default function DatabaseManager() {
           
           // Set up system info monitoring for running databases (optimized)
           const startSystemInfoMonitoring = () => {
+            let isRunning = false // Prevent overlapping interval executions
             return setInterval(async () => {
-              if (!isMounted) return
+              if (!isMounted || isRunning) return
+              isRunning = true
               
               try {
                 // Get current databases state from ref
                 const currentDatabases = databasesRef.current.filter(db => db.status === "running")
                 
                 // Only monitor if there are running databases and reduce frequency
-                if (currentDatabases.length === 0) return
+                if (currentDatabases.length === 0) {
+                  isRunning = false
+                  return
+                }
                 
                 log.debug(`Found ${currentDatabases.length} running databases`)
                 
                 // Fetch system info for each running database with staggered timing
+                // Use sequential processing to prevent timeout accumulation
                 for (let i = 0; i < currentDatabases.length; i++) {
+                  if (!isMounted) break
+                  
                   const db = currentDatabases[i]
                   const now = Date.now()
                   const lastCheck = lastSystemInfoCheck[db.id] || 0
