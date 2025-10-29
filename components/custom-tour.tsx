@@ -124,6 +124,70 @@ const tourSteps: TourStep[] = [
     icon: <BoxesIcon size={20} className="text-indigo-500" />
   },
   {
+    id: "tabs-overview",
+    title: "Organize Your Databases with Tabs",
+    description: "Use the tabs at the top to filter and organize your databases by status. This helps you quickly find and manage databases based on whether they're running or stopped.",
+    details: [
+      "📦 All: View every database you've created",
+      "🟢 Active: See only running or starting databases",
+      "⚪ Inactive: View stopped databases only",
+      "Quick switching between views",
+      "Each tab shows count badges for easy reference"
+    ],
+    target: "[data-slot='tabs-list'], [role='tablist'], .grid.w-full.grid-cols-3",
+    placement: "bottom",
+    highlight: true,
+    icon: <BoxesIcon size={20} className="text-blue-500" />
+  },
+  {
+    id: "tabs-all",
+    title: "All Tab: Complete Overview",
+    description: "The 'All' tab displays every database in your collection, regardless of status. This is perfect for getting a comprehensive view of all your databases at once.",
+    details: [
+      "Shows all databases (running, stopped, starting, etc.)",
+      "Total count badge shows your complete database collection",
+      "Useful for bulk operations across all databases",
+      "See the full picture of your database infrastructure",
+      "Easy access to all databases from one place"
+    ],
+    target: "[data-slot='tabs-trigger'][value='all'], button[value='all'], [role='tab'][value='all']",
+    placement: "bottom",
+    highlight: true,
+    icon: <BoxesIcon size={20} className="text-purple-500" />
+  },
+  {
+    id: "tabs-active",
+    title: "Active Tab: Running Databases",
+    description: "The 'Active' tab filters to show only databases that are currently running or starting. The yellow pulsing indicator shows when you have active databases.",
+    details: [
+      "Shows databases with status 'running' or 'starting'",
+      "Yellow pulsing dot indicates active databases present",
+      "Perfect for monitoring active workloads",
+      "Quick view of databases consuming resources",
+      "Active count badge updates in real-time"
+    ],
+    target: "[data-slot='tabs-trigger'][value='active'], button[value='active'], [role='tab'][value='active']",
+    placement: "bottom",
+    highlight: true,
+    icon: <Zap className="w-5 h-5 text-green-500" />
+  },
+  {
+    id: "tabs-inactive",
+    title: "Inactive Tab: Stopped Databases",
+    description: "The 'Inactive' tab displays only databases that are currently stopped. This helps you quickly identify databases that need to be started or can be safely removed.",
+    details: [
+      "Shows only databases with 'stopped' status",
+      "Gray indicator for inactive databases",
+      "Perfect for finding databases ready to start",
+      "Useful for cleanup and organization",
+      "Helps identify unused or dormant databases"
+    ],
+    target: "[data-slot='tabs-trigger'][value='inactive'], button[value='inactive'], [role='tab'][value='inactive']",
+    placement: "bottom",
+    highlight: true,
+    icon: <Square className="w-5 h-5 text-gray-500" />
+  },
+  {
     id: "database-actions",
     title: "Database Management Controls",
     description: "Each database card includes powerful management controls. Learn how to start, stop, configure, and monitor your databases efficiently.",
