@@ -376,6 +376,12 @@ export default function DatabaseManager() {
 
   // Dynamic port conflict warning component
   const PortConflictWarning = ({ port, databaseId, databaseStatus }: { port: number; databaseId: string; databaseStatus: string }) => {
+    // Disable port warnings for stopped databases to prevent false positives
+    // Only show warnings for running/starting databases where conflicts actually matter
+    if (databaseStatus === "stopped" || databaseStatus === "stopping") {
+      return null
+    }
+
     const [conflictInfo, setConflictInfo] = useState<{ processName: string; pid: string } | null>(null)
     const [isChecking, setIsChecking] = useState(false)
     const [hasInitialized, setHasInitialized] = useState(false)
@@ -409,9 +415,11 @@ export default function DatabaseManager() {
           await new Promise(resolve => setTimeout(resolve, 100))
           
           const externalConflict = await getPortConflictInfo(port)
+          
           if (isMounted) {
-            // Only set conflict info if there's actually a conflict
-            if (externalConflict) {
+            // Only set conflict info if there's actually a meaningful conflict
+            // Filter out common false positives like system processes that don't actually conflict
+            if (externalConflict && !isLikelyFalsePositive(externalConflict.processName)) {
               setConflictInfo(externalConflict)
             } else {
               setConflictInfo(null)
@@ -447,7 +455,10 @@ export default function DatabaseManager() {
       }
     }, [port, databaseId, databaseStatus, databases, hasInitialized])
 
-    if (!conflictInfo && !isChecking) return null
+    // Don't show anything if no conflict and not checking
+    if (!conflictInfo && !isChecking) {
+      return null
+    }
 
     return (
       <Tooltip>
@@ -466,6 +477,18 @@ export default function DatabaseManager() {
         </TooltipContent>
       </Tooltip>
     )
+  }
+
+  // Helper function to filter out likely false positives
+  const isLikelyFalsePositive = (processName: string): boolean => {
+    const falsePositives = [
+      'node', 'npm', 'yarn', 'pnpm', 'next', 'webpack', 'vite', 'dev',
+      'chrome', 'safari', 'firefox', 'electron', 'code', 'cursor',
+      'system', 'kernel', 'launchd', 'WindowServer', 'Finder'
+    ]
+    
+    const lowerProcessName = processName.toLowerCase()
+    return falsePositives.some(fp => lowerProcessName.includes(fp.toLowerCase()))
   }
 
   // Function to check if a database name already exists
