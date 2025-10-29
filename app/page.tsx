@@ -1000,7 +1000,15 @@ export default function DatabaseManager() {
             })
           }
           
-          // Set up auto-start event listeners
+          // Set up auto-start event listeners (remove existing listeners first to prevent leaks)
+          // @ts-ignore
+          if (window.electron?.removeAllListeners) {
+            // @ts-ignore
+            window.electron.removeAllListeners('auto-start-port-conflicts')
+            // @ts-ignore
+            window.electron.removeAllListeners('auto-start-completed')
+          }
+          
           // @ts-ignore
           if (window.electron?.onAutoStartPortConflicts) {
             // @ts-ignore
@@ -1856,7 +1864,15 @@ export default function DatabaseManager() {
       }
     }
     
-    // Set up auto-start port conflict listener
+    // Set up auto-start port conflict listener (remove existing listeners first to prevent leaks)
+    // @ts-ignore
+    if (window.electron?.removeAllListeners) {
+      // @ts-ignore
+      window.electron.removeAllListeners('auto-start-port-conflicts')
+      // @ts-ignore
+      window.electron.removeAllListeners('auto-start-completed')
+    }
+    
     // @ts-ignore
     if (window.electron?.onAutoStartPortConflicts) {
       console.log(`[Listener Setup] Setting up auto-start port conflicts listener`)

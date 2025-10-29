@@ -27,6 +27,9 @@ contextBridge.exposeInMainWorld("electron", {
   removeDatabaseStatusListener: () => {
     ipcRenderer.removeAllListeners('database-status-changed')
   },
+  removeAllListeners: (channel) => {
+    ipcRenderer.removeAllListeners(channel)
+  },
   verifyDatabaseInstance: (id) => ipcRenderer.invoke("verify-database-instance", id),
   getDatabaseSystemInfo: (id) => ipcRenderer.invoke("get-database-system-info", id),
   checkPortConflict: (port) => ipcRenderer.invoke("check-port-conflict", port),
