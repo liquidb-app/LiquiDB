@@ -264,6 +264,9 @@ export function CustomTour() {
       description: "Tour mode disabled. You can now create databases and use all features.",
       duration: 3000
     })
+    // Remove tour mode flag and force reflow to ensure CSS updates
+    document.body.removeAttribute('data-tour-mode')
+    document.body.offsetHeight // Force reflow
     setIsOpen(false)
   }
 
@@ -309,6 +312,9 @@ export function CustomTour() {
     
     // Close tour after a short delay to let confetti start
     setTimeout(() => {
+      // Remove tour mode flag and force reflow to ensure CSS updates
+      document.body.removeAttribute('data-tour-mode')
+      document.body.offsetHeight // Force reflow
       setIsOpen(false)
     }, 500)
   }
