@@ -1424,7 +1424,8 @@ async function checkPortInUse(port) {
 // Get process information for a port
 async function getProcessUsingPort(port) {
   return new Promise((resolve) => {
-    exec(`lsof -i :${port}`, (error, stdout, stderr) => {
+    // Use more specific lsof command to only get listening processes
+    exec(`lsof -i :${port} -sTCP:LISTEN -n -P`, (error, stdout, stderr) => {
       if (error || !stdout.trim()) {
         resolve(null)
         return
@@ -1438,6 +1439,22 @@ async function getProcessUsingPort(port) {
         if (parts.length >= 2) {
           const processName = parts[0]
           const pid = parts[1]
+          
+          // Filter out common false positives
+          const falsePositives = [
+            'node', 'npm', 'yarn', 'pnpm', 'next', 'webpack', 'vite', 'dev',
+            'chrome', 'safari', 'firefox', 'electron', 'code', 'cursor',
+            'system', 'kernel', 'launchd', 'WindowServer', 'Finder'
+          ]
+          
+          const lowerProcessName = processName.toLowerCase()
+          const isFalsePositive = falsePositives.some(fp => lowerProcessName.includes(fp.toLowerCase()))
+          
+          if (isFalsePositive) {
+            resolve(null)
+            return
+          }
+          
           resolve({ processName, pid })
         }
       }
@@ -1557,41 +1574,21 @@ ipcMain.handle("get-database-system-info", async (event, id) => {
     const pid = db.process.pid
     log.debug(`Database ${id} found with PID ${pid}`)
     
-    // Get memory usage and CPU time using ps command
+    // Get memory usage and CPU time using ps command (optimized)
     let memoryUsage = null
     let cpuUsage = 0
     try {
       const { execSync } = require('child_process')
       
-      // Try to get real-time CPU usage using top command
-      try {
-        const topOutput = execSync(`top -l 1 -pid ${pid} -stats pid,cpu,mem,time | grep ${pid}`, { encoding: 'utf8', timeout: 3000 })
-        log.verbose(`TOP output for PID ${pid}:`, topOutput)
-        const topLines = topOutput.trim().split('\n')
-        if (topLines.length > 0) {
-          const topData = topLines[0].trim().split(/\s+/)
-          if (topData.length >= 4) {
-            cpuUsage = parseFloat(topData[1]) || 0
-            log.debug(`CPU usage from top: ${cpuUsage}%`)
-          }
-        }
-      } catch (topError) {
-        log.debug(`Top command failed, falling back to ps:`, topError.message)
-      }
-      
-      // Fallback to ps command for memory and basic info
-      const psOutput = execSync(`ps -o pid,rss,vsz,pcpu,pmem,time,command -p ${pid}`, { encoding: 'utf8' })
+      // Use only ps command for better performance (skip heavy top command)
+      const psOutput = execSync(`ps -o pid,rss,vsz,pcpu,pmem,time,command -p ${pid}`, { encoding: 'utf8', timeout: 2000 })
       log.verbose(`PS output for PID ${pid}:`, psOutput)
       const lines = psOutput.trim().split('\n')
       if (lines.length > 1) {
         const data = lines[1].trim().split(/\s+/)
         log.verbose(`Parsed PS data:`, data)
         if (data.length >= 6) {
-          // Use CPU from top if available, otherwise use ps
-          const psCpu = parseFloat(data[3]) || 0
-          if (cpuUsage === 0) {
-            cpuUsage = psCpu
-          }
+          cpuUsage = parseFloat(data[3]) || 0
           
           memoryUsage = {
             rss: parseInt(data[1]) * 1024, // Convert KB to bytes
@@ -1607,11 +1604,11 @@ ipcMain.handle("get-database-system-info", async (event, id) => {
       log.warn(`Could not get process info for PID ${pid}:`, psError.message)
     }
     
-    // Get system memory info
+    // Get system memory info (simplified for performance)
     let systemMemory = null
     try {
       const { execSync } = require('child_process')
-      const vmStatOutput = execSync('vm_stat', { encoding: 'utf8' })
+      const vmStatOutput = execSync('vm_stat', { encoding: 'utf8', timeout: 1000 })
       const lines = vmStatOutput.split('\n')
       const memoryInfo = {}
       
