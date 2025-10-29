@@ -2790,6 +2790,73 @@ export default function DatabaseManager() {
                         </div>
                       </div>
 
+                      {/* System Metrics - Only show for running instances */}
+                      {(() => {
+                        if (db.status === "running") {
+                          log.debug(`Database ${db.id} status: ${db.status}, systemInfo:`, db.systemInfo)
+                          if (db.systemInfo) {
+                            return (
+                              <div className="space-y-1 mb-2 pt-2 border-t border-border/50">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-muted-foreground">Uptime</span>
+                                  <span className="font-mono font-medium text-success">{formatUptime(db.systemInfo.uptime)}</span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                  <div>
+                                    <div className="text-[10px] text-muted-foreground">CPU</div>
+                                    <div className="text-[11px] font-medium">{db.systemInfo.cpu.toFixed(1)}%</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-[10px] text-muted-foreground">Memory</div>
+                                    <div className="text-[11px] font-medium">{formatBytes(db.systemInfo.memory)}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-[10px] text-muted-foreground">Connections</div>
+                                    <div className="text-[11px] font-medium">{db.systemInfo.connections}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          } else {
+                            log.debug(`Database ${db.id} is running but has no systemInfo - triggering fetch`)
+                            // Trigger system info fetch if not available
+                            setTimeout(() => {
+                              const now = Date.now()
+                              const lastCheck = lastSystemInfoCheck[db.id] || 0
+                              if (now - lastCheck > 5000) { // Allow more frequent checks for missing data
+                                setLastSystemInfoCheck(prev => ({ ...prev, [db.id]: now }))
+                                fetchSystemInfo(db.id)
+                              }
+                            }, 1000)
+                            
+                            // Show placeholder while loading
+                            return (
+                              <div className="space-y-1 mb-2 pt-2 border-t border-border/50">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-muted-foreground">Uptime</span>
+                                  <span className="font-mono font-medium text-muted-foreground">Loading...</span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                  <div>
+                                    <div className="text-[10px] text-muted-foreground">CPU</div>
+                                    <div className="text-[11px] font-medium text-muted-foreground">--</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-[10px] text-muted-foreground">Memory</div>
+                                    <div className="text-[11px] font-medium text-muted-foreground">--</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-[10px] text-muted-foreground">Connections</div>
+                                    <div className="text-[11px] font-medium text-muted-foreground">--</div>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          }
+                        }
+                        return null
+                      })()}
+
                       {!showBulkActions && (
                         <div className="flex gap-1">
                           <Button
