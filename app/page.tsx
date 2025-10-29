@@ -152,6 +152,7 @@ export default function DatabaseManager() {
   const [showOnboarding, setShowOnboarding] = useState(false) // Don't show onboarding until loading is complete
   const [dashboardOpacity, setDashboardOpacity] = useState(0) // Start with 0, fade in when onboarding finishes
   const [databases, setDatabases] = useState<DatabaseContainer[]>([])
+  const [animationThrottled, setAnimationThrottled] = useState(false)
   
   // Animated icon hover hooks
   const settingsIconHover = useAnimatedIconHover()
@@ -171,7 +172,14 @@ export default function DatabaseManager() {
     databasesRef.current = databases
   }, [databases])
 
-  // Real-time uptime counter that updates every second
+  // Animation throttling based on running databases
+  useEffect(() => {
+    const runningDatabases = databases.filter(db => db.status === "running" || db.status === "starting")
+    // Throttle animations when more than 2 databases are running
+    setAnimationThrottled(runningDatabases.length > 2)
+  }, [databases])
+
+  // Real-time uptime counter that updates every 5 seconds (reduced frequency)
   useEffect(() => {
     const uptimeInterval = setInterval(() => {
       setDatabases(prevDatabases => {
@@ -202,7 +210,7 @@ export default function DatabaseManager() {
         // Only return updated databases if there were actual changes
         return hasChanges ? updatedDatabases : prevDatabases
       })
-    }, 1000) // Update every second
+    }, 5000) // Update every 5 seconds instead of every second
 
     return () => clearInterval(uptimeInterval)
   }, [])
