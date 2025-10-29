@@ -117,7 +117,7 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
       
       fetchSystemInfo()
       
-      // Continuous data streaming - add new data point every 2 seconds to prevent crashes
+      // Continuous data streaming - add new data point every 5 seconds to reduce load
       const interval = setInterval(() => {
         try {
           const now = new Date()
@@ -133,7 +133,7 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
               rss: memoryData.rss,
               vsz: memoryData.vsz
             }]
-            return newData.slice(-20) // Keep last 20 data points (40 seconds of data)
+            return newData.slice(-15) // Keep last 15 data points (75 seconds of data)
           })
           
           // Generate smooth CPU data
@@ -145,17 +145,17 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
               time,
               cpu: cpuData
             }]
-            return newData.slice(-20) // Keep last 20 data points (40 seconds of data)
+            return newData.slice(-15) // Keep last 15 data points (75 seconds of data)
           })
           
-          // Fetch real system info less frequently (every 10 seconds)
-          if (Math.floor(Date.now() / 1000) % 10 === 0) {
+          // Fetch real system info less frequently (every 15 seconds)
+          if (Math.floor(Date.now() / 1000) % 15 === 0) {
             fetchSystemInfo()
           }
         } catch (error) {
           console.error('Error updating chart data:', error)
         }
-      }, 2000) // Update every 2 seconds to reduce load
+      }, 5000) // Update every 5 seconds instead of 2 seconds
       
       return () => {
         clearInterval(interval)
