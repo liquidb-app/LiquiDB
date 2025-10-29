@@ -754,88 +754,99 @@ export default function DatabaseManager() {
                 }
                 
                 // Get current database list from state at the time of check
-                setDatabases(currentDatabases => {
-                  if (!isMounted) return currentDatabases
-                  
-                  const databasesToCheck = currentDatabases.filter(db => 
-                    db.status === "running" || db.status === "starting" || db.status === "stopping"
-                  )
-                  
-                  // If no active databases, reduce monitoring frequency significantly
-                  if (databasesToCheck.length === 0) {
-                    noActiveDatabasesCount++
-                    // Skip monitoring if no active databases for 3 consecutive checks (30 seconds)
-                    if (noActiveDatabasesCount < 3) return currentDatabases
-                    // Reset counter and continue with minimal checks
-                    noActiveDatabasesCount = 0
-                  } else {
-                    noActiveDatabasesCount = 0
-                  }
-                  
-                  // Only check if database count changed or there are active databases
-                  if (databasesToCheck.length === 0 && currentDatabases.length === lastDatabaseCount) {
-                    return currentDatabases // Skip unnecessary checks
-                  }
-                  lastDatabaseCount = currentDatabases.length
-                  
-                  // Check each database status asynchronously
-                  databasesToCheck.forEach(async (db) => {
-                    if (!isMounted) return
-                    try {
-                      // @ts-ignore
-                      const status = await window.electron?.checkDatabaseStatus?.(db.id)
+                // Use a ref to access current state without triggering nested updates
+                const databasesSnapshot = databasesRef.current
+                const databasesToCheck = databasesSnapshot.filter(db => 
+                  db.status === "running" || db.status === "starting" || db.status === "stopping"
+                )
+                
+                // If no active databases, reduce monitoring frequency significantly
+                if (databasesToCheck.length === 0) {
+                  noActiveDatabasesCount++
+                  // Skip monitoring if no active databases for 3 consecutive checks (30 seconds)
+                  if (noActiveDatabasesCount < 3) return
+                  // Reset counter and continue with minimal checks
+                  noActiveDatabasesCount = 0
+                } else {
+                  noActiveDatabasesCount = 0
+                }
+                
+                // Only check if database count changed or there are active databases
+                if (databasesToCheck.length === 0 && databasesSnapshot.length === lastDatabaseCount) {
+                  return // Skip unnecessary checks
+                }
+                lastDatabaseCount = databasesSnapshot.length
+                
+                // Process status checks sequentially to prevent state update accumulation
+                // Batch all updates into a single setState call
+                const statusUpdates: Array<{id: string, status: string, pid?: number}> = []
+                
+                for (const db of databasesToCheck) {
+                  if (!isMounted) break
+                  try {
+                    // @ts-ignore
+                    const status = await window.electron?.checkDatabaseStatus?.(db.id)
+                    
+                    if (status?.status && status.status !== db.status && isMounted) {
+                      // Protection against race conditions during startup
+                      // Don't update from "starting" to "stopped" too quickly
+                      if (db.status === "starting" && status.status === "stopped") {
+                        // Check if the database was recently started (within last 30 seconds)
+                        const timeSinceStarted = Date.now() - (db.lastStarted || 0)
+                        if (timeSinceStarted < 30000) {
+                          console.log(`[Status Protection] Database ${db.id} still in startup phase, ignoring status change to stopped`)
+                          continue
+                        }
+                      }
                       
-                      if (status?.status && status.status !== db.status && isMounted) {
-                        // Protection against race conditions during startup
-                        // Don't update from "starting" to "stopped" too quickly
-                        if (db.status === "starting" && status.status === "stopped") {
-                          // Check if the database was recently started (within last 30 seconds)
-                          const timeSinceStarted = Date.now() - (db.lastStarted || 0)
-                          if (timeSinceStarted < 30000) {
-                            console.log(`[Status Protection] Database ${db.id} still in startup phase, ignoring status change to stopped`)
-                            return
-                          }
-                        }
-                        
-                        // Don't update from "running" to "stopped" unless confirmed by real-time listener
-                        if (db.status === "running" && status.status === "stopped") {
-                          console.log(`[Status Protection] Database ${db.id} was running, deferring to real-time listener for stopped status`)
-                          return
-                        }
-                        
-                        // Don't update from "stopping" to "running" - this shouldn't happen
-                        if (db.status === "stopping" && status.status === "running") {
-                          console.log(`[Status Protection] Database ${db.id} was stopping, ignoring status change to running`)
-                          return
-                        }
-                        
-                        console.log(`[Status Update] Database ${db.id}: ${db.status} → ${status.status}`)
-                        
-                        // Update the database status immediately, preserving PID if provided
-                        setDatabases(prev => prev.map(d => 
-                          d.id === db.id ? { ...d, status: status.status, pid: status.pid || d.pid } : d
-                        ))
-                        
-                        // Fetch system info for running databases
-                        if (status.status === "running") {
+                      // Don't update from "running" to "stopped" unless confirmed by real-time listener
+                      if (db.status === "running" && status.status === "stopped") {
+                        console.log(`[Status Protection] Database ${db.id} was running, deferring to real-time listener for stopped status`)
+                        continue
+                      }
+                      
+                      // Don't update from "stopping" to "running" - this shouldn't happen
+                      if (db.status === "stopping" && status.status === "running") {
+                        console.log(`[Status Protection] Database ${db.id} was stopping, ignoring status change to running`)
+                        continue
+                      }
+                      
+                      console.log(`[Status Update] Database ${db.id}: ${db.status} → ${status.status}`)
+                      statusUpdates.push({ id: db.id, status: status.status, pid: status.pid })
+                    }
+                  } catch (error) {
+                    console.log(`[Status Check Error] Database ${db.id}:`, error)
+                  }
+                }
+                
+                // Batch all status updates into a single setState call to prevent UI freeze
+                if (statusUpdates.length > 0 && isMounted) {
+                  setDatabases(prev => {
+                    const updated = prev.map(db => {
+                      const update = statusUpdates.find(u => u.id === db.id)
+                      if (update) {
+                        // Fetch system info for newly running databases
+                        if (update.status === "running" && db.status !== "running") {
                           const now = Date.now()
                           const lastCheck = lastSystemInfoCheck[db.id] || 0
                           // Only fetch system info every 30 seconds to avoid excessive calls
                           if (now - lastCheck > 30000) {
-                            setLastSystemInfoCheck(prev => ({ ...prev, [db.id]: now }))
-                            fetchSystemInfo(db.id)
+                            setLastSystemInfoCheck(prevCheck => ({ ...prevCheck, [db.id]: now }))
+                            // Use requestAnimationFrame to defer state updates
+                            requestAnimationFrame(() => {
+                              if (isMounted) {
+                                fetchSystemInfo(db.id)
+                              }
+                            })
                           }
                         }
-                        
-                        // Notifications are handled by the real-time listener to avoid duplicates
+                        return { ...db, status: update.status as any, pid: update.pid || db.pid }
                       }
-                    } catch (error) {
-                      console.log(`[Status Check Error] Database ${db.id}:`, error)
-                    }
+                      return db
+                    })
+                    return updated
                   })
-                  
-                  return currentDatabases
-                })
+                }
               } catch (error) {
                 console.log(`[Status Monitoring Error]:`, error)
               }
