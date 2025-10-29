@@ -191,14 +191,16 @@ export default function DatabaseManager() {
             const uptimeSeconds = Math.floor((currentTime - db.lastStarted) / 1000)
             
             // Only update if uptime has actually changed
+            // Preserve existing independent memory and other systemInfo values for each instance
             if (db.systemInfo?.uptime !== uptimeSeconds) {
               hasChanges = true
               return {
                 ...db,
                 systemInfo: {
-                  cpu: db.systemInfo?.cpu || 0,
-                  memory: db.systemInfo?.memory || 0,
-                  connections: db.systemInfo?.connections || 0,
+                  // Preserve existing instance-specific values (each instance maintains its own)
+                  cpu: db.systemInfo?.cpu ?? 0,
+                  memory: db.systemInfo?.memory ?? 0, // Preserve instance-specific memory (RSS)
+                  connections: db.systemInfo?.connections ?? 0,
                   uptime: uptimeSeconds
                 }
               }
@@ -548,6 +550,7 @@ export default function DatabaseManager() {
   }
 
   // Function to fetch system info for running databases
+  // Each instance gets its own independent memory stats (RSS - Resident Set Size)
   const fetchSystemInfo = async (databaseId: string) => {
     try {
       log.debug(`Fetching system info for database ${databaseId}`)
@@ -557,14 +560,21 @@ export default function DatabaseManager() {
       log.verbose(`Raw system info for ${databaseId}:`, systemInfo)
       
       if (systemInfo?.success && systemInfo.memory) {
+        // Extract RSS (Resident Set Size) - this is the actual memory used by THIS specific process/instance
+        // RSS is process-specific, so each instance will have its own independent value
+        const instanceMemoryRss = systemInfo.memory.rss || 0
+        
         const newSystemInfo = {
           cpu: Math.max(0, systemInfo.memory.cpu || 0), // Ensure non-negative
-          memory: Math.max(0, systemInfo.memory.rss || 0), // Ensure non-negative
+          memory: Math.max(0, instanceMemoryRss), // RSS memory for THIS specific instance - independent for each database
           connections: Math.max(0, systemInfo.connections || 0), // Use real connections from API
           uptime: Math.max(0, systemInfo.uptime || 0) // Use calculated uptime from API
         }
         
-        log.debug(`Processed system info for ${databaseId}:`, newSystemInfo)
+        log.debug(`Processed system info for ${databaseId} (instance-specific):`, {
+          ...newSystemInfo,
+          memoryRss: `${formatBytes(instanceMemoryRss)} (process-specific)`
+        })
         
         // Debug CPU values specifically
         log.debug(`CPU debug for ${databaseId}:`, {
@@ -572,7 +582,8 @@ export default function DatabaseManager() {
           processedCpu: newSystemInfo.cpu
         })
         
-        // Update only the specific database with optimized state update
+        // Update only the specific database - ensure complete independence
+        // Each database instance maintains its own separate systemInfo object
         setDatabases(prevDatabases => {
           const updated = prevDatabases.map(db => {
             if (db.id === databaseId) {
@@ -582,13 +593,19 @@ export default function DatabaseManager() {
                   currentSystemInfo.cpu !== newSystemInfo.cpu ||
                   currentSystemInfo.memory !== newSystemInfo.memory ||
                   currentSystemInfo.connections !== newSystemInfo.connections) {
-                log.debug(`Updating system info for database ${databaseId}`)
+                log.debug(`Updating system info for database ${databaseId} with memory: ${formatBytes(newSystemInfo.memory)}`)
+                // Create a completely new object to ensure independence
                 return {
                   ...db,
-                  systemInfo: newSystemInfo
+                  systemInfo: {
+                    ...newSystemInfo // Copy all properties to new object
+                  }
                 }
               }
+              // Return existing db unchanged if no updates needed
+              return db
             }
+            // Return other databases unchanged - they maintain their own independent values
             return db
           })
           
@@ -597,7 +614,7 @@ export default function DatabaseManager() {
           return hasChanges ? updated : prevDatabases
         })
         
-        log.debug(`Successfully updated database ${databaseId} with system info`)
+        log.debug(`Successfully updated database ${databaseId} with independent system info`)
       } else {
         log.warn(`No valid system info for database ${databaseId}:`, systemInfo)
       }
