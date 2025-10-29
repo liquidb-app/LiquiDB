@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import { log } from '../lib/logger'
 import { motion, AnimatePresence } from "framer-motion"
 import { Plus, Square, RotateCw, CheckSquare, CheckSquare2, MousePointer2 } from "lucide-react"
@@ -35,7 +35,7 @@ import { toast } from "sonner"
 import { notifySuccess, notifyError, notifyInfo, notifyWarning } from "@/lib/notifications"
 import type { DatabaseContainer } from "@/lib/types"
 import { OnboardingOverlay } from "@/components/onboarding"
-import { MaybeStartTour } from "@/components/custom-tour"
+import { MaybeStartSidebarTour } from "@/components/sidebar-tour"
 import { ProfileMenuTrigger } from "@/components/profile-menu"
 import { LoadingScreen } from "@/components/loading-screen"
 import { isOnboardingComplete, wasTourRequested, setTourRequested } from "@/lib/preferences"
@@ -2441,12 +2441,12 @@ export default function DatabaseManager() {
   }
 
   return (
-    <>
+    <React.Fragment>
       {isLoading && (
         <LoadingScreen onComplete={() => setIsLoading(false)} />
       )}
       <div className="min-h-screen bg-background">
-        <MaybeStartTour />
+        <MaybeStartSidebarTour />
         {showOnboarding && (
           <OnboardingOverlay
             onFinished={() => setShowOnboarding(false)}
@@ -2462,7 +2462,7 @@ export default function DatabaseManager() {
           WebkitAppRegion: 'drag',
           opacity: dashboardOpacity 
         } as React.CSSProperties}>
-        <div className="container mx-auto px-6 py-2 flex items-center justify-between">
+        <div className="container mx-auto px-6 py-2 flex items-center justify-between transition-all duration-300 tour-mode:ml-80">
           <div className="flex items-center gap-2">
             {selectedDatabases.size > 0 && (() => {
               const { showStart, showStop } = getBulkActionButtons()
@@ -2541,6 +2541,7 @@ export default function DatabaseManager() {
               size="sm"
               id="btn-add-database"
               data-testid="add-database-button"
+              data-tour="add-database-button"
               className="cursor-pointer"
               style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
               onMouseEnter={plusIconHover.onMouseEnter}
@@ -2550,7 +2551,7 @@ export default function DatabaseManager() {
               Add Database
             </Button>
             {/* User/profile menu replacing gear */}
-            <div className="relative flex items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties} data-testid="profile-menu">
+            <div className="relative flex items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties} data-testid="profile-menu" data-tour="settings-button">
               <ProfileMenuTrigger />
             </div>
           </div>
@@ -2560,7 +2561,7 @@ export default function DatabaseManager() {
       {/* Select Mode Indicator */}
       {showBulkActions && (
         <div className="bg-primary/5 border-b border-primary/10 py-1">
-          <div className="container mx-auto px-6 flex items-center justify-center gap-1.5">
+          <div className="container mx-auto px-6 flex items-center justify-center gap-1.5 transition-all duration-300 tour-mode:ml-80">
             <div className="w-1.5 h-1.5 bg-primary/70 rounded-full"></div>
             <span className="text-xs text-primary/80">
               Selection mode - Click cards to select
@@ -2571,7 +2572,7 @@ export default function DatabaseManager() {
       )}
 
       <div 
-        className="container mx-auto py-3 px-4 transition-opacity duration-1000 ease-out" 
+        className="container mx-auto py-3 px-4 transition-all duration-300 tour-mode:ml-80"    
         style={{ opacity: dashboardOpacity }}>
         {databases.length === 0 ? (
           <Card className="border-dashed">
@@ -2661,7 +2662,7 @@ export default function DatabaseManager() {
                   </div>
                 </div>
               </div>
-              <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-testid="database-grid">
+              <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-testid="database-grid" data-tour="database-cards">
                 {databases.map((db) => (
                   <Card 
                     key={db.id} 
@@ -3366,6 +3367,7 @@ export default function DatabaseManager() {
           </Tabs>
         )}
       </div>
+      </div>
 
       <AddDatabaseDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onAdd={handleAddDatabase} />
 
@@ -3472,8 +3474,7 @@ export default function DatabaseManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </div>
-    </>
+    </React.Fragment>
   )
 }
 
