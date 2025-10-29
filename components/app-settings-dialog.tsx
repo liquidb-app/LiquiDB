@@ -84,7 +84,6 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   const [helperStatus, setHelperStatus] = useState<{
     installed: boolean
     running: boolean
-    isRunning: boolean
   } | null>(null)
   const [helperLoading, setHelperLoading] = useState(false)
   
@@ -274,7 +273,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
       const result = await window.electron?.getHelperStatus?.()
       console.log("Helper status result:", result)
       
-      if (result?.success) {
+      if (result?.success && result.data) {
         const status = result.data
         console.log("Helper status data:", status)
         
@@ -287,8 +286,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
         setHelperStatus(prevStatus => {
           if (!prevStatus || 
               prevStatus.installed !== status.installed || 
-              prevStatus.running !== status.running || 
-              prevStatus.isRunning !== status.isRunning) {
+              prevStatus.running !== status.running) {
             console.log("Helper status changed, updating UI")
             return status
           }
@@ -300,8 +298,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
         // Set a default status when API fails
         setHelperStatus({
           installed: false,
-          running: false,
-          isRunning: false
+          running: false
         })
         setHelperLoading(false)
       }
@@ -310,8 +307,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
       // Set a default status when there's an error
       setHelperStatus({
         installed: false,
-        running: false,
-        isRunning: false
+        running: false
       })
       setHelperLoading(false)
     }
@@ -323,15 +319,14 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
       // @ts-ignore
       const result = await window.electron?.getHelperStatus?.()
       
-      if (result?.success) {
+      if (result?.success && result.data) {
         const status = result.data
         
         // Only update if the status has actually changed
         setHelperStatus(prevStatus => {
           if (!prevStatus || 
               prevStatus.installed !== status.installed || 
-              prevStatus.running !== status.running || 
-              prevStatus.isRunning !== status.isRunning) {
+              prevStatus.running !== status.running) {
             log.debug("Helper status changed in background, updating UI")
             return status
           }
