@@ -221,6 +221,8 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
   const [bannedPorts, setBannedPorts] = useState<number[]>([])
   const [portError, setPortError] = useState<string>("")
   const [checkingPort, setCheckingPort] = useState(false)
+  const [portStatus, setPortStatus] = useState<"available" | "conflict" | "checking" | null>(null)
+  const [portConflictInfo, setPortConflictInfo] = useState<{ processName: string; pid: string } | null>(null)
   const [findingPort, setFindingPort] = useState(false)
   const [installing, setInstalling] = useState(false)
   const [installMsg, setInstallMsg] = useState<string>("")
@@ -379,6 +381,78 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
     if (open) load()
   }, [open])
 
+  // Live port conflict checking as user types
+  useEffect(() => {
+    if (!port || !open) {
+      setPortStatus(null)
+      setPortConflictInfo(null)
+      return
+    }
+
+    const portNum = Number.parseInt(port)
+    if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+      setPortStatus(null)
+      setPortConflictInfo(null)
+      return
+    }
+
+    // Debounce the check
+    const timeoutId = setTimeout(async () => {
+      setPortStatus("checking")
+      
+      try {
+        // Check for internal conflicts first
+        // @ts-ignore
+        const allDatabases = await window.electron?.getAllDatabases?.() || []
+        const internalConflict = allDatabases.find((db: any) => db.port === portNum)
+        
+        if (internalConflict) {
+          setPortStatus("conflict")
+          setPortConflictInfo({ processName: `Another database: ${internalConflict.name}`, pid: 'N/A' })
+          return
+        }
+        
+        // Check for external conflicts
+        // @ts-ignore
+        if (window.electron?.checkPortConflict) {
+          // @ts-ignore
+          const conflictResult = await window.electron.checkPortConflict(portNum)
+          if (conflictResult?.inUse) {
+            const processInfo = conflictResult?.processInfo
+            setPortStatus("conflict")
+            setPortConflictInfo({
+              processName: processInfo?.processName || 'Unknown process',
+              pid: processInfo?.pid || 'Unknown'
+            })
+          } else {
+            setPortStatus("available")
+            setPortConflictInfo(null)
+          }
+        } else {
+          // Fallback check
+          // @ts-ignore
+          if (window.electron?.checkPort) {
+            // @ts-ignore
+            const res = await window.electron.checkPort(portNum)
+            if (res?.available) {
+              setPortStatus("available")
+              setPortConflictInfo(null)
+            } else {
+              setPortStatus("conflict")
+              setPortConflictInfo({ processName: 'Unknown process', pid: 'Unknown' })
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`[Live Port Check] Error:`, error)
+        setPortStatus(null)
+        setPortConflictInfo(null)
+      }
+    }, 500) // Debounce for 500ms
+
+    return () => clearTimeout(timeoutId)
+  }, [port, open])
+
   // Function to find the next available port starting from a given port
   const findNextAvailablePort = async (startPort: number): Promise<number> => {
     console.log(`[Port Search] Starting search from port ${startPort}`)
@@ -508,6 +582,37 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
     }
     try {
       setCheckingPort(true)
+      
+      // First check for internal conflicts (other databases in the app)
+      // @ts-ignore
+      const allDatabases = await window.electron?.getAllDatabases?.() || []
+      const internalConflict = allDatabases.find((db: any) => db.port === portNum)
+      
+      if (internalConflict) {
+        // Find next available port as suggestion
+        const suggestedPort = await findNextAvailablePort(portNum + 1)
+        setPortError(`Port is in use by "${internalConflict.name}". Suggested: ${suggestedPort}`)
+        setCheckingPort(false)
+        return false
+      }
+      
+      // Check for external port conflicts
+      // @ts-ignore
+      if (window.electron?.checkPortConflict) {
+        // @ts-ignore
+        const conflictResult = await window.electron.checkPortConflict(portNum)
+        if (conflictResult?.inUse) {
+          const suggestedPort = await findNextAvailablePort(portNum + 1)
+          const processInfo = conflictResult?.processInfo
+          const processName = processInfo?.processName || 'Unknown process'
+          const pid = processInfo?.pid || 'Unknown'
+          setPortError(`Port is in use by ${processName} (PID: ${pid}). Suggested: ${suggestedPort}`)
+          setCheckingPort(false)
+          return false
+        }
+      }
+      
+      // Fallback to old checkPort method
       // @ts-ignore
       if (window.electron?.checkPort) {
         // @ts-ignore
@@ -516,8 +621,12 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
           if (res?.reason === "invalid_range") setPortError("Port must be between 1 and 65535")
           else if (res?.reason === "privileged") setPortError("Privileged port (<1024) not allowed")
           else if (res?.reason === "banned") setPortError("This port is banned in settings")
-          else if (res?.reason === "in_use") setPortError("Port is already in use")
+          else if (res?.reason === "in_use") {
+            const suggestedPort = await findNextAvailablePort(portNum + 1)
+            setPortError(`Port is already in use. Suggested: ${suggestedPort}`)
+          }
           else setPortError("Port is unavailable")
+          setCheckingPort(false)
           return false
         }
       }
@@ -817,34 +926,58 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                     <Label htmlFor="port" className="text-xs">
                       Port {findingPort && <span className="text-muted-foreground">(finding available...)</span>}
                     </Label>
-                    <Input
-                      id="port"
-                      type="number"
-                      value={port}
-                      onChange={async (e) => {
-                        setPort(e.target.value)
-                        if (e.target.value) await validatePort(e.target.value)
-                      }}
-                      onBlur={async (e) => {
-                        // When user finishes editing, try to find next available port if current one is taken
-                        const portNum = Number.parseInt(e.target.value)
-                        if (!isNaN(portNum) && portNum > 0) {
-                          setFindingPort(true)
-                          try {
-                            const availablePort = await findNextAvailablePort(portNum)
-                            if (availablePort !== portNum) {
-                              setPort(availablePort.toString())
-                              // Clear any existing error since we found an available port
-                              setPortError("")
-                            }
-                          } finally {
-                            setFindingPort(false)
+                    <div className="relative">
+                      <Input
+                        id="port"
+                        type="text"
+                        value={port}
+                        onChange={(e) => {
+                          setPort(e.target.value)
+                          // Clear error on typing to allow free input
+                          if (portError) {
+                            setPortError("")
                           }
-                        }
-                      }}
-                      className="h-8 text-sm"
-                      disabled={findingPort}
-                    />
+                        }}
+                        onBlur={async (e) => {
+                          // Validate when user finishes editing
+                          const portNum = Number.parseInt(e.target.value)
+                          if (!isNaN(portNum) && portNum > 0) {
+                            const isValid = await validatePort(e.target.value)
+                            
+                            // If port has conflict, try to find next available port as suggestion
+                            if (!isValid && portError && portError.includes("in use")) {
+                              // Don't auto-change the port, just show the error with suggestion
+                              // The user can manually change it if they want
+                            }
+                          }
+                        }}
+                        className={`h-8 text-sm pr-8 ${portStatus === "conflict" ? "border-destructive focus-visible:ring-destructive" : portStatus === "available" ? "border-green-500 focus-visible:ring-green-500" : ""}`}
+                        disabled={findingPort}
+                      />
+                      {portStatus === "checking" && (
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                          <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                      {portStatus === "conflict" && (
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                          <span className="text-destructive text-xs">⚠️</span>
+                        </div>
+                      )}
+                      {portStatus === "available" && (
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                          <span className="text-green-500 text-xs">✓</span>
+                        </div>
+                      )}
+                    </div>
+                    {portStatus === "conflict" && portConflictInfo && (
+                      <p className="text-[10px] text-destructive">
+                        Port in use by {portConflictInfo.processName.startsWith('Another database') ? portConflictInfo.processName.replace('Another database: ', '') : `${portConflictInfo.processName} (PID: ${portConflictInfo.pid})`}
+                      </p>
+                    )}
+                    {portStatus === "available" && (
+                      <p className="text-[10px] text-green-600 dark:text-green-400">Port is available</p>
+                    )}
                     {portError && <p className="text-[10px] text-destructive">{portError}</p>}
                   </div>
                 </TabsContent>
