@@ -821,7 +821,7 @@ export default function DatabaseManager() {
           
           statusInterval = startStatusMonitoring()
           
-          // Set up system info monitoring for running databases
+          // Set up system info monitoring for running databases (optimized)
           const startSystemInfoMonitoring = () => {
             return setInterval(async () => {
               if (!isMounted) return
@@ -829,24 +829,35 @@ export default function DatabaseManager() {
               try {
                 // Get current databases state from ref
                 const currentDatabases = databasesRef.current.filter(db => db.status === "running")
+                
+                // Only monitor if there are running databases and reduce frequency
+                if (currentDatabases.length === 0) return
+                
                 log.debug(`Found ${currentDatabases.length} running databases`)
                 
-                // Fetch system info for each running database
-                for (const db of currentDatabases) {
+                // Fetch system info for each running database with staggered timing
+                for (let i = 0; i < currentDatabases.length; i++) {
+                  const db = currentDatabases[i]
                   const now = Date.now()
                   const lastCheck = lastSystemInfoCheck[db.id] || 0
                   
-                  // Update system info every 5 seconds for live updates (reduced frequency to avoid re-renders)
-                  if (now - lastCheck > 5000) {
+                  // Update system info every 15 seconds for live updates (further reduced frequency)
+                  if (now - lastCheck > 15000) {
                     log.debug(`Updating system info for database ${db.id}`)
                     setLastSystemInfoCheck(prev => ({ ...prev, [db.id]: now }))
-                    await fetchSystemInfo(db.id)
+                    
+                    // Stagger the requests to avoid overwhelming the system
+                    setTimeout(() => {
+                      if (isMounted) {
+                        fetchSystemInfo(db.id)
+                      }
+                    }, i * 1000) // 1 second delay between each request
                   }
                 }
               } catch (error) {
                 log.error(`System Info Monitoring Error:`, error)
               }
-            }, 5000) // Update every 5 seconds for live metrics (reduced frequency)
+            }, 10000) // Update every 10 seconds instead of 5 seconds
           }
           
           systemInfoInterval = startSystemInfoMonitoring()
@@ -3465,3 +3476,4 @@ export default function DatabaseManager() {
     </>
   )
 }
+
