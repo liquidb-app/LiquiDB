@@ -2909,36 +2909,48 @@ export default function DatabaseManager() {
                             )}
                           </Button>
                           {db.status !== "stopped" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 px-2 bg-transparent disabled:opacity-50"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleRefreshStatus(db.id)
-                              }}
-                              title="Restart database"
-                              onMouseEnter={createHoverHandlers(db.id, 'restart').onMouseEnter}
-                              onMouseLeave={createHoverHandlers(db.id, 'restart').onMouseLeave}
-                            >
-                              <RefreshCCWIcon ref={createHoverHandlers(db.id, 'restart').iconRef} size={12} />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-6 px-2 bg-transparent disabled:opacity-50"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleRefreshStatus(db.id)
+                                  }}
+                                  onMouseEnter={createHoverHandlers(db.id, 'restart').onMouseEnter}
+                                  onMouseLeave={createHoverHandlers(db.id, 'restart').onMouseLeave}
+                                >
+                                  <RefreshCCWIcon ref={createHoverHandlers(db.id, 'restart').iconRef} size={12} />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Restart database</p>
+                              </TooltipContent>
+                            </Tooltip>
                           )}
                           {db.status === "running" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 px-2 bg-transparent"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDebugDatabase(db.id)
-                              }}
-                              title="Debug database"
-                              onMouseEnter={createHoverHandlers(db.id, 'debug').onMouseEnter}
-                              onMouseLeave={createHoverHandlers(db.id, 'debug').onMouseLeave}
-                            >
-                              <ActivityIcon ref={createHoverHandlers(db.id, 'debug').iconRef} size={12} />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-6 px-2 bg-transparent"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDebugDatabase(db.id)
+                                  }}
+                                  onMouseEnter={createHoverHandlers(db.id, 'debug').onMouseEnter}
+                                  onMouseLeave={createHoverHandlers(db.id, 'debug').onMouseLeave}
+                                >
+                                  <ActivityIcon ref={createHoverHandlers(db.id, 'debug').iconRef} size={12} />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Instance information</p>
+                              </TooltipContent>
+                            </Tooltip>
                           )}
                           <Button
                             variant="outline"
