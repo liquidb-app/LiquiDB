@@ -1400,23 +1400,42 @@ function testPortConnectivity(port) {
 // Check if a port is in use by external processes
 async function checkPortInUse(port) {
   return new Promise((resolve) => {
-    const server = net.createServer()
-    
-    server.listen(port, '127.0.0.1', () => {
-      // Port is available
-      server.close(() => {
-        resolve(false)
-      })
-    })
-    
-    server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        // Port is in use
+    // First, check using lsof for a more reliable detection (especially for listening sockets)
+    const { exec } = require('child_process')
+    exec(`lsof -i :${port} -sTCP:LISTEN -n -P`, (lsofError, lsofStdout) => {
+      if (!lsofError && lsofStdout.trim()) {
+        // Port is definitely in use according to lsof
         resolve(true)
-      } else {
-        // Other error, assume port is available
-        resolve(false)
+        return
       }
+      
+      // Fallback to net.createServer check for ports that might be in use but not listening yet
+      const server = net.createServer()
+      
+      // Set a timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        server.close(() => {})
+        resolve(true) // If we can't determine, assume port is in use to be safe
+      }, 1000)
+      
+      server.listen(port, '127.0.0.1', () => {
+        // Port is available
+        clearTimeout(timeout)
+        server.close(() => {
+          resolve(false)
+        })
+      })
+      
+      server.on('error', (err) => {
+        clearTimeout(timeout)
+        if (err.code === 'EADDRINUSE') {
+          // Port is in use
+          resolve(true)
+        } else {
+          // Other error, assume port is available
+          resolve(false)
+        }
+      })
     })
   })
 }
