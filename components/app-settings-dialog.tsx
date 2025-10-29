@@ -126,6 +126,14 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   
   return () => clearInterval(statusInterval)
 }, [])
+
+  // Close child dialogs when parent dialog closes
+  useEffect(() => {
+    if (!open) {
+      setBannedPortsOpen(false)
+      setDeleteConfirmOpen(false)
+    }
+  }, [open])
   
 
   const checkAutoLaunchStatus = async () => {
@@ -376,9 +384,18 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     }
   }
 
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      // Close all child dialogs when parent closes
+      setBannedPortsOpen(false)
+      setDeleteConfirmOpen(false)
+    }
+    onOpenChange(newOpen)
+  }
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-[500px] !top-[15vh] !translate-y-0">
           <DialogHeader>
             <DialogTitle>App Settings</DialogTitle>
@@ -684,52 +701,56 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
         </DialogContent>
       </Dialog>
 
-      <BannedPortsDialog open={bannedPortsOpen} onOpenChange={setBannedPortsOpen} />
+      {open && (
+        <>
+          <BannedPortsDialog open={bannedPortsOpen} onOpenChange={setBannedPortsOpen} />
 
-      {/* Delete All Databases Confirmation Dialog */}
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              Delete All Databases
-            </DialogTitle>
-            <DialogDescription>
-              This action will permanently delete ALL databases and their data. This cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-md">
-              <p className="text-sm text-destructive font-medium">
-                ⚠️ Warning: This will delete:
-              </p>
-              <ul className="text-sm text-muted-foreground mt-2 space-y-1">
-                <li>• All database instances</li>
-                <li>• All database data files and configurations</li>
-                <li>• All stored passwords</li>
-                <li>• All auto-start settings</li>
-                <li>• All database data directories (/tmp/liquidb-*)</li>
-              </ul>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => setDeleteConfirmOpen(false)}
-                disabled={deleting}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleDeleteAllDatabases}
-                disabled={deleting}
-              >
-                {deleting ? "Deleting..." : "Delete All"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          {/* Delete All Databases Confirmation Dialog */}
+          <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+            <DialogContent className="sm:max-w-[400px]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Delete All Databases
+                </DialogTitle>
+                <DialogDescription>
+                  This action will permanently delete ALL databases and their data. This cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-md">
+                  <p className="text-sm text-destructive font-medium">
+                    ⚠️ Warning: This will delete:
+                  </p>
+                  <ul className="text-sm text-muted-foreground mt-2 space-y-1">
+                    <li>• All database instances</li>
+                    <li>• All database data files and configurations</li>
+                    <li>• All stored passwords</li>
+                    <li>• All auto-start settings</li>
+                    <li>• All database data directories (/tmp/liquidb-*)</li>
+                  </ul>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => setDeleteConfirmOpen(false)}
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDeleteAllDatabases}
+                    disabled={deleting}
+                  >
+                    {deleting ? "Deleting..." : "Delete All"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </>
   )
 }
