@@ -457,8 +457,8 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
         }
       }, 10000) // 10 second timeout
       
-      // Set up periodic status updates every 5 seconds to reduce interference
-      const statusInterval = setInterval(checkHelperStatus, 5000)
+      // Set up periodic status updates every 10 seconds to reduce interference
+      const statusInterval = setInterval(checkHelperStatus, 10000)
       
       return () => {
         clearInterval(statusInterval)

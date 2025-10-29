@@ -122,8 +122,8 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   // Load helper service status
   loadHelperStatus()
   
-  // Background check helper status every 3 seconds without UI updates
-  const statusInterval = setInterval(checkHelperStatusBackground, 3000)
+  // Background check helper status every 10 seconds without UI updates (reduced frequency)
+  const statusInterval = setInterval(checkHelperStatusBackground, 10000)
   
   return () => clearInterval(statusInterval)
 }, [])
