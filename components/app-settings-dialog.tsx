@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { log } from '../lib/logger'
 import { useTheme } from "next-themes"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -87,6 +87,85 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   } | null>(null)
   const [helperLoading, setHelperLoading] = useState(false)
   
+  // Helper service functions - defined early for use in useEffect
+  const loadHelperStatus = useCallback(async () => {
+    // Only set loading if we don't have status yet
+    const isInitialLoad = !helperStatus
+    if (isInitialLoad) {
+      setHelperLoading(true)
+    }
+    
+    try {
+      console.log("Loading helper status...")
+      // @ts-ignore
+      const result = await window.electron?.getHelperStatus?.()
+      console.log("Helper status result:", result)
+      
+      if (result?.success && result.data) {
+        const status = result.data
+        console.log("Helper status data:", status)
+        
+        // Always clear loading state after first check
+        if (isInitialLoad) {
+          setHelperLoading(false)
+        }
+        
+        // Only update if the status has actually changed
+        setHelperStatus(prevStatus => {
+          if (!prevStatus || 
+              prevStatus.installed !== status.installed || 
+              prevStatus.running !== status.running) {
+            console.log("Helper status changed, updating UI")
+            return status
+          }
+          console.log("Helper status unchanged, skipping UI update")
+          return prevStatus
+        })
+      } else {
+        console.error("Helper status API failed:", result?.error)
+        // Set a default status when API fails
+        setHelperStatus({
+          installed: false,
+          running: false
+        })
+        setHelperLoading(false)
+      }
+    } catch (error) {
+      console.error("Failed to load helper status:", error)
+      // Set a default status when there's an error
+      setHelperStatus({
+        installed: false,
+        running: false
+      })
+      setHelperLoading(false)
+    }
+  }, [helperStatus])
+
+  // Background status checking without UI updates
+  const checkHelperStatusBackground = useCallback(async () => {
+    try {
+      // @ts-ignore
+      const result = await window.electron?.getHelperStatus?.()
+      
+      if (result?.success && result.data) {
+        const status = result.data
+        
+        // Only update if the status has actually changed
+        setHelperStatus(prevStatus => {
+          if (!prevStatus || 
+              prevStatus.installed !== status.installed || 
+              prevStatus.running !== status.running) {
+            log.debug("Helper status changed in background, updating UI")
+            return status
+          }
+          log.debug("Helper status unchanged in background, skipping UI update")
+          return prevStatus
+        })
+      }
+    } catch (error) {
+      log.error("Background helper status check failed:", error)
+    }
+  }, [])
 
   useEffect(() => {
     setMounted(true)
@@ -118,14 +197,24 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     // Check auto-launch status
     checkAutoLaunchStatus()
     
-  // Load helper service status
-  loadHelperStatus()
+    // Load helper service status only when dialog is open
+    if (open) {
+      loadHelperStatus()
+    }
+  }, [open, loadHelperStatus])
   
-  // Background check helper status every 10 seconds without UI updates (reduced frequency)
-  const statusInterval = setInterval(checkHelperStatusBackground, 10000)
-  
-  return () => clearInterval(statusInterval)
-}, [])
+  // Background check helper status only when dialog is open
+  useEffect(() => {
+    if (!open) return
+    
+    // Load helper status immediately when dialog opens
+    loadHelperStatus()
+    
+    // Background check helper status every 15 seconds (increased from 10s to save resources)
+    const statusInterval = setInterval(checkHelperStatusBackground, 15000)
+    
+    return () => clearInterval(statusInterval)
+  }, [open, loadHelperStatus, checkHelperStatusBackground])
 
   // Close child dialogs when parent dialog closes
   useEffect(() => {
@@ -267,85 +356,6 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     }
   }
 
-  // Helper service functions
-  const loadHelperStatus = async () => {
-    // Only set loading if we don't have status yet
-    const isInitialLoad = !helperStatus
-    if (isInitialLoad) {
-      setHelperLoading(true)
-    }
-    
-    try {
-      console.log("Loading helper status...")
-      // @ts-ignore
-      const result = await window.electron?.getHelperStatus?.()
-      console.log("Helper status result:", result)
-      
-      if (result?.success && result.data) {
-        const status = result.data
-        console.log("Helper status data:", status)
-        
-        // Always clear loading state after first check
-        if (isInitialLoad) {
-          setHelperLoading(false)
-        }
-        
-        // Only update if the status has actually changed
-        setHelperStatus(prevStatus => {
-          if (!prevStatus || 
-              prevStatus.installed !== status.installed || 
-              prevStatus.running !== status.running) {
-            console.log("Helper status changed, updating UI")
-            return status
-          }
-          console.log("Helper status unchanged, skipping UI update")
-          return prevStatus
-        })
-      } else {
-        console.error("Helper status API failed:", result?.error)
-        // Set a default status when API fails
-        setHelperStatus({
-          installed: false,
-          running: false
-        })
-        setHelperLoading(false)
-      }
-    } catch (error) {
-      console.error("Failed to load helper status:", error)
-      // Set a default status when there's an error
-      setHelperStatus({
-        installed: false,
-        running: false
-      })
-      setHelperLoading(false)
-    }
-  }
-
-  // Background status checking without UI updates
-  const checkHelperStatusBackground = async () => {
-    try {
-      // @ts-ignore
-      const result = await window.electron?.getHelperStatus?.()
-      
-      if (result?.success && result.data) {
-        const status = result.data
-        
-        // Only update if the status has actually changed
-        setHelperStatus(prevStatus => {
-          if (!prevStatus || 
-              prevStatus.installed !== status.installed || 
-              prevStatus.running !== status.running) {
-            log.debug("Helper status changed in background, updating UI")
-            return status
-          }
-          log.debug("Helper status unchanged in background, skipping UI update")
-          return prevStatus
-        })
-      }
-    } catch (error) {
-      log.error("Background helper status check failed:", error)
-    }
-  }
 
   const handleHelperAction = async (action: 'install' | 'start' | 'cleanup') => {
     setHelperLoading(true)
