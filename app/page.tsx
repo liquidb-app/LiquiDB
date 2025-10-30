@@ -38,6 +38,7 @@ import { OnboardingOverlay } from "@/components/onboarding"
 import { MaybeStartSidebarTour } from "@/components/sidebar-tour"
 import { ProfileMenuTrigger } from "@/components/profile-menu"
 import { LoadingScreen } from "@/components/loading-screen"
+import { SystemStats } from "@/components/system-stats"
 import { isOnboardingComplete, wasTourRequested, setTourRequested } from "@/lib/preferences"
 
 // Helper function to format bytes
@@ -2810,7 +2811,7 @@ export default function DatabaseManager() {
       )}
 
       <div 
-        className="container mx-auto py-3 px-4 transition-all duration-300 tour-mode:ml-80"    
+        className="container mx-auto py-3 px-4 pb-12 transition-all duration-300 tour-mode:ml-80"
         style={{ opacity: dashboardOpacity }}>
         {databases.length === 0 ? (
           <Card className="border-dashed">
@@ -4005,6 +4006,9 @@ export default function DatabaseManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Fixed Footer with System Stats */}
+      <SystemStats />
     </React.Fragment>
   )
 }
