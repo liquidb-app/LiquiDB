@@ -772,7 +772,22 @@ async function startDatabaseProcessAsync(config) {
     
     child.stderr.on('data', (data) => {
       const output = data.toString()
-      console.log(`[PostgreSQL] ${id} error output:`, output.trim())
+      const trimmedOutput = output.trim()
+      
+      // Filter out routine checkpoint logs (they're informational, not errors)
+      const isCheckpointLog = trimmedOutput.includes('checkpoint starting:') || 
+                             trimmedOutput.includes('checkpoint complete:')
+      
+      // Only log non-checkpoint messages or actual errors
+      if (!isCheckpointLog) {
+        // Check if it's an actual error (contains ERROR, FATAL, PANIC)
+        const isError = /ERROR|FATAL|PANIC/i.test(trimmedOutput)
+        if (isError) {
+          console.error(`[PostgreSQL] ${id} error:`, trimmedOutput)
+        } else {
+          console.log(`[PostgreSQL] ${id} output:`, trimmedOutput)
+        }
+      }
       
       // Check for PostgreSQL ready message in stderr too
       if (output.includes('ready to accept connections') || output.includes('database system is ready to accept connections')) {
