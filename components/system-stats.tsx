@@ -68,15 +68,32 @@ export function SystemStats() {
     // Initial fetch
     fetchStats()
 
-    // Poll every 2 seconds for live updates (efficient polling)
+    // Use Page Visibility API to pause polling when tab is hidden
+    let isVisible = !document.hidden
+    
+    const handleVisibilityChange = () => {
+      isVisible = !document.hidden
+      if (isVisible) {
+        // Refresh immediately when becoming visible
+        fetchStats()
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Poll every 8 seconds for live updates (reduced from 2s to save CPU/memory)
     intervalRef.current = setInterval(() => {
-      fetchStats()
-    }, 2000)
+      // Only poll when page is visible to save resources
+      if (isVisible) {
+        fetchStats()
+      }
+    }, 8000)
 
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
       }
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
 
