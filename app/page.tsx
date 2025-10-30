@@ -978,7 +978,7 @@ export default function DatabaseManager() {
               } catch (error) {
                 console.log(`[Status Monitoring Error]:`, error)
               }
-            }, 15000) // Reduced frequency to every 15 seconds to save memory
+            }, 30000) // Reduced frequency to every 30 seconds to save CPU/memory
           }
           
           statusInterval = startStatusMonitoring()
@@ -1011,8 +1011,8 @@ export default function DatabaseManager() {
                   const now = Date.now()
                   const lastCheck = lastSystemInfoCheck[db.id] || 0
                   
-                  // Update system info every 15 seconds for live updates (further reduced frequency)
-                  if (now - lastCheck > 15000) {
+                  // Update system info every 20 seconds for live updates (reduced frequency to save CPU)
+                  if (now - lastCheck > 20000) {
                     log.debug(`Updating system info for database ${db.id}`)
                     setLastSystemInfoCheck(prev => ({ ...prev, [db.id]: now }))
                     
@@ -1034,7 +1034,7 @@ export default function DatabaseManager() {
               } finally {
                 isRunning = false
               }
-            }, 10000) // Update every 10 seconds instead of 5 seconds
+            }, 20000) // Update every 20 seconds (reduced from 10s to save CPU/memory)
           }
           
           systemInfoInterval = startSystemInfoMonitoring()
