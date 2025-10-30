@@ -11,6 +11,29 @@ declare global {
       startHelperOnDemand?: () => Promise<{ success: boolean; error?: string }>
       getBannedPorts?: () => Promise<{ success: boolean; data?: number[]; error?: string }>
       setBannedPorts?: (ports: number[]) => Promise<{ success: boolean; error?: string }>
+      getSystemStats?: () => Promise<{
+        success: boolean
+        memory?: {
+          total: number
+          free: number
+          used: number
+          percentage: number
+        }
+        cpu?: {
+          usage: number
+          percentage: number
+        }
+        disk?: {
+          total: number
+          free: number
+          used: number
+          percentage: number
+        } | null
+        uptime?: number
+        loadAverage?: number[]
+        runningDatabases?: number
+        error?: string
+      }>
     }
   }
 }

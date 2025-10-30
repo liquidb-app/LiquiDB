@@ -1752,6 +1752,180 @@ ipcMain.handle("get-database-system-info", async (event, id) => {
   }
 })
 
+// Store previous CPU times for system-wide CPU calculation
+let previousSystemCpuUsage = null
+let previousSystemCpuCheckTime = null
+
+// Get system-wide statistics (RAM, CPU usage)
+ipcMain.handle("get-system-stats", async () => {
+  try {
+    const os = require('os')
+    const { execSync } = require('child_process')
+    
+    // Get accurate memory stats using vm_stat (macOS) - more accurate than os.freemem()
+    let totalMemory = 0
+    let freeMemory = 0
+    let usedMemory = 0
+    
+    try {
+      // Get total physical memory from sysctl
+      const sysctlOutput = execSync('sysctl hw.memsize', { encoding: 'utf8', timeout: 1000 })
+      const memMatch = sysctlOutput.match(/hw\.memsize:\s+(\d+)/)
+      if (memMatch) {
+        totalMemory = parseInt(memMatch[1])
+      } else {
+        // Fallback to os module
+        totalMemory = os.totalmem()
+      }
+      
+      // Get memory breakdown from vm_stat
+      const vmStatOutput = execSync('vm_stat', { encoding: 'utf8', timeout: 1000 })
+      const lines = vmStatOutput.split('\n')
+      const memoryInfo = {}
+      
+      lines.forEach(line => {
+        const match = line.match(/(\w+):\s+(\d+)/)
+        if (match) {
+          memoryInfo[match[1]] = parseInt(match[2]) * 4096 // Convert pages to bytes
+        }
+      })
+      
+      if (memoryInfo.free !== undefined && memoryInfo.active !== undefined) {
+        // On macOS, memory calculation:
+        // Free = pages_free * 4096
+        // Used = active + wired + inactive (memory in use)
+        // Note: inactive can be reclaimed but is still "used" for our purposes
+        freeMemory = memoryInfo.free || 0
+        const activeMemory = memoryInfo.active || 0
+        const wiredMemory = memoryInfo.wired || 0
+        const inactiveMemory = memoryInfo.inactive || 0
+        
+        // Used memory = total - free (most accurate representation)
+        usedMemory = totalMemory - freeMemory
+        
+        // If calculation seems off, use active + wired (what's actually active)
+        // But prefer total - free as it matches Activity Monitor
+        if (usedMemory < 0 || usedMemory > totalMemory) {
+          usedMemory = activeMemory + wiredMemory
+          freeMemory = totalMemory - usedMemory
+        }
+      } else {
+        // Fallback to os module if vm_stat fails
+        totalMemory = os.totalmem()
+        freeMemory = os.freemem()
+        usedMemory = totalMemory - freeMemory
+      }
+    } catch (error) {
+      // Fallback to os module
+      log.debug(`Could not get memory stats from vm_stat:`, error.message)
+      totalMemory = os.totalmem()
+      freeMemory = os.freemem()
+      usedMemory = totalMemory - freeMemory
+    }
+    
+    // Get disk usage for the home directory using df command
+    let diskUsed = 0
+    let diskTotal = 0
+    let diskFree = 0
+    try {
+      // Use df command to get disk usage for home directory
+      const homeDir = os.homedir()
+      const dfOutput = execSync(`df -k "${homeDir}"`, { encoding: 'utf8', timeout: 1000 })
+      const lines = dfOutput.split('\n')
+      if (lines.length > 1) {
+        // Parse the output - format: Filesystem 1024-blocks Used Available Capacity Mounted
+        const parts = lines[1].trim().split(/\s+/)
+        if (parts.length >= 4) {
+          diskTotal = parseInt(parts[1]) * 1024 // Convert KB to bytes
+          diskUsed = parseInt(parts[2]) * 1024 // Convert KB to bytes
+          diskFree = parseInt(parts[3]) * 1024 // Convert KB to bytes
+        }
+      }
+    } catch (diskError) {
+      log.debug(`Could not get disk usage:`, diskError.message)
+    }
+    
+    // Get CPU usage efficiently using os.loadavg and process.cpuUsage
+    let cpuUsage = 0
+    let loadAverage = [0, 0, 0]
+    try {
+      // Get load average
+      loadAverage = os.loadavg()
+      
+      // Use top command with -l 1 (single sample) and -n 0 (no processes) for efficiency
+      const topOutput = execSync('top -l 1 -n 0 | grep "CPU usage"', { encoding: 'utf8', timeout: 1000 })
+      
+      // macOS top output format: "CPU usage: 5.23% user, 2.45% sys, 92.32% idle"
+      // We calculate used CPU as: 100 - idle
+      const idleMatch = topOutput.match(/(\d+\.\d+)%\s+idle/)
+      if (idleMatch) {
+        const idlePercent = parseFloat(idleMatch[1])
+        cpuUsage = Math.max(0, Math.min(100, 100 - idlePercent))
+      } else {
+        // Fallback: try to match user + sys
+        const userMatch = topOutput.match(/(\d+\.\d+)%\s+user/)
+        const sysMatch = topOutput.match(/(\d+\.\d+)%\s+sys/)
+        if (userMatch && sysMatch) {
+          cpuUsage = parseFloat(userMatch[1]) + parseFloat(sysMatch[1])
+        }
+      }
+      
+      // Store for next call
+      previousSystemCpuUsage = cpuUsage
+      previousSystemCpuCheckTime = Date.now()
+    } catch (error) {
+      log.debug(`Could not get CPU usage:`, error.message)
+      // Use cached value if available
+      cpuUsage = previousSystemCpuUsage || 0
+      // Load average is still available from os.loadavg()
+      loadAverage = os.loadavg()
+    }
+    
+    // Get system uptime
+    const uptimeSeconds = Math.floor(os.uptime())
+    
+    // Get number of running databases
+    let runningDatabasesCount = 0
+    runningDatabases.forEach((db) => {
+      if (!db.process.killed && db.process.exitCode === null) {
+        runningDatabasesCount++
+      }
+    })
+    
+    return {
+      success: true,
+      memory: {
+        total: totalMemory,
+        free: freeMemory,
+        used: usedMemory,
+        percentage: totalMemory > 0 ? (usedMemory / totalMemory) * 100 : 0
+      },
+      cpu: {
+        usage: cpuUsage,
+        percentage: cpuUsage
+      },
+      disk: diskTotal > 0 ? {
+        total: diskTotal,
+        free: diskFree,
+        used: diskUsed,
+        percentage: diskTotal > 0 ? (diskUsed / diskTotal) * 100 : 0
+      } : null,
+      uptime: uptimeSeconds,
+      loadAverage: loadAverage,
+      runningDatabases: runningDatabasesCount
+    }
+  } catch (error) {
+    log.error(`Error getting system stats:`, error)
+    return {
+      success: false,
+      error: error.message,
+      memory: null,
+      cpu: null,
+      disk: null
+    }
+  }
+})
+
 // Clean up dead processes and reset statuses
 ipcMain.handle("cleanup-dead-processes", async () => {
   try {

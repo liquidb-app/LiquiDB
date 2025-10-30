@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld("electron", {
   },
   verifyDatabaseInstance: (id) => ipcRenderer.invoke("verify-database-instance", id),
   getDatabaseSystemInfo: (id) => ipcRenderer.invoke("get-database-system-info", id),
+  getSystemStats: () => ipcRenderer.invoke("get-system-stats"),
   checkPortConflict: (port) => ipcRenderer.invoke("check-port-conflict", port),
   cleanupDeadProcesses: () => ipcRenderer.invoke("cleanup-dead-processes"),
   saveCustomImage: (imageData) => ipcRenderer.invoke("save-custom-image", imageData),
