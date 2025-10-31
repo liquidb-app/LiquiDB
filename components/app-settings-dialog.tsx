@@ -199,7 +199,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     
     // Load helper service status only when dialog is open
     if (open) {
-      loadHelperStatus()
+  loadHelperStatus()
     }
   }, [open, loadHelperStatus])
   
@@ -212,8 +212,8 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     
     // Background check helper status every 15 seconds (increased from 10s to save resources)
     const statusInterval = setInterval(checkHelperStatusBackground, 15000)
-    
-    return () => clearInterval(statusInterval)
+  
+  return () => clearInterval(statusInterval)
   }, [open, loadHelperStatus, checkHelperStatusBackground])
 
   // Close child dialogs when parent dialog closes

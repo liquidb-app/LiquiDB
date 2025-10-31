@@ -85,7 +85,7 @@ export function SystemStats() {
     intervalRef.current = setInterval(() => {
       // Only poll when page is visible to save resources
       if (isVisible) {
-        fetchStats()
+      fetchStats()
       }
     }, 8000)
 
