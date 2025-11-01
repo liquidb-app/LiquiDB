@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { X, ChevronLeft, ChevronRight, Play, Square, Settings, Copy, Check, Zap, Shield, Clock, ArrowRight, Info } from "lucide-react"
 import { BoxesIcon } from "@/components/ui/boxes"
+import { Logo } from "@/components/ui/logo"
 import { wasTourRequested, setTourRequested } from "@/lib/preferences"
 import { useTheme } from "next-themes"
 import { notifyInfo } from "@/lib/notifications"
@@ -42,7 +43,7 @@ const tourSteps: TourStep[] = [
       "Discover advanced features and tips"
     ],
     placement: "center",
-    icon: <BoxesIcon size={24} className="text-primary" />
+    icon: <Logo size={24} className="text-primary" />
   },
   {
     id: "add-database",

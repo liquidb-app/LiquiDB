@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
-import { BoxesIcon } from "@/components/ui/boxes"
+import { Logo } from "@/components/ui/logo"
 
 interface LoadingScreenProps {
   onComplete?: () => void
@@ -43,7 +43,7 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
           ease: "easeInOut",
         }}
       >
-        <BoxesIcon size={32} className="text-primary" />
+        <Logo size={32} className="text-primary" />
       </motion.div>
     </motion.div>
   )

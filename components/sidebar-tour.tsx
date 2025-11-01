@@ -35,6 +35,7 @@ import {
 import { notifySuccess, notifyInfo } from "@/lib/notifications"
 import { wasTourRequested, setTourRequested } from "@/lib/preferences"
 import confetti from "canvas-confetti"
+import { Logo } from "@/components/ui/logo"
 
 interface TourStep {
   id: string
@@ -60,7 +61,7 @@ const tourSteps: TourStep[] = [
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
             className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl flex items-center justify-center mx-auto mb-4"
           >
-            <Database className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+            <Logo size={32} className="text-blue-600 dark:text-blue-400" />
           </motion.div>
           <h3 className="text-lg font-semibold mb-2">Welcome to LiquiDB!</h3>
           <p className="text-muted-foreground text-sm">
@@ -79,7 +80,7 @@ const tourSteps: TourStep[] = [
         </div>
       </div>
     ),
-    icon: <Database className="w-5 h-5" />
+    icon: <Logo size={20} className="text-primary" />
   },
   {
     id: "interface",

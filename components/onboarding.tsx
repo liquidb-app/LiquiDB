@@ -20,6 +20,7 @@ import { usePermissions } from "@/lib/use-permissions"
 import { SunIcon } from "@/components/ui/sun"
 import { MoonIcon } from "@/components/ui/moon"
 import { Monitor } from "lucide-react"
+import { Logo } from "@/components/ui/logo"
 
 // Utility function
 function cn(...inputs: any[]) {
@@ -1016,7 +1017,7 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                       transition={{ type: "spring", stiffness: 140, damping: 18 }}
                     >
                       <div className="size-12 rounded-full bg-gradient-to-br from-primary/30 via-primary/10 to-transparent ring-2 ring-primary/40 flex items-center justify-center animate-in zoom-in-95">
-                        <img src="/globe.svg" alt="LiquiDB" className="size-6 opacity-90" />
+                        <Logo size={24} className="opacity-90" />
                       </div>
                     </motion.div>
                     <motion.div initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.05 }}>
