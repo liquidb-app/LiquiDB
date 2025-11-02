@@ -2681,10 +2681,10 @@ export default function DatabaseManager() {
 
   return (
     <React.Fragment>
-      {isLoading && (
+      {isLoading ? (
         <LoadingScreen onComplete={() => setIsLoading(false)} />
-      )}
-      <div className="min-h-screen bg-background">
+      ) : (
+        <div className="min-h-screen bg-background">
         <MaybeStartSidebarTour />
         {showOnboarding && (
           <OnboardingOverlay
@@ -3899,7 +3899,6 @@ export default function DatabaseManager() {
           </Tabs>
         )}
       </div>
-      </div>
 
       <AddDatabaseDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onAdd={handleAddDatabase} />
 
@@ -4009,6 +4008,8 @@ export default function DatabaseManager() {
       
       {/* Fixed Footer with System Stats */}
       <SystemStats />
+      </div>
+      )}
     </React.Fragment>
   )
 }
