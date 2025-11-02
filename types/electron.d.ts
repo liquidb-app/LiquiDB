@@ -34,6 +34,7 @@ declare global {
         runningDatabases?: number
         error?: string
       }>
+      fetchQuotes?: () => Promise<{ success: boolean; data?: Array<{ quote: string; author: string }>; error?: string }>
     }
   }
 }

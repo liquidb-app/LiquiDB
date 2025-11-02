@@ -3117,7 +3117,48 @@ ipcMain.handle("check-databases-file", async () => {
   }
 })
 
-// IPC handler to recreate databases.json if missing
+// Fetch programming quote (bypasses CORS by using Node's https module)
+ipcMain.handle("fetch-quotes", async () => {
+  return new Promise((resolve) => {
+    const url = 'https://programming-quotesapi.vercel.app/api/bulk'
+    
+    const request = https.get(url, (res) => {
+      let data = ''
+      
+      res.on('data', (chunk) => {
+        data += chunk
+      })
+      
+      res.on('end', () => {
+        try {
+          const quotes = JSON.parse(data)
+          if (Array.isArray(quotes) && quotes.length > 0) {
+            const validQuotes = quotes.filter(q => q && q.quote && q.author)
+            if (validQuotes.length > 0) {
+              resolve({ success: true, data: validQuotes })
+            } else {
+              resolve({ success: false, error: 'No valid quotes in response' })
+            }
+          } else {
+            resolve({ success: false, error: 'Invalid quotes data structure' })
+          }
+        } catch (error) {
+          resolve({ success: false, error: error.message })
+        }
+      })
+    })
+    
+    request.on('error', (error) => {
+      resolve({ success: false, error: error.message })
+    })
+    
+    request.setTimeout(5000, () => {
+      request.destroy()
+      resolve({ success: false, error: 'Request timeout' })
+    })
+  })
+})
+
 ipcMain.handle("recreate-databases-file", async () => {
   try {
     const recreated = storage.recreateDatabasesFile(app)

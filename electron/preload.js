@@ -84,6 +84,9 @@ contextBridge.exposeInMainWorld("electron", {
   decryptString: (encryptedBuffer) => ipcRenderer.invoke("permissions:decryptString", encryptedBuffer),
   isEncryptionAvailable: () => ipcRenderer.invoke("permissions:isEncryptionAvailable"),
   
+  // Fetch programming quotes in bulk (bypasses CORS)
+  fetchQuotes: () => ipcRenderer.invoke("fetch-quotes"),
+  
   platform: process.platform,
   isElectron: true,
 })
