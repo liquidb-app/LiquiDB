@@ -1,9 +1,9 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Kbd } from "@/components/ui/kbd"
@@ -22,20 +22,59 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  Play,
-  Plus,
-  Settings,
-  Database,
-  Shield,
-  Zap,
   CheckCircle,
-  ArrowRight,
-  Sparkles,
 } from "lucide-react"
 import { notifySuccess, notifyInfo } from "@/lib/notifications"
 import { wasTourRequested, setTourRequested } from "@/lib/preferences"
 import confetti from "canvas-confetti"
 import { Logo } from "@/components/ui/logo"
+import { LayoutPanelTopIcon } from "@/components/ui/layout-panel-top"
+import { FoldersIcon } from "@/components/ui/folders"
+import { PlusIcon } from "@/components/ui/plus"
+import { SettingsIcon } from "@/components/ui/settings"
+import { useTheme } from "next-themes"
+import { Skeleton } from "@/components/ui/skeleton"
+
+interface Quote {
+  quote: string
+  author: string
+}
+
+// Fallback quotes in case API fails
+const FALLBACK_QUOTES: Quote[] = [
+  {
+    quote: "Programs must be written for people to read, and only incidentally for machines to execute.",
+    author: "Harold Abelson"
+  },
+  {
+    quote: "The best way to get a project done faster is to start sooner.",
+    author: "Jim Highsmith"
+  },
+  {
+    quote: "First, solve the problem. Then, write the code.",
+    author: "John Johnson"
+  },
+  {
+    quote: "Code is like humor. When you have to explain it, it's bad.",
+    author: "Cory House"
+  },
+  {
+    quote: "Simplicity is the ultimate sophistication.",
+    author: "Leonardo da Vinci"
+  },
+  {
+    quote: "Any fool can write code that a computer can understand. Good programmers write code that humans can understand.",
+    author: "Martin Fowler"
+  },
+  {
+    quote: "The only way to learn a new programming language is by writing programs in it.",
+    author: "Dennis Ritchie"
+  },
+  {
+    quote: "Programming isn't about what you know; it's about what you can figure out.",
+    author: "Chris Pine"
+  }
+]
 
 interface TourStep {
   id: string
@@ -50,115 +89,70 @@ interface TourStep {
 const tourSteps: TourStep[] = [
   {
     id: "welcome",
-    title: "Welcome to LiquiDB!",
+    title: "Welcome to LiquiDB",
     description: "Let's take a quick tour of your database management interface",
     content: (
-      <div className="space-y-4">
-        <div className="text-center">
+      <div className="space-y-3">
+        <div className="flex items-center justify-center">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-            className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl flex items-center justify-center mx-auto mb-4"
           >
-            <Logo size={32} className="text-blue-600 dark:text-blue-400" />
+            <Logo size={32} />
           </motion.div>
-          <h3 className="text-lg font-semibold mb-2">Welcome to LiquiDB!</h3>
-          <p className="text-muted-foreground text-sm">
-            Your powerful local database management tool. Let's explore the key features together.
-          </p>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 rounded-lg border border-yellow-200/50 dark:border-yellow-800/50">
-            <Zap className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
-            <span className="text-sm font-medium">Fast Setup</span>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-md bg-muted/20 border border-border/50">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary/80" />
+            <span className="text-sm text-muted-foreground">Fast Setup</span>
           </div>
-          <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200/50 dark:border-green-800/50">
-            <Shield className="w-4 h-4 text-green-600 dark:text-green-400" />
-            <span className="text-sm font-medium">Secure</span>
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-md bg-muted/20 border border-border/50">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary/80" />
+            <span className="text-sm text-muted-foreground">Secure</span>
           </div>
         </div>
       </div>
     ),
-    icon: <Logo size={20} className="text-primary" />
+    icon: <Logo size={20} />
   },
   {
     id: "interface",
     title: "Interface Overview",
     description: "Understanding the main interface layout",
+    icon: <LayoutPanelTopIcon size={20} className="text-muted-foreground" />,
     content: (
-      <div className="space-y-4">
-        <div className="text-center">
-          <div className="w-12 h-12 bg-gradient-to-br from-indigo-500/20 to-blue-500/20 rounded-lg flex items-center justify-center mx-auto mb-3">
-            <Settings className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+      <div className="space-y-3">
+        <div className="space-y-2">
+          <div className="px-3 py-2.5 rounded-md bg-muted/20 border border-border/50">
+            <p className="text-sm font-medium mb-1">Database Cards</p>
+            <p className="text-xs text-muted-foreground">Visual representation of your databases</p>
           </div>
-          <h3 className="text-lg font-semibold mb-2">Interface Overview</h3>
-          <p className="text-muted-foreground text-sm">
-            The main interface is clean and intuitive, designed for efficient database management.
-          </p>
-        </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
-            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-              <Database className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="font-medium text-sm">Database Cards</p>
-              <p className="text-xs text-muted-foreground">Visual representation of your databases</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg border border-purple-200/50 dark:border-purple-800/50">
-            <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-              <Settings className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <p className="font-medium text-sm">Control Panel</p>
-              <p className="text-xs text-muted-foreground">Quick actions and settings</p>
-            </div>
+          <div className="px-3 py-2.5 rounded-md bg-muted/20 border border-border/50">
+            <p className="text-sm font-medium mb-1">Control Panel</p>
+            <p className="text-xs text-muted-foreground">Quick actions and settings</p>
           </div>
         </div>
       </div>
-    ),
-    icon: <Settings className="w-5 h-5" />
+    )
   },
   {
     id: "databases",
     title: "Database Management",
     description: "Create and manage your local databases",
     content: (
-      <div className="space-y-4">
-        <div className="text-center">
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-lg flex items-center justify-center mx-auto mb-3">
-            <Database className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">Database Management</h3>
-          <p className="text-muted-foreground text-sm">
-            Create, start, stop, and manage multiple database instances with ease.
-          </p>
+      <div className="space-y-2">
+        <div className="px-3 py-2.5 rounded-md bg-muted/20 border border-border/50">
+          <p className="text-sm font-medium mb-1">Start/Stop Databases</p>
+          <p className="text-xs text-muted-foreground">Control your database instances</p>
         </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200/50 dark:border-green-800/50">
-            <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-              <Play className="w-4 h-4 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="font-medium text-sm">Start/Stop Databases</p>
-              <p className="text-xs text-muted-foreground">Control your database instances</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
-            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-              <Plus className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="font-medium text-sm">Add New Databases</p>
-              <p className="text-xs text-muted-foreground">Create PostgreSQL, MySQL, MongoDB</p>
-            </div>
-          </div>
+        <div className="px-3 py-2.5 rounded-md bg-muted/20 border border-border/50">
+          <p className="text-sm font-medium mb-1">Add New Databases</p>
+          <p className="text-xs text-muted-foreground">Create PostgreSQL, MySQL, MongoDB</p>
         </div>
       </div>
     ),
-    icon: <Database className="w-5 h-5" />,
+    icon: <FoldersIcon size={20} className="text-muted-foreground" />,
     highlight: "database-cards"
   },
   {
@@ -166,39 +160,18 @@ const tourSteps: TourStep[] = [
     title: "Add New Database",
     description: "Create your first database instance",
     content: (
-      <div className="space-y-4">
-        <div className="text-center">
-          <div className="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center mx-auto mb-3">
-            <Plus className="w-6 h-6 text-green-600 dark:text-green-400" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">Add New Database</h3>
-          <p className="text-muted-foreground text-sm">
-            Click this button to create your first database instance. You can choose from PostgreSQL, MySQL, or MongoDB.
-          </p>
+      <div className="space-y-2">
+        <div className="px-3 py-2.5 rounded-md bg-muted/20 border border-border/50">
+          <p className="text-sm font-medium mb-1">Multiple Types</p>
+          <p className="text-xs text-muted-foreground">PostgreSQL, MySQL, MongoDB</p>
         </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-            <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-              <Database className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <p className="font-medium text-sm">Multiple Types</p>
-              <p className="text-xs text-muted-foreground">PostgreSQL, MySQL, MongoDB</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-            <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
-              <Zap className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-            </div>
-            <div>
-              <p className="font-medium text-sm">Quick Setup</p>
-              <p className="text-xs text-muted-foreground">Automatic configuration</p>
-            </div>
-          </div>
+        <div className="px-3 py-2.5 rounded-md bg-muted/20 border border-border/50">
+          <p className="text-sm font-medium mb-1">Quick Setup</p>
+          <p className="text-xs text-muted-foreground">Automatic configuration</p>
         </div>
       </div>
     ),
-    icon: <Plus className="w-5 h-5" />,
+    icon: <PlusIcon size={20} className="text-muted-foreground" />,
     highlight: "add-database-button"
   },
   {
@@ -206,39 +179,18 @@ const tourSteps: TourStep[] = [
     title: "Settings & Configuration",
     description: "Customize your experience",
     content: (
-      <div className="space-y-4">
-        <div className="text-center">
-          <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center mx-auto mb-3">
-            <Settings className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">Settings & Configuration</h3>
-          <p className="text-muted-foreground text-sm">
-            Customize your database management experience with powerful settings.
-          </p>
+      <div className="space-y-2">
+        <div className="px-3 py-2.5 rounded-md bg-muted/20 border border-border/50">
+          <p className="text-sm font-medium mb-1">Auto-start</p>
+          <p className="text-xs text-muted-foreground">Start databases on app launch</p>
         </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-            <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
-              <Zap className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-            </div>
-            <div>
-              <p className="font-medium text-sm">Auto-start</p>
-              <p className="text-xs text-muted-foreground">Start databases on app launch</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-            <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg flex items-center justify-center">
-              <Shield className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            </div>
-            <div>
-              <p className="font-medium text-sm">Security</p>
-              <p className="text-xs text-muted-foreground">Manage permissions & access</p>
-            </div>
-          </div>
+        <div className="px-3 py-2.5 rounded-md bg-muted/20 border border-border/50">
+          <p className="text-sm font-medium mb-1">Security</p>
+          <p className="text-xs text-muted-foreground">Manage permissions & access</p>
         </div>
       </div>
     ),
-    icon: <Settings className="w-5 h-5" />,
+    icon: <SettingsIcon size={20} className="text-muted-foreground" />,
     highlight: "settings-button"
   },
   {
@@ -246,24 +198,18 @@ const tourSteps: TourStep[] = [
     title: "Tour Complete!",
     description: "You're ready to start managing databases",
     content: (
-      <div className="space-y-4 text-center">
+      <div className="space-y-3 text-center">
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-          className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-xl flex items-center justify-center mx-auto mb-4"
+          className="w-12 h-12 bg-muted/20 rounded-lg flex items-center justify-center mx-auto border border-border/50"
         >
-          <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
+          <CheckCircle className="w-6 h-6 text-muted-foreground" />
         </motion.div>
-        <h3 className="text-lg font-semibold mb-2">Tour Complete!</h3>
-        <p className="text-muted-foreground text-sm mb-4">
+        <p className="text-muted-foreground text-sm">
           You're now ready to start managing your databases. Create your first database and begin building amazing applications!
         </p>
-        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Sparkles className="w-4 h-4" />
-          <span>Happy coding!</span>
-          <Sparkles className="w-4 h-4" />
-        </div>
       </div>
     ),
     icon: <CheckCircle className="w-5 h-5" />
@@ -273,15 +219,32 @@ const tourSteps: TourStep[] = [
 interface SidebarTourProps {
   isOpen: boolean
   onClose: () => void
+  quotes?: Quote[]
+  isLoadingQuotes?: boolean
 }
 
-// Global flag to prevent duplicate tour notifications
-let tourNotificationShown = false
-
-export function SidebarTour({ isOpen, onClose }: SidebarTourProps) {
+export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: SidebarTourProps) {
   const [currentStep, setCurrentStep] = useState(0)
   const [isVisible, setIsVisible] = useState(false)
   const [targetElement, setTargetElement] = useState<HTMLElement | null>(null)
+  const [mounted, setMounted] = useState(false)
+  const { theme, resolvedTheme } = useTheme()
+  const notificationShownRef = useRef(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Get quote for current step
+  const currentQuote = quotes && quotes.length > 0 ? quotes[currentStep % quotes.length] : null
+
+  // Determine the effective theme (resolvedTheme handles system theme)
+  const effectiveTheme = mounted ? (resolvedTheme || theme) : "light"
+  
+  // Set color based on theme: RGB(229, 229, 229) for dark mode, inverted for light mode
+  const logoColor = effectiveTheme === "dark" 
+    ? "rgb(229, 229, 229)" 
+    : "rgb(26, 26, 26)" // Inverted: 255 - 229 = 26
 
   useEffect(() => {
     if (isOpen) {
@@ -289,15 +252,18 @@ export function SidebarTour({ isOpen, onClose }: SidebarTourProps) {
       // Set tour mode flag
       document.body.setAttribute('data-tour-mode', 'true')
       
-      // Show tour mode notification only once globally
-      if (!tourNotificationShown) {
-        setTimeout(() => {
+      // Show tour mode notification only once per tour session
+      if (!notificationShownRef.current) {
+        const timeoutId = setTimeout(() => {
           notifyInfo("Tour Mode Active", {
             description: "You're now in tour mode. Database creation is disabled until the tour completes.",
             duration: 4000
           })
-          tourNotificationShown = true
+          notificationShownRef.current = true
         }, 500)
+        
+        // Cleanup timeout on unmount
+        return () => clearTimeout(timeoutId)
       }
     } else {
       setIsVisible(false)
@@ -308,14 +274,16 @@ export function SidebarTour({ isOpen, onClose }: SidebarTourProps) {
         document.body.offsetHeight // Force reflow
         // Ensure all elements with tour-mode classes reset
         const tourModeElements = document.querySelectorAll('.tour-mode\\:ml-80')
-        tourModeElements.forEach(el => {
-          (el as HTMLElement).style.marginLeft = ''
-          (el as HTMLElement).style.maxWidth = ''
-          (el as HTMLElement).style.width = ''
+        tourModeElements.forEach((el) => {
+          const htmlEl = el as HTMLElement
+          htmlEl.style.marginLeft = ''
+          htmlEl.style.maxWidth = ''
+          htmlEl.style.width = ''
         })
       })
       setTargetElement(null)
-      tourNotificationShown = false // Reset for next time
+      // Reset notification flag when tour closes
+      notificationShownRef.current = false
     }
   }, [isOpen])
 
@@ -425,9 +393,14 @@ export function SidebarTour({ isOpen, onClose }: SidebarTourProps) {
   }, [isOpen, handleNext, handlePrevious, handleSkip])
 
   const handleComplete = useCallback(() => {
-    // Trigger confetti
+    // Trigger confetti with theme colors
     const end = Date.now() + 3 * 1000
-    const colors = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b']
+    const root = document.documentElement
+    const primaryColor = getComputedStyle(root).getPropertyValue('--primary').trim()
+    const mutedColor = getComputedStyle(root).getPropertyValue('--muted-foreground').trim()
+    const borderColor = getComputedStyle(root).getPropertyValue('--border').trim()
+    
+    const colors = [primaryColor, mutedColor, borderColor].filter(Boolean)
     
     const frame = () => {
       confetti({
@@ -435,14 +408,14 @@ export function SidebarTour({ isOpen, onClose }: SidebarTourProps) {
         angle: 60,
         spread: 55,
         origin: { x: 0 },
-        colors: colors
+        colors: colors.length > 0 ? colors : undefined
       })
       confetti({
         particleCount: 2,
         angle: 120,
         spread: 55,
         origin: { x: 1 },
-        colors: colors
+        colors: colors.length > 0 ? colors : undefined
       })
       
       if (Date.now() < end) {
@@ -536,7 +509,10 @@ export function SidebarTour({ isOpen, onClose }: SidebarTourProps) {
               />
               {/* Highlight border around target element */}
               <motion.div
-                className="absolute border-2 border-primary rounded-lg shadow-lg"
+                className="absolute border border-border rounded-lg"
+                style={{
+                  boxShadow: '0 0 0 1px hsl(var(--border)), 0 0 8px hsl(var(--border) / 0.3)',
+                }}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ 
                   opacity: 1,
@@ -555,14 +531,22 @@ export function SidebarTour({ isOpen, onClose }: SidebarTourProps) {
           <SidebarProvider defaultOpen={true}>
             <div className="flex h-screen">
               {/* Tour sidebar - positioned on left */}
-              <Sidebar className="border-r shadow-2xl fixed left-0 top-0 h-full w-full sm:w-80 md:w-80 lg:w-80 z-[99999] bg-gradient-to-b from-background to-muted/20">
-                <SidebarHeader className="border-b pt-8">
+              <Sidebar 
+                className="shadow-xl fixed left-0 top-0 h-full w-full sm:w-80 md:w-80 lg:w-80 z-[99999] [&_[data-slot=sidebar-inner]]:!bg-background [&_[data-slot=sidebar-inner]]:!text-foreground [&_[data-sidebar=sidebar]]:!bg-background [&_[data-sidebar=sidebar]]:!text-foreground"
+                style={{
+                  '--sidebar': 'var(--background)',
+                  '--sidebar-foreground': 'var(--foreground)',
+                } as React.CSSProperties}
+              >
+                <SidebarHeader className="pt-8">
                   <div className="flex items-center gap-3 p-4">
-                    <div className="w-8 h-8 bg-gradient-to-br from-primary/20 to-primary/10 rounded-lg flex items-center justify-center">
-                      {currentStepData.icon}
-                    </div>
+                    {currentStepData.icon && (
+                      <div className="flex items-center justify-center" style={{ color: logoColor }}>
+                        {currentStepData.icon}
+                      </div>
+                    )}
                     <div>
-                      <h2 className="font-semibold text-sm">Tour Guide</h2>
+                      <h2 className="font-semibold text-sm text-foreground">{currentStepData.title}</h2>
                       <p className="text-xs text-muted-foreground">
                         Step {currentStep + 1} of {tourSteps.length}
                       </p>
@@ -570,65 +554,81 @@ export function SidebarTour({ isOpen, onClose }: SidebarTourProps) {
                   </div>
                 </SidebarHeader>
 
-                <SidebarContent className="p-3">
-                  <Card className="border-0 shadow-none bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-sm">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge variant="secondary" className="text-xs bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
-                          {currentStepData.title}
-                        </Badge>
-                      </div>
-                      <CardTitle className="text-lg">{currentStepData.title}</CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        {currentStepData.description}
-                      </p>
-                    </CardHeader>
-                    <CardContent className="pt-0 pb-3">
-                      <AnimatePresence mode="wait">
+                <SidebarContent className="p-4 flex-1 overflow-auto bg-background flex flex-col">
+                  <div className="space-y-4 flex-1">
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {currentStepData.description}
+                    </p>
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={currentStep}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                      >
+                        {currentStepData.content}
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
+                  
+                  {/* Quote display at bottom */}
+                  {(currentQuote || isLoadingQuotes) && (
+                    <div className="mt-auto pt-4 border-t border-border/30">
+                      {isLoadingQuotes ? (
+                        <div className="space-y-2">
+                          <Skeleton className="h-3 w-full" />
+                          <Skeleton className="h-3 w-3/4 ml-auto" />
+                        </div>
+                      ) : currentQuote ? (
                         <motion.div
                           key={currentStep}
-                          initial={{ opacity: 0, x: 20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -20 }}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
                           transition={{ duration: 0.2 }}
+                          className="text-xs text-muted-foreground/50 leading-relaxed"
                         >
-                          {currentStepData.content}
+                          <p className="italic mb-1">"{currentQuote.quote}"</p>
+                          <p className="text-right">— {currentQuote.author}</p>
                         </motion.div>
-                      </AnimatePresence>
-                    </CardContent>
-                  </Card>
+                      ) : null}
+                    </div>
+                  )}
                 </SidebarContent>
 
-                <SidebarFooter className="border-t p-2">
+                <SidebarFooter className="p-2 bg-background">
                   <div className="space-y-2">
                     {/* Progress indicator */}
-                    <div className="flex items-center justify-center gap-2">
-                      {tourSteps.map((_, index) => (
-                        <div
-                          key={index}
-                          className={`w-2 h-2 rounded-full transition-colors ${
-                            index === currentStep
-                              ? 'bg-primary'
-                              : index < currentStep
-                              ? 'bg-primary/60'
-                              : 'bg-muted-foreground/40'
-                          }`}
-                        />
-                      ))}
-                    </div>
+                  <div className="flex items-center justify-center gap-2">
+                    {tourSteps.map((_, index) => (
+                      <div
+                        key={index}
+                        className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                          index === currentStep
+                            ? 'bg-primary'
+                            : index < currentStep
+                            ? 'bg-muted-foreground/60'
+                            : 'bg-muted-foreground/30'
+                        }`}
+                      />
+                    ))}
+                  </div>
 
                     {/* Navigation buttons */}
                     <div className="flex items-center justify-between gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handlePrevious}
-                        disabled={currentStep === 0}
-                        className="flex items-center gap-1 px-2 text-xs"
-                      >
-                        <ChevronLeft className="w-3 h-3" />
-                        Back <Kbd>←</Kbd>
-                      </Button>
+                      {currentStep > 0 ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handlePrevious}
+                          className="flex items-center gap-1 px-2 text-xs"
+                        >
+                          <ChevronLeft className="w-3 h-3" />
+                          Back <Kbd>←</Kbd>
+                        </Button>
+                      ) : (
+                        <div />
+                      )}
 
                       <div className="flex items-center gap-1">
                         <Button
@@ -679,21 +679,94 @@ export function SidebarTour({ isOpen, onClose }: SidebarTourProps) {
 // Wrapper component to replace MaybeStartTour
 export function MaybeStartSidebarTour() {
   const [shouldShowTour, setShouldShowTour] = useState(false)
+  const [quotes, setQuotes] = useState<Quote[]>([])
+  const [isLoadingQuotes, setIsLoadingQuotes] = useState(false)
+  const [hasFetchedQuotes, setHasFetchedQuotes] = useState(false)
+
+  const fetchQuotes = useCallback(async (forceRefresh = false) => {
+    // Skip if already fetched and not forcing refresh
+    if (hasFetchedQuotes && !forceRefresh && quotes.length > 0) {
+      return
+    }
+
+    setIsLoadingQuotes(true)
+    try {
+      // Use Electron IPC if available (bypasses CORS), otherwise fallback to fetch
+      if (typeof window !== 'undefined' && window.electron?.fetchQuotes) {
+        try {
+          const result = await window.electron.fetchQuotes()
+          if (result.success && result.data && Array.isArray(result.data)) {
+            const validQuotes = result.data.filter(q => q && q.quote && q.author)
+            if (validQuotes.length > 0) {
+              setQuotes(validQuotes)
+              setHasFetchedQuotes(true)
+              setIsLoadingQuotes(false)
+              return
+            }
+          }
+          throw new Error(result.error || 'Failed to fetch quotes')
+        } catch (ipcError) {
+          // If IPC fails (e.g., handler not registered), fall through to fallback
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('IPC fetch failed, using fallback quotes:', ipcError instanceof Error ? ipcError.message : ipcError)
+          }
+          // Fall through to fallback quotes
+        }
+      }
+      
+      // If IPC not available or failed, use fallback quotes immediately (no fetch attempt)
+      // This prevents CORS errors and rate limiting
+      // Shuffle fallback quotes to get different quotes each time
+      const shuffledFallbacks = [...FALLBACK_QUOTES].sort(() => Math.random() - 0.5)
+      const neededQuotes = tourSteps.length
+      const fallbackQuotes: Quote[] = []
+      for (let i = 0; i < neededQuotes; i++) {
+        fallbackQuotes.push(shuffledFallbacks[i % shuffledFallbacks.length])
+      }
+      setQuotes(fallbackQuotes)
+      setHasFetchedQuotes(true)
+      setIsLoadingQuotes(false)
+    } catch (error) {
+      // Final fallback - use hardcoded quotes (shuffled for variety)
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('All quote fetching methods failed, using fallback:', error instanceof Error ? error.message : error)
+      }
+      const shuffledFallbacks = [...FALLBACK_QUOTES].sort(() => Math.random() - 0.5)
+      const neededQuotes = tourSteps.length
+      const fallbackQuotes: Quote[] = []
+      for (let i = 0; i < neededQuotes; i++) {
+        fallbackQuotes.push(shuffledFallbacks[i % shuffledFallbacks.length])
+      }
+      setQuotes(fallbackQuotes)
+      setHasFetchedQuotes(true)
+      setIsLoadingQuotes(false)
+    }
+  }, [hasFetchedQuotes, quotes.length])
 
   useEffect(() => {
     // Check for tour request on mount
     if (wasTourRequested()) {
+      // Reset quotes and fetch fresh ones for each new tour
+      setQuotes([])
+      setHasFetchedQuotes(false)
       setShouldShowTour(true)
+      // Fetch fresh quotes (will use fallbacks if API fails)
+      fetchQuotes(true)
       // Clear the tour request immediately
       setTourRequested(false)
     }
-  }, [])
+  }, [fetchQuotes])
 
   // Listen for tour request changes (in case it's set after component mounts)
   useEffect(() => {
     const checkTourRequest = () => {
       if (wasTourRequested()) {
+        // Reset quotes and fetch fresh ones for each new tour
+        setQuotes([])
+        setHasFetchedQuotes(false)
         setShouldShowTour(true)
+        // Fetch fresh quotes (will use fallbacks if API fails)
+        fetchQuotes(true)
         setTourRequested(false)
       }
     }
@@ -702,10 +775,13 @@ export function MaybeStartSidebarTour() {
     const interval = setInterval(checkTourRequest, 100)
 
     return () => clearInterval(interval)
-  }, []) // Empty dependency array - this effect should only run once
+  }, [fetchQuotes])
 
   const handleClose = () => {
     setShouldShowTour(false)
+    // Reset quotes when tour closes so next tour fetches fresh ones
+    setQuotes([])
+    setHasFetchedQuotes(false)
   }
 
   // Only render the tour if it was requested
@@ -713,5 +789,5 @@ export function MaybeStartSidebarTour() {
     return null
   }
 
-  return <SidebarTour isOpen={shouldShowTour} onClose={handleClose} />
+  return <SidebarTour isOpen={shouldShowTour} onClose={handleClose} quotes={quotes} isLoadingQuotes={isLoadingQuotes} />
 }
