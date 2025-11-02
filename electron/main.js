@@ -1555,7 +1555,12 @@ async function startDatabaseProcessAsync(config) {
     }
   }
 
-  const child = spawn(cmd, args, { env, detached: false })
+  // Use stdio: "pipe" to prevent terminal interactions (password prompts, etc.)
+  const child = spawn(cmd, args, { 
+    env, 
+    detached: false,
+    stdio: ['ignore', 'pipe', 'pipe'] // stdin=ignore, stdout=pipe, stderr=pipe
+  })
   
   // Track startup status for PostgreSQL
   let isStartupComplete = false
@@ -1691,34 +1696,44 @@ async function startDatabaseProcessAsync(config) {
     }
     
     child.stdout.on('data', (data) => {
-      const output = data.toString()
-      console.log(`[MySQL] ${id} output:`, output.trim())
-      
-      // Check for MySQL ready message
-      if (output.includes('ready for connections') || output.includes('ready to accept connections') || output.includes('mysqld: ready for connections')) {
-        console.log(`[MySQL] ${id} is ready for connections`)
-        isStartupComplete = true
-        if (startupTimeout) {
-          clearTimeout(startupTimeout)
-          startupTimeout = null
+      try {
+        const output = data.toString()
+        console.log(`[MySQL] ${id} output:`, output.trim())
+        
+        // Check for MySQL ready message
+        if (output.includes('ready for connections') || output.includes('ready to accept connections') || output.includes('mysqld: ready for connections')) {
+          console.log(`[MySQL] ${id} is ready for connections`)
+          isStartupComplete = true
+          if (startupTimeout) {
+            clearTimeout(startupTimeout)
+            startupTimeout = null
+          }
+          sendReadyEvent()
         }
-        sendReadyEvent()
+      } catch (error) {
+        console.error(`[MySQL] ${id} Error in stdout handler:`, error)
+        // Don't crash, just log the error
       }
     })
     
     child.stderr.on('data', (data) => {
-      const output = data.toString()
-      console.log(`[MySQL] ${id} error output:`, output.trim())
-      
-      // Check for MySQL ready message in stderr too
-      if (output.includes('ready for connections') || output.includes('ready to accept connections') || output.includes('mysqld: ready for connections')) {
-        console.log(`[MySQL] ${id} is ready for connections (from stderr)`)
-        isStartupComplete = true
-        if (startupTimeout) {
-          clearTimeout(startupTimeout)
-          startupTimeout = null
+      try {
+        const output = data.toString()
+        console.log(`[MySQL] ${id} error output:`, output.trim())
+        
+        // Check for MySQL ready message in stderr too
+        if (output.includes('ready for connections') || output.includes('ready to accept connections') || output.includes('mysqld: ready for connections')) {
+          console.log(`[MySQL] ${id} is ready for connections (from stderr)`)
+          isStartupComplete = true
+          if (startupTimeout) {
+            clearTimeout(startupTimeout)
+            startupTimeout = null
+          }
+          sendReadyEvent()
         }
-        sendReadyEvent()
+      } catch (error) {
+        console.error(`[MySQL] ${id} Error in stderr handler:`, error)
+        // Don't crash, just log the error
       }
     })
     
@@ -1805,31 +1820,36 @@ async function startDatabaseProcessAsync(config) {
   }
   
   child.on("error", (err) => {
-    console.error(`[Database] ${id} error:`, err)
-    runningDatabases.delete(id)
-    if (startupTimeout) {
-      clearTimeout(startupTimeout)
-      startupTimeout = null
-    }
-    
-    // Update database in storage to clear PID and update status
     try {
-      const databases = storage.loadDatabases(app)
-      const dbIndex = databases.findIndex(db => db.id === id)
-      if (dbIndex >= 0) {
-        databases[dbIndex].status = 'stopped'
-        databases[dbIndex].pid = null
-        storage.saveDatabases(app, databases)
-        console.log(`[Database] ${id} status updated to stopped in storage`)
+      console.error(`[Database] ${id} error:`, err)
+      runningDatabases.delete(id)
+      if (startupTimeout) {
+        clearTimeout(startupTimeout)
+        startupTimeout = null
+      }
+      
+      // Update database in storage to clear PID and update status
+      try {
+        const databases = storage.loadDatabases(app)
+        const dbIndex = databases.findIndex(db => db.id === id)
+        if (dbIndex >= 0) {
+          databases[dbIndex].status = 'stopped'
+          databases[dbIndex].pid = null
+          storage.saveDatabases(app, databases)
+          console.log(`[Database] ${id} status updated to stopped in storage`)
+        }
+      } catch (error) {
+        console.error(`[Database] ${id} failed to update storage:`, error)
+      }
+      
+      // Notify the renderer process that the database has stopped
+      if (mainWindow && !mainWindow.isDestroyed() && !stoppedEventSent) {
+        stoppedEventSent = true
+        mainWindow.webContents.send('database-status-changed', { id, status: 'stopped', error: err.message, pid: null })
       }
     } catch (error) {
-      console.error(`[Database] ${id} failed to update storage:`, error)
-    }
-    
-    // Notify the renderer process that the database has stopped
-    if (mainWindow && !stoppedEventSent) {
-      stoppedEventSent = true
-      mainWindow.webContents.send('database-status-changed', { id, status: 'stopped', error: err.message, pid: null })
+      console.error(`[Database] ${id} Error in error handler:`, error)
+      // Don't let error handler errors crash the app
     }
   })
 
