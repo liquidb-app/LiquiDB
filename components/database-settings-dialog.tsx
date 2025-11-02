@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
-import { AlertTriangle, Download } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
+import { DownloadIcon, type DownloadIconHandle } from "@/components/ui/download"
+import { toast } from "sonner"
 import { IconPickerDialog } from "@/components/icon-picker-dialog"
 import { BoxesIcon } from "@/components/ui/boxes"
 import { Kbd } from "@/components/ui/kbd"
@@ -147,6 +149,8 @@ export function DatabaseSettingsDialog({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [iconPickerOpen, setIconPickerOpen] = useState(false)
   const [autoStartConflict, setAutoStartConflict] = useState<string | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+  const downloadIconRef = useRef<DownloadIconHandle>(null)
 
   // Function to validate name length
   const validateName = (nameValue: string) => {
@@ -520,9 +524,92 @@ export function DatabaseSettingsDialog({
     }, 100)
   }
 
-  const handleExport = () => {
-    // Placeholder for export functionality
-    console.log("Exporting database:", database.name)
+  const handleExport = async () => {
+    if (isExporting) return // Prevent multiple exports
+    
+    try {
+      // @ts-ignore
+      if (window.electron?.exportDatabase) {
+        setIsExporting(true)
+        
+        // Show loading toast with initial message
+        let currentDescription = `Preparing export for ${database.name}...`
+        const toastId = toast.loading(`Exporting ${database.name}...`, {
+          description: currentDescription,
+        })
+
+        // Set up progress listener
+        // @ts-ignore
+        window.electron?.onExportProgress?.((progress: { stage: string, message: string, progress: number, total: number }) => {
+          if (progress.message && progress.message !== currentDescription) {
+            currentDescription = progress.message
+            // Update toast with new description
+            toast.loading("Exporting database instance...", {
+              id: toastId,
+              description: currentDescription,
+            })
+          }
+        })
+
+        // Run export in background - pass the specific database
+        // @ts-ignore
+        window.electron.exportDatabase(database)
+          .then((result: any) => {
+            setIsExporting(false)
+            
+            // Clean up progress listener
+            // @ts-ignore
+            window.electron?.removeExportProgressListener?.()
+            
+            // Dismiss loading toast
+            toast.dismiss(toastId)
+
+            if (result?.success) {
+              const fileName = result.filePath ? result.filePath.split(/[/\\]/).pop() : 'file'
+              const sizeMB = result.size ? (result.size / (1024 * 1024)).toFixed(2) : '0'
+              toast.success(`Export completed successfully`, {
+                description: `${database.name} exported to ${fileName} (${sizeMB} MB)`,
+                duration: 5000,
+              })
+            } else if (result?.canceled) {
+              toast.info("Export cancelled", {
+                description: "Export operation was cancelled.",
+                duration: 3000,
+              })
+            } else {
+              toast.error("Export failed", {
+                description: result?.error || `Failed to export ${database.name}`,
+                duration: 5000,
+              })
+            }
+          })
+          .catch((error: any) => {
+            setIsExporting(false)
+            
+            // Clean up progress listener
+            // @ts-ignore
+            window.electron?.removeExportProgressListener?.()
+            
+            // Dismiss loading toast
+            toast.dismiss(toastId)
+            
+            toast.error("Export error", {
+              description: error instanceof Error ? error.message : "An error occurred while exporting",
+              duration: 5000,
+            })
+          })
+      } else {
+        toast.error("Export unavailable", {
+          description: "Export functionality is not available",
+          duration: 3000,
+        })
+      }
+    } catch (error) {
+      toast.error("Export error", {
+        description: error instanceof Error ? error.message : "An error occurred while exporting",
+        duration: 5000,
+      })
+    }
   }
 
   // Keyboard event handlers
@@ -741,10 +828,22 @@ export function DatabaseSettingsDialog({
                     variant="outline"
                     size="sm"
                     onClick={handleExport}
+                    disabled={isExporting}
+                    onMouseEnter={() => !isExporting && downloadIconRef.current?.startAnimation()}
+                    onMouseLeave={() => !isExporting && downloadIconRef.current?.stopAnimation()}
                     className="w-full transition-all duration-200 bg-transparent"
                   >
-                    <Download className="mr-2 h-4 w-4" />
-                    Export Database
+                    {isExporting ? (
+                      <>
+                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        Exporting...
+                      </>
+                    ) : (
+                      <>
+                        <DownloadIcon ref={downloadIconRef} className="mr-2" size={16} />
+                        Export Database
+                      </>
+                    )}
                   </Button>
                 </div>
               </TabsContent>
