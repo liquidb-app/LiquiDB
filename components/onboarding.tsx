@@ -1016,8 +1016,8 @@ export function OnboardingOverlay({ onFinished, onStartTour }: { onFinished: () 
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ type: "spring", stiffness: 140, damping: 18 }}
                     >
-                      <div className="size-12 rounded-full bg-gradient-to-br from-primary/30 via-primary/10 to-transparent ring-2 ring-primary/40 flex items-center justify-center animate-in zoom-in-95">
-                        <Logo size={24} className="opacity-90" />
+                      <div className="flex items-center justify-center animate-in zoom-in-95">
+                        <Logo size={48} className="opacity-90" />
                       </div>
                     </motion.div>
                     <motion.div initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.05 }}>
