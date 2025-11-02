@@ -147,6 +147,823 @@ async function alternativeMySQLInit(mysqldPath, dataDir, env) {
   })
 }
 
+// Configure PostgreSQL with custom username, password, and database name
+async function configurePostgreSQL(config) {
+  const { id, type, port, username, password, containerId, name } = config
+  
+  if (type !== "postgresql") return
+  
+  try {
+    const databases = storage.loadDatabases(app)
+    const dbRecord = databases.find(d => d.id === id)
+    if (!dbRecord?.homebrewPath) {
+      console.log(`[PostgreSQL Config] ${id} No homebrew path found, skipping configuration`)
+      return
+    }
+    
+    // Get password from keychain if not provided or if it's "__SECURE__"
+    let actualPassword = password
+    if ((!actualPassword || actualPassword === "__SECURE__") && keytar) {
+      try {
+        actualPassword = await keytar.getPassword("LiquiDB", id) || ''
+      } catch {}
+    }
+    if (!actualPassword) actualPassword = ''
+    
+    const psqlPath = `${dbRecord.homebrewPath}/psql`
+    const { execSync } = require("child_process")
+    const env = {
+      ...process.env,
+      PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
+      HOMEBREW_PREFIX: "/opt/homebrew"
+    }
+    
+    // Wait a moment for PostgreSQL to be fully ready
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    
+    // Sanitize database name (PostgreSQL database names must be valid identifiers)
+    const dbName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63) || 'liquidb_db'
+    
+    const actualUsername = username || dbRecord.username || 'postgres'
+    console.log(`[PostgreSQL Config] ${id} Configuring with username: ${actualUsername}, database: ${dbName}`)
+    
+    // Connect as postgres superuser to configure the database
+    try {
+      // Create database if it doesn't exist
+      const createDbCmd = `CREATE DATABASE "${dbName}";`
+      execSync(`${psqlPath} -h localhost -p ${port} -U postgres -d postgres -c "${createDbCmd}"`, {
+        env: { ...env, PGPASSWORD: '' },
+        stdio: 'pipe'
+      })
+      console.log(`[PostgreSQL Config] ${id} Created database: ${dbName}`)
+    } catch (e) {
+      if (e.message.includes('already exists')) {
+        console.log(`[PostgreSQL Config] ${id} Database ${dbName} already exists`)
+      } else {
+        console.log(`[PostgreSQL Config] ${id} Could not create database: ${e.message}`)
+      }
+    }
+    
+    // If custom username is provided (not 'postgres'), we need to handle the default postgres user
+    // PostgreSQL initdb always creates a 'postgres' user, so we need to either:
+    // 1. Rename postgres to the custom username (if postgres exists and custom username doesn't)
+    // 2. Or drop postgres after creating/renaming to custom username
+    let postgresRenamed = false
+    let connectAsUser = 'postgres' // Default to postgres for admin operations
+    
+    if (actualUsername && actualUsername !== 'postgres' && actualUsername.trim() !== '') {
+      try {
+        // Check if postgres user exists
+        const checkPostgresCmd = `SELECT 1 FROM pg_user WHERE usename = 'postgres';`
+        let postgresExists = false
+        try {
+          const result = execSync(`${psqlPath} -h localhost -p ${port} -U postgres -d postgres -t -c "${checkPostgresCmd}"`, {
+            env: { ...env, PGPASSWORD: '' },
+            stdio: 'pipe',
+            encoding: 'utf8'
+          }).trim()
+          postgresExists = !!result
+        } catch (e) {
+          // postgres doesn't exist or can't connect
+          postgresExists = false
+        }
+        
+        // Check if custom username already exists (maybe it was renamed earlier)
+        let customUserExists = false
+        if (postgresExists) {
+          try {
+            const checkCustomUserCmd = `SELECT 1 FROM pg_user WHERE usename = '${actualUsername}';`
+            const result = execSync(`${psqlPath} -h localhost -p ${port} -U postgres -d postgres -t -c "${checkCustomUserCmd}"`, {
+              env: { ...env, PGPASSWORD: '' },
+              stdio: 'pipe',
+              encoding: 'utf8'
+            }).trim()
+            customUserExists = !!result
+          } catch (e) {
+            customUserExists = false
+          }
+        } else {
+          // If postgres doesn't exist, try connecting as custom username to check if it exists
+          try {
+            const checkCustomUserCmd = `SELECT 1 FROM pg_user WHERE usename = '${actualUsername}';`
+            execSync(`${psqlPath} -h localhost -p ${port} -U "${actualUsername}" -d postgres -t -c "${checkCustomUserCmd}"`, {
+              env: { ...env, PGPASSWORD: actualPassword || '' },
+              stdio: 'pipe',
+              encoding: 'utf8'
+            })
+            customUserExists = true
+            connectAsUser = actualUsername
+          } catch (e) {
+            customUserExists = false
+          }
+        }
+        
+        if (postgresExists && !customUserExists) {
+          // Rename postgres user to custom username
+          console.log(`[PostgreSQL Config] ${id} Renaming default postgres user to ${actualUsername}`)
+          try {
+            const renamePostgresCmd = `ALTER USER postgres RENAME TO "${actualUsername}";`
+            execSync(`${psqlPath} -h localhost -p ${port} -U postgres -d postgres -c "${renamePostgresCmd}"`, {
+              env: { ...env, PGPASSWORD: '' },
+              stdio: 'pipe'
+            })
+            console.log(`[PostgreSQL Config] ${id} Renamed postgres user to ${actualUsername}`)
+            postgresRenamed = true
+            connectAsUser = actualUsername
+          } catch (renameError) {
+            console.log(`[PostgreSQL Config] ${id} Could not rename postgres user: ${renameError.message}`)
+            // If rename fails, we'll create the user and drop postgres below
+          }
+        } else if (postgresExists && customUserExists) {
+          // Both exist - drop postgres user
+          console.log(`[PostgreSQL Config] ${id} Both postgres and ${actualUsername} exist - dropping postgres user`)
+          try {
+            // Revoke privileges from postgres
+            const revokePostgresCmd = `REVOKE ALL PRIVILEGES ON DATABASE "${dbName}" FROM postgres;`
+            execSync(`${psqlPath} -h localhost -p ${port} -U "${actualUsername}" -d postgres -c "${revokePostgresCmd}"`, {
+              env: { ...env, PGPASSWORD: actualPassword || '' },
+              stdio: 'pipe'
+            })
+            // Drop postgres user
+            const dropPostgresCmd = `DROP USER IF EXISTS postgres;`
+            execSync(`${psqlPath} -h localhost -p ${port} -U "${actualUsername}" -d postgres -c "${dropPostgresCmd}"`, {
+              env: { ...env, PGPASSWORD: actualPassword || '' },
+              stdio: 'pipe'
+            })
+            console.log(`[PostgreSQL Config] ${id} Dropped postgres user`)
+            connectAsUser = actualUsername
+          } catch (dropError) {
+            // If that fails, try as postgres
+            try {
+              const revokePostgresCmd = `REVOKE ALL PRIVILEGES ON DATABASE "${dbName}" FROM postgres;`
+              execSync(`${psqlPath} -h localhost -p ${port} -U postgres -d postgres -c "${revokePostgresCmd}"`, {
+                env: { ...env, PGPASSWORD: '' },
+                stdio: 'pipe'
+              })
+              const dropPostgresCmd = `DROP USER IF EXISTS postgres;`
+              execSync(`${psqlPath} -h localhost -p ${port} -U postgres -d postgres -c "${dropPostgresCmd}"`, {
+                env: { ...env, PGPASSWORD: '' },
+                stdio: 'pipe'
+              })
+              console.log(`[PostgreSQL Config] ${id} Dropped postgres user`)
+            } catch (dropError2) {
+              console.log(`[PostgreSQL Config] ${id} Could not drop postgres user: ${dropError2.message}`)
+            }
+          }
+        } else if (!postgresExists && customUserExists) {
+          // Only custom user exists - use it for connections
+          connectAsUser = actualUsername
+        }
+      } catch (postgresCheckError) {
+        console.log(`[PostgreSQL Config] ${id} Could not check/remove postgres user: ${postgresCheckError.message}`)
+      }
+    }
+    
+    // Only create/update user if custom username is provided and not 'postgres'
+    if (actualUsername && actualUsername !== 'postgres' && actualUsername.trim() !== '') {
+      try {
+        // If we renamed postgres to custom username, we know the user exists, just set the password
+        if (postgresRenamed) {
+          if (actualPassword && actualPassword.trim() !== '') {
+            const escapedPassword = actualPassword.replace(/'/g, "''")
+            const alterUserCmd = `ALTER USER "${actualUsername}" WITH PASSWORD '${escapedPassword}';`
+            execSync(`${psqlPath} -h localhost -p ${port} -U "${actualUsername}" -d postgres -c "${alterUserCmd}"`, {
+              env: { ...env, PGPASSWORD: '' },
+              stdio: 'pipe'
+            })
+            console.log(`[PostgreSQL Config] ${id} Set password for renamed user: ${actualUsername}`)
+          }
+        } else {
+          // Check if user exists (connect as postgres or custom username depending on what's available)
+          const checkUserCmd = `SELECT 1 FROM pg_user WHERE usename = '${actualUsername}';`
+          let userExists = false
+          try {
+            const result = execSync(`${psqlPath} -h localhost -p ${port} -U ${connectAsUser} -d postgres -t -c "${checkUserCmd}"`, {
+              env: { ...env, PGPASSWORD: connectAsUser === 'postgres' ? '' : (actualPassword || '') },
+              stdio: 'pipe',
+              encoding: 'utf8'
+            }).trim()
+            userExists = !!result
+          } catch (e) {
+            userExists = false
+          }
+          
+          if (userExists) {
+            // User exists, update password if provided
+            if (actualPassword && actualPassword.trim() !== '') {
+              const escapedPassword = actualPassword.replace(/'/g, "''")
+              const alterUserCmd = `ALTER USER "${actualUsername}" WITH PASSWORD '${escapedPassword}';`
+              execSync(`${psqlPath} -h localhost -p ${port} -U ${connectAsUser} -d postgres -c "${alterUserCmd}"`, {
+                env: { ...env, PGPASSWORD: connectAsUser === 'postgres' ? '' : (actualPassword || '') },
+                stdio: 'pipe'
+              })
+              console.log(`[PostgreSQL Config] ${id} Updated password for user: ${actualUsername}`)
+            }
+          } else {
+            // Create new user
+            const passwordPart = actualPassword && actualPassword.trim() !== '' 
+              ? `WITH PASSWORD '${actualPassword.replace(/'/g, "''")}'` 
+              : ''
+            const createUserCmd = `CREATE USER "${actualUsername}" ${passwordPart};`
+            execSync(`${psqlPath} -h localhost -p ${port} -U ${connectAsUser} -d postgres -c "${createUserCmd}"`, {
+              env: { ...env, PGPASSWORD: connectAsUser === 'postgres' ? '' : (actualPassword || '') },
+              stdio: 'pipe'
+            })
+            console.log(`[PostgreSQL Config] ${id} Created user: ${actualUsername}`)
+          }
+        }
+        
+        // Grant privileges on the database to the user
+        try {
+          const grantCmd = `GRANT ALL PRIVILEGES ON DATABASE "${dbName}" TO "${actualUsername}";`
+          execSync(`${psqlPath} -h localhost -p ${port} -U ${connectAsUser} -d postgres -c "${grantCmd}"`, {
+            env: { ...env, PGPASSWORD: connectAsUser === 'postgres' ? '' : (actualPassword || '') },
+            stdio: 'pipe'
+          })
+          console.log(`[PostgreSQL Config] ${id} Granted privileges on ${dbName} to ${actualUsername}`)
+        } catch (grantError) {
+          console.log(`[PostgreSQL Config] ${id} Could not grant privileges: ${grantError.message}`)
+        }
+        
+        // Also grant schema privileges (PostgreSQL 15+ requires explicit schema grants)
+        try {
+          const grantSchemaCmd = `GRANT ALL ON SCHEMA public TO "${actualUsername}";`
+          execSync(`${psqlPath} -h localhost -p ${port} -U ${connectAsUser} -d "${dbName}" -c "${grantSchemaCmd}"`, {
+            env: { ...env, PGPASSWORD: connectAsUser === 'postgres' ? '' : (actualPassword || '') },
+            stdio: 'pipe'
+          })
+          console.log(`[PostgreSQL Config] ${id} Granted schema privileges to ${actualUsername}`)
+        } catch (schemaError) {
+          // Schema grant might fail - log but don't fail
+          console.log(`[PostgreSQL Config] ${id} Could not grant schema privileges: ${schemaError.message}`)
+        }
+      } catch (userError) {
+        console.log(`[PostgreSQL Config] ${id} Could not configure user: ${userError.message}`)
+      }
+    } else if (actualUsername === 'postgres' && actualPassword && actualPassword.trim() !== '') {
+      // Update postgres user password if provided
+      try {
+        const escapedPassword = actualPassword.replace(/'/g, "''")
+        const alterUserCmd = `ALTER USER postgres WITH PASSWORD '${escapedPassword}';`
+        execSync(`${psqlPath} -h localhost -p ${port} -U postgres -d postgres -c "${alterUserCmd}"`, {
+          env: { ...env, PGPASSWORD: '' },
+          stdio: 'pipe'
+        })
+        console.log(`[PostgreSQL Config] ${id} Updated postgres user password`)
+      } catch (passError) {
+        console.log(`[PostgreSQL Config] ${id} Could not update postgres password: ${passError.message}`)
+      }
+    }
+    
+    console.log(`[PostgreSQL Config] ${id} Configuration completed`)
+  } catch (error) {
+    console.error(`[PostgreSQL Config] ${id} Configuration error:`, error.message)
+  }
+}
+
+// Configure MySQL with custom username, password, and database name
+async function configureMySQL(config) {
+  const { id, type, port, username, password, containerId, name, oldUsername } = config
+  
+  if (type !== "mysql") return
+  
+  try {
+    const databases = storage.loadDatabases(app)
+    const dbRecord = databases.find(d => d.id === id)
+    if (!dbRecord?.homebrewPath) {
+      console.log(`[MySQL Config] ${id} No homebrew path found, skipping configuration`)
+      return
+    }
+    
+    // Get password from keychain if not provided or if it's "__SECURE__"
+    let actualPassword = password
+    if ((!actualPassword || actualPassword === "__SECURE__") && keytar) {
+      try {
+        actualPassword = await keytar.getPassword("LiquiDB", id) || ''
+      } catch {}
+    }
+    if (!actualPassword) actualPassword = ''
+    
+    const mysqlPath = `${dbRecord.homebrewPath}/mysql`
+    const { execSync } = require("child_process")
+    const env = {
+      ...process.env,
+      PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
+      HOMEBREW_PREFIX: "/opt/homebrew"
+    }
+    
+    // Wait a moment for MySQL to be fully ready
+    await new Promise(resolve => setTimeout(resolve, 3000))
+    
+    // Sanitize database name (MySQL database names)
+    const dbName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 64) || 'liquidb_db'
+    const actualUsername = username || dbRecord.username || 'root'
+    
+    console.log(`[MySQL Config] ${id} Configuring with username: ${actualUsername}, database: ${dbName}`)
+    
+    // Connect using socket (more reliable than TCP for initial setup)
+    const socketPath = `/tmp/mysql-${containerId}.sock`
+    
+    try {
+      // Create database if it doesn't exist
+      const createDbCmd = `CREATE DATABASE IF NOT EXISTS \`${dbName}\`;`
+      execSync(`${mysqlPath} --socket=${socketPath} -e "${createDbCmd}"`, {
+        env,
+        stdio: 'pipe'
+      })
+      console.log(`[MySQL Config] ${id} Created database: ${dbName}`)
+    } catch (e) {
+      console.log(`[MySQL Config] ${id} Could not create database: ${e.message}`)
+    }
+    
+    // Handle username rename if username changed
+    if (oldUsername && oldUsername !== actualUsername && oldUsername !== 'root' && oldUsername.trim() !== '' && actualUsername && actualUsername !== 'root') {
+      console.log(`[MySQL Config] ${id} Username changed - renaming user: ${oldUsername} to ${actualUsername}`)
+      try {
+        // Check if old user exists
+        const checkOldUserCmd = `SELECT COUNT(*) FROM mysql.user WHERE user = '${oldUsername}' AND host = 'localhost';`
+        let oldUserExists = false
+        try {
+          const oldUserCount = execSync(`${mysqlPath} --socket=${socketPath} -e "${checkOldUserCmd}"`, {
+            env,
+            stdio: 'pipe',
+            encoding: 'utf8'
+          }).trim()
+          oldUserExists = parseInt(oldUserCount) > 0
+        } catch {}
+        
+        if (oldUserExists) {
+          // Check if new username already exists
+          const checkNewUserCmd = `SELECT COUNT(*) FROM mysql.user WHERE user = '${actualUsername}' AND host = 'localhost';`
+          let newUserExists = false
+          try {
+            const newUserCount = execSync(`${mysqlPath} --socket=${socketPath} -e "${checkNewUserCmd}"`, {
+              env,
+              stdio: 'pipe',
+              encoding: 'utf8'
+            }).trim()
+            newUserExists = parseInt(newUserCount) > 0
+          } catch {}
+          
+          if (!newUserExists) {
+            // Rename the user in MySQL (RENAME USER)
+            try {
+              const renameUserCmd = `RENAME USER '${oldUsername}'@'localhost' TO '${actualUsername}'@'localhost'; FLUSH PRIVILEGES;`
+              execSync(`${mysqlPath} --socket=${socketPath} -e "${renameUserCmd}"`, {
+                env,
+                stdio: 'pipe'
+              })
+              console.log(`[MySQL Config] ${id} Renamed user from ${oldUsername} to ${actualUsername}`)
+            } catch (renameError) {
+              console.log(`[MySQL Config] ${id} Could not rename user: ${renameError.message}`)
+              // Fallback: drop old user if rename fails
+              try {
+                const dropUserCmd = `DROP USER IF EXISTS '${oldUsername}'@'localhost'; FLUSH PRIVILEGES;`
+                execSync(`${mysqlPath} --socket=${socketPath} -e "${dropUserCmd}"`, {
+                  env,
+                  stdio: 'pipe'
+                })
+                console.log(`[MySQL Config] ${id} Dropped old user: ${oldUsername} (rename failed)`)
+              } catch (dropError) {
+                console.log(`[MySQL Config] ${id} Could not drop old user: ${dropError.message}`)
+              }
+            }
+          } else {
+            // New username already exists - drop old user instead
+            console.log(`[MySQL Config] ${id} New username ${actualUsername} already exists, dropping old user`)
+            try {
+              const revokeCmd = `REVOKE ALL PRIVILEGES ON \`${dbName}\`.* FROM '${oldUsername}'@'localhost'; FLUSH PRIVILEGES;`
+              execSync(`${mysqlPath} --socket=${socketPath} -e "${revokeCmd}"`, {
+                env,
+                stdio: 'pipe'
+              })
+            } catch (revokeError) {
+              console.log(`[MySQL Config] ${id} Could not revoke privileges: ${revokeError.message}`)
+            }
+            
+            try {
+              const dropUserCmd = `DROP USER IF EXISTS '${oldUsername}'@'localhost'; FLUSH PRIVILEGES;`
+              execSync(`${mysqlPath} --socket=${socketPath} -e "${dropUserCmd}"`, {
+                env,
+                stdio: 'pipe'
+              })
+              console.log(`[MySQL Config] ${id} Dropped old user: ${oldUsername}`)
+            } catch (dropError) {
+              console.log(`[MySQL Config] ${id} Could not drop old user: ${dropError.message}`)
+            }
+          }
+        }
+      } catch (oldUserError) {
+        console.log(`[MySQL Config] ${id} Could not handle old user: ${oldUserError.message}`)
+      }
+    }
+    
+    // Only create/update user if custom username is provided and not 'root'
+    if (actualUsername && actualUsername !== 'root' && actualUsername.trim() !== '') {
+      try {
+        // Create user if it doesn't exist, or update password if it does
+        const passwordPart = actualPassword && actualPassword.trim() !== '' 
+          ? `IDENTIFIED BY '${actualPassword.replace(/'/g, "''")}'` 
+          : 'IDENTIFIED BY ""'
+        
+        const createUserCmd = `CREATE USER IF NOT EXISTS '${actualUsername}'@'localhost' ${passwordPart};`
+        execSync(`${mysqlPath} --socket=${socketPath} -e "${createUserCmd}"`, {
+          env,
+          stdio: 'pipe'
+        })
+        
+        // Update password if user already exists
+        if (actualPassword && actualPassword.trim() !== '') {
+          const updatePasswordCmd = `ALTER USER '${actualUsername}'@'localhost' ${passwordPart};`
+          try {
+            execSync(`${mysqlPath} --socket=${socketPath} -e "${updatePasswordCmd}"`, {
+              env,
+              stdio: 'pipe'
+            })
+            console.log(`[MySQL Config] ${id} Updated password for user: ${actualUsername}`)
+          } catch (updateError) {
+            // Try SET PASSWORD as fallback (for older MySQL versions)
+            const setPasswordCmd = `SET PASSWORD FOR '${actualUsername}'@'localhost' = PASSWORD('${actualPassword.replace(/'/g, "''")}'); FLUSH PRIVILEGES;`
+            try {
+              execSync(`${mysqlPath} --socket=${socketPath} -e "${setPasswordCmd}"`, {
+                env,
+                stdio: 'pipe'
+              })
+              console.log(`[MySQL Config] ${id} Updated password for user: ${actualUsername} (using SET PASSWORD)`)
+            } catch (setPassError) {
+              console.log(`[MySQL Config] ${id} Could not update password: ${setPassError.message}`)
+            }
+          }
+        }
+        
+        // Grant privileges on the database to the user
+        try {
+          const grantCmd = `GRANT ALL PRIVILEGES ON \`${dbName}\`.* TO '${actualUsername}'@'localhost'; FLUSH PRIVILEGES;`
+          execSync(`${mysqlPath} --socket=${socketPath} -e "${grantCmd}"`, {
+            env,
+            stdio: 'pipe'
+          })
+          console.log(`[MySQL Config] ${id} Granted privileges on ${dbName} to ${actualUsername}`)
+        } catch (grantError) {
+          console.log(`[MySQL Config] ${id} Could not grant privileges: ${grantError.message}`)
+        }
+        
+        console.log(`[MySQL Config] ${id} Created/updated user: ${actualUsername}`)
+      } catch (userError) {
+        console.log(`[MySQL Config] ${id} Could not configure user: ${userError.message}`)
+      }
+    } else if (actualUsername === 'root' && actualPassword && actualPassword.trim() !== '') {
+      // Update root user password if provided
+      try {
+        const updateRootCmd = `ALTER USER 'root'@'localhost' IDENTIFIED BY '${actualPassword.replace(/'/g, "''")}'; FLUSH PRIVILEGES;`
+        execSync(`${mysqlPath} --socket=${socketPath} -e "${updateRootCmd}"`, {
+          env,
+          stdio: 'pipe'
+        })
+        console.log(`[MySQL Config] ${id} Updated root user password`)
+      } catch (passError) {
+        // Try SET PASSWORD as fallback (for older MySQL versions)
+        try {
+          const setPasswordCmd = `SET PASSWORD FOR 'root'@'localhost' = PASSWORD('${actualPassword.replace(/'/g, "''")}'); FLUSH PRIVILEGES;`
+          execSync(`${mysqlPath} --socket=${socketPath} -e "${setPasswordCmd}"`, {
+            env,
+            stdio: 'pipe'
+          })
+          console.log(`[MySQL Config] ${id} Updated root user password (using SET PASSWORD)`)
+        } catch (setPassError) {
+          console.log(`[MySQL Config] ${id} Could not update root password: ${setPassError.message}`)
+        }
+      }
+    }
+    
+    console.log(`[MySQL Config] ${id} Configuration completed`)
+  } catch (error) {
+    console.error(`[MySQL Config] ${id} Configuration error:`, error.message)
+  }
+}
+
+// Configure MongoDB with custom username, password, and database name
+async function configureMongoDB(config) {
+  const { id, type, port, username, password, containerId, name, oldUsername } = config
+  
+  if (type !== "mongodb") return
+  
+  try {
+    const databases = storage.loadDatabases(app)
+    const dbRecord = databases.find(d => d.id === id)
+    if (!dbRecord?.homebrewPath) {
+      console.log(`[MongoDB Config] ${id} No homebrew path found, skipping configuration`)
+      return
+    }
+    
+    // Get password from keychain if not provided or if it's "__SECURE__"
+    let actualPassword = password
+    if ((!actualPassword || actualPassword === "__SECURE__") && keytar) {
+      try {
+        actualPassword = await keytar.getPassword("LiquiDB", id) || ''
+      } catch {}
+    }
+    if (!actualPassword) actualPassword = ''
+    
+    const mongoshPath = `${dbRecord.homebrewPath}/mongosh`
+    // Fallback to mongosh if mongosh doesn't exist in same path
+    let mongoshCmd = mongoshPath
+    try {
+      const fsSync = require("fs")
+      if (!fsSync.existsSync(mongoshPath)) {
+        // Try to find mongosh in PATH or alternative location
+        const { execSync } = require("child_process")
+        try {
+          mongoshCmd = execSync("which mongosh", { encoding: "utf8" }).trim()
+        } catch {
+          // Try mongosh without path
+          mongoshCmd = "mongosh"
+        }
+      }
+    } catch {}
+    
+    const { execSync } = require("child_process")
+    const env = {
+      ...process.env,
+      PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
+      HOMEBREW_PREFIX: "/opt/homebrew"
+    }
+    
+    // Wait a moment for MongoDB to be fully ready
+    await new Promise(resolve => setTimeout(resolve, 3000))
+    
+    // Sanitize database name (MongoDB database names)
+    const dbName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63) || 'liquidb_db'
+    const actualUsername = username || dbRecord.username || ''
+    
+    console.log(`[MongoDB Config] ${id} Configuring with username: ${actualUsername}, database: ${dbName}`)
+    
+    // Connect to MongoDB (by default, MongoDB doesn't require auth initially)
+    try {
+      // Switch to the target database
+      // MongoDB databases are created automatically when first used
+      
+      // Handle username rename if username changed
+      // Note: MongoDB doesn't support renaming users directly, so we drop and recreate
+      if (oldUsername && oldUsername !== actualUsername && oldUsername.trim() !== '' && actualUsername && actualUsername.trim() !== '') {
+        console.log(`[MongoDB Config] ${id} Username changed - removing old user: ${oldUsername}, new user: ${actualUsername}`)
+        try {
+          // Drop old user from target database
+          try {
+            const dropUserScript = `use('${dbName}'); db.dropUser('${oldUsername}')`
+            execSync(`${mongoshCmd} --host localhost:${port} --eval "${dropUserScript}" --quiet`, {
+              env,
+              stdio: 'pipe',
+              timeout: 10000
+            })
+            console.log(`[MongoDB Config] ${id} Dropped old user: ${oldUsername} from ${dbName}`)
+          } catch (dropError) {
+            // User might not exist, that's fine
+            if (!dropError.message.includes('not found') && !dropError.message.includes('does not exist')) {
+              console.log(`[MongoDB Config] ${id} Could not drop old user from ${dbName}: ${dropError.message}`)
+            }
+          }
+          
+          // Also try to drop old admin user
+          try {
+            const dropAdminUserScript = `use('admin'); db.dropUser('${oldUsername}')`
+            execSync(`${mongoshCmd} --host localhost:${port} --eval "${dropAdminUserScript}" --quiet`, {
+              env,
+              stdio: 'pipe',
+              timeout: 10000
+            })
+            console.log(`[MongoDB Config] ${id} Dropped old admin user: ${oldUsername}`)
+          } catch (dropAdminError) {
+            // Admin user might not exist, that's fine
+            if (!dropAdminError.message.includes('not found') && !dropAdminError.message.includes('does not exist')) {
+              console.log(`[MongoDB Config] ${id} Could not drop old admin user: ${dropAdminError.message}`)
+            }
+          }
+        } catch (oldUserError) {
+          console.log(`[MongoDB Config] ${id} Could not handle old user: ${oldUserError.message}`)
+        }
+      }
+      
+      // Only configure user if username is provided
+      if (actualUsername && actualUsername.trim() !== '') {
+        // Escape password for MongoDB
+        const escapedPassword = actualPassword.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'")
+        
+        // Create user in the target database
+        try {
+          // First create user in the target database
+          const createUserScript = `use('${dbName}'); db.createUser({ user: '${actualUsername}', pwd: '${escapedPassword}', roles: [{ role: 'readWrite', db: '${dbName}' }] })`
+          execSync(`${mongoshCmd} --host localhost:${port} --eval "${createUserScript}" --quiet`, {
+            env,
+            stdio: 'pipe',
+            timeout: 10000
+          })
+          console.log(`[MongoDB Config] ${id} Created user: ${actualUsername} in database: ${dbName}`)
+        } catch (userError) {
+          // User might already exist, try to update password
+          if (userError.message.includes('already exists') || userError.message.includes('duplicate') || userError.message.includes('E11000')) {
+            console.log(`[MongoDB Config] ${id} User ${actualUsername} already exists in ${dbName}, updating password`)
+            try {
+              const updatePasswordScript = `use('${dbName}'); db.changeUserPassword('${actualUsername}', '${escapedPassword}')`
+              execSync(`${mongoshCmd} --host localhost:${port} --eval "${updatePasswordScript}" --quiet`, {
+                env,
+                stdio: 'pipe',
+                timeout: 10000
+              })
+              console.log(`[MongoDB Config] ${id} Updated password for user: ${actualUsername} in ${dbName}`)
+            } catch (updateError) {
+              console.log(`[MongoDB Config] ${id} Could not update password in ${dbName}: ${updateError.message}`)
+            }
+          } else {
+            console.log(`[MongoDB Config] ${id} Could not create user in ${dbName}: ${userError.message}`)
+          }
+        }
+        
+        // Also create admin user in admin database (for managing the instance)
+        try {
+          const adminUserScript = `use('admin'); db.createUser({ user: '${actualUsername}', pwd: '${escapedPassword}', roles: [{ role: 'userAdminAnyDatabase', db: 'admin' }, { role: 'readWriteAnyDatabase', db: 'admin' }] })`
+          execSync(`${mongoshCmd} --host localhost:${port} --eval "${adminUserScript}" --quiet`, {
+            env,
+            stdio: 'pipe',
+            timeout: 10000
+          })
+          console.log(`[MongoDB Config] ${id} Created admin user: ${actualUsername}`)
+        } catch (adminError) {
+          // Admin user might already exist, try to update password
+          if (adminError.message.includes('already exists') || adminError.message.includes('duplicate') || adminError.message.includes('E11000')) {
+            console.log(`[MongoDB Config] ${id} Admin user ${actualUsername} already exists, updating password`)
+            try {
+              const updateAdminPasswordScript = `use('admin'); db.changeUserPassword('${actualUsername}', '${escapedPassword}')`
+              execSync(`${mongoshCmd} --host localhost:${port} --eval "${updateAdminPasswordScript}" --quiet`, {
+                env,
+                stdio: 'pipe',
+                timeout: 10000
+              })
+              console.log(`[MongoDB Config] ${id} Updated password for admin user: ${actualUsername}`)
+            } catch (updateAdminError) {
+              console.log(`[MongoDB Config] ${id} Could not update admin password: ${updateAdminError.message}`)
+            }
+          } else {
+            console.log(`[MongoDB Config] ${id} Could not create admin user: ${adminError.message}`)
+          }
+        }
+      }
+      
+      // Create the database by inserting a dummy document (MongoDB creates DBs on first write)
+      try {
+        const createDbScript = `use('${dbName}'); db.dummy.insertOne({created: new Date()})`
+        execSync(`${mongoshCmd} --host localhost:${port} --eval "${createDbScript}" --quiet`, {
+          env,
+          stdio: 'pipe',
+          timeout: 10000
+        })
+        console.log(`[MongoDB Config] ${id} Ensured database exists: ${dbName}`)
+      } catch (dbError) {
+        // Database creation is automatic in MongoDB, so errors here are usually fine
+        console.log(`[MongoDB Config] ${id} Database ${dbName} will be created on first use`)
+      }
+    } catch (error) {
+      console.log(`[MongoDB Config] ${id} Configuration error: ${error.message}`)
+    }
+    
+    console.log(`[MongoDB Config] ${id} Configuration completed`)
+  } catch (error) {
+    console.error(`[MongoDB Config] ${id} Configuration error:`, error.message)
+  }
+}
+
+// Configure Redis with custom password
+async function configureRedis(config) {
+  const { id, type, port, username, password, containerId, name } = config
+  
+  if (type !== "redis") return
+  
+  try {
+    const databases = storage.loadDatabases(app)
+    const dbRecord = databases.find(d => d.id === id)
+    if (!dbRecord?.homebrewPath) {
+      console.log(`[Redis Config] ${id} No homebrew path found, skipping configuration`)
+      return
+    }
+    
+    // Get password from keychain if not provided or if it's "__SECURE__"
+    let actualPassword = password
+    if ((!actualPassword || actualPassword === "__SECURE__") && keytar) {
+      try {
+        actualPassword = await keytar.getPassword("LiquiDB", id) || ''
+      } catch {}
+    }
+    if (!actualPassword) actualPassword = ''
+    
+    const redisCliPath = `${dbRecord.homebrewPath}/redis-cli`
+    // Fallback to redis-cli if it doesn't exist in same path
+    let redisCliCmd = redisCliPath
+    try {
+      const fsSync = require("fs")
+      if (!fsSync.existsSync(redisCliPath)) {
+        // Try to find redis-cli in PATH or alternative location
+        const { execSync } = require("child_process")
+        try {
+          redisCliCmd = execSync("which redis-cli", { encoding: "utf8" }).trim()
+        } catch {
+          // Try redis-cli without path
+          redisCliCmd = "redis-cli"
+        }
+      }
+    } catch {}
+    
+    const { execSync } = require("child_process")
+    const env = {
+      ...process.env,
+      PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
+      HOMEBREW_PREFIX: "/opt/homebrew"
+    }
+    
+    // Wait a moment for Redis to be fully ready
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    
+    console.log(`[Redis Config] ${id} Configuring Redis authentication`)
+    
+    // Redis doesn't have users - it uses a single requirepass
+    // Try to set password. If Redis already has a password, we might need it first
+    // But for initial setup, Redis shouldn't have a password yet
+    
+    // First, try without password (for initial setup)
+    let redisAuth = ''
+    if (actualPassword && actualPassword.trim() !== '') {
+      try {
+        // Set password using CONFIG SET (temporary, until restart)
+        // Try without auth first (initial setup)
+        execSync(`${redisCliCmd} -h localhost -p ${port} CONFIG SET requirepass "${actualPassword.replace(/"/g, '\\"')}"`, {
+          env,
+          stdio: 'pipe',
+          timeout: 5000
+        })
+        console.log(`[Redis Config] ${id} Set Redis password`)
+        redisAuth = actualPassword // Now we need auth for subsequent commands
+        
+        // Save the configuration to make it persistent
+        try {
+          execSync(`${redisCliCmd} -h localhost -p ${port} ${redisAuth ? `-a "${redisAuth.replace(/"/g, '\\"')}"` : ''} CONFIG REWRITE`, {
+            env,
+            stdio: 'pipe',
+            timeout: 5000
+          })
+          console.log(`[Redis Config] ${id} Saved Redis configuration`)
+        } catch (saveError) {
+          // Config REWRITE might fail if Redis wasn't started with config file
+          console.log(`[Redis Config] ${id} Could not save config to file (this is normal if no config file exists)`)
+        }
+      } catch (passError) {
+        // If that fails, Redis might already have a password set
+        // In that case, password updates should be done via settings which will restart Redis
+        console.log(`[Redis Config] ${id} Could not set password: ${passError.message}`)
+        console.log(`[Redis Config] ${id} Note: If Redis already has a password, changes require restart`)
+      }
+    } else {
+      // Remove password if it was set
+      try {
+        // Try to check if there's a password first
+        let currentPassword = ''
+        try {
+          // Try to execute a command without auth
+          execSync(`${redisCliCmd} -h localhost -p ${port} PING`, {
+            env,
+            stdio: 'pipe',
+            timeout: 5000
+          })
+          // If this succeeds, no password is set
+        } catch {
+          // If this fails, password might be set - try to get it from keychain
+          // But we can't easily remove password without knowing it
+          // So we'll just note that removal requires restart
+          console.log(`[Redis Config] ${id} Password removal requires Redis restart`)
+        }
+        
+        try {
+          execSync(`${redisCliCmd} -h localhost -p ${port} CONFIG SET requirepass ""`, {
+            env,
+            stdio: 'pipe',
+            timeout: 5000
+          })
+          console.log(`[Redis Config] ${id} Removed Redis password`)
+        } catch (removeError) {
+          console.log(`[Redis Config] ${id} Could not remove password: ${removeError.message}`)
+          console.log(`[Redis Config] ${id} Password removal may require Redis restart`)
+        }
+      } catch (removeError) {
+        // If there's no password set, this will fail - that's fine
+        console.log(`[Redis Config] ${id} No password to remove`)
+      }
+    }
+    
+    console.log(`[Redis Config] ${id} Configuration completed`)
+    console.log(`[Redis Config] ${id} Note: Password changes require restart for persistence. Consider restarting the database.`)
+  } catch (error) {
+    console.error(`[Redis Config] ${id} Configuration error:`, error.message)
+  }
+}
+
 // Helper function to find a free port for auto-start conflicts
 function findFreePortForAutoStart(port, usedPorts) {
   let newPort = port + 1
@@ -707,6 +1524,19 @@ async function startDatabaseProcessAsync(config) {
       // Directory might already exist
     }
     
+    // Get password for Redis (check keychain if needed)
+    let redisPassword = password
+    if ((!redisPassword || redisPassword === "__SECURE__") && keytar) {
+      try {
+        const databases = storage.loadDatabases(app)
+        const dbRecord = databases.find(d => d.id === id)
+        if (dbRecord) {
+          redisPassword = await keytar.getPassword("LiquiDB", id) || ''
+        }
+      } catch {}
+    }
+    if (!redisPassword) redisPassword = ''
+    
     cmd = redisPath
     args = [
       "--port", port.toString(), 
@@ -717,6 +1547,12 @@ async function startDatabaseProcessAsync(config) {
       "--save", "300 10", // Save after 300 seconds if at least 10 keys changed
       "--save", "60 10000" // Save after 60 seconds if at least 10000 keys changed
     ]
+    
+    // Add --requirepass if password is provided (for persistence)
+    if (redisPassword && redisPassword.trim() !== '') {
+      args.push("--requirepass", redisPassword)
+      console.log(`[Redis] ${id} Starting with password authentication`)
+    }
   }
 
   const child = spawn(cmd, args, { env, detached: false })
@@ -749,6 +1585,15 @@ async function startDatabaseProcessAsync(config) {
         }
         
         mainWindow.webContents.send('database-status-changed', { id, status: 'running', ready: true, pid: child.pid })
+        
+        // Configure PostgreSQL with custom username, password, and database name
+        setTimeout(async () => {
+          try {
+            await configurePostgreSQL(config)
+          } catch (configError) {
+            console.error(`[PostgreSQL] ${id} Failed to configure:`, configError.message)
+          }
+        }, 3000)
       } else {
         console.log(`[PostgreSQL] ${id} ready event already sent or no mainWindow (readyEventSent: ${readyEventSent}, mainWindow: ${!!mainWindow})`)
       }
@@ -830,33 +1675,16 @@ async function startDatabaseProcessAsync(config) {
           console.error(`[Database] ${id} failed to update status to running in storage:`, error)
         }
         
-        // Create a user with no password for easy access
-        try {
-          const { execSync } = require("child_process")
-          const mysqlClientPath = mysqldPath.replace('mysqld', 'mysql')
-          
-          // Wait a moment for MySQL to be fully ready
-          setTimeout(async () => {
-            try {
-              // Create user with no password
-              execSync(`${mysqlClientPath} --socket=/tmp/mysql-${containerId}.sock -e "CREATE USER IF NOT EXISTS 'root'@'localhost' IDENTIFIED BY ''; GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION; FLUSH PRIVILEGES;"`, { 
-                stdio: 'pipe',
-                env: { 
-                  ...process.env,
-                  PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
-                  HOMEBREW_PREFIX: "/opt/homebrew"
-                }
-              })
-              console.log(`[MySQL] ${id} created root user with no password`)
-            } catch (userError) {
-              console.log(`[MySQL] ${id} user creation failed (this is normal for existing databases):`, userError.message)
-            }
-          }, 2000)
-        } catch (error) {
-          console.log(`[MySQL] ${id} user creation setup failed:`, error.message)
-        }
-        
         mainWindow.webContents.send('database-status-changed', { id, status: 'running', ready: true, pid: child.pid })
+        
+        // Configure MySQL with custom username, password, and database name
+        setTimeout(async () => {
+          try {
+            await configureMySQL(config)
+          } catch (configError) {
+            console.error(`[MySQL] ${id} Failed to configure:`, configError.message)
+          }
+        }, 4000)
       } else {
         console.log(`[MySQL] ${id} ready event already sent or no mainWindow (readyEventSent: ${readyEventSent}, mainWindow: ${!!mainWindow})`)
       }
@@ -902,8 +1730,66 @@ async function startDatabaseProcessAsync(config) {
         sendReadyEvent()
       }
     }, 30000)
+  } else if (type === "mongodb") {
+    // For MongoDB, mark as running after a short delay and configure
+    setTimeout(async () => {
+      try {
+        const databases = storage.loadDatabases(app)
+        const dbIndex = databases.findIndex(db => db.id === id)
+        if (dbIndex >= 0) {
+          databases[dbIndex].status = 'running'
+          databases[dbIndex].pid = child.pid
+          storage.saveDatabases(app, databases)
+          console.log(`[Database] ${id} status updated to running in storage (MongoDB)`)
+        }
+        
+        if (mainWindow) {
+          mainWindow.webContents.send('database-status-changed', { id, status: 'running', ready: true, pid: child.pid })
+        }
+        
+        // Configure MongoDB with custom username, password, and database name
+        setTimeout(async () => {
+          try {
+            await configureMongoDB(config)
+          } catch (configError) {
+            console.error(`[MongoDB] ${id} Failed to configure:`, configError.message)
+          }
+        }, 3000)
+      } catch (error) {
+        console.error(`[Database] ${id} failed to update status to running in storage:`, error)
+      }
+    }, 2000)
+  } else if (type === "redis") {
+    // For Redis, mark as running after a short delay and configure
+    setTimeout(async () => {
+      try {
+        const databases = storage.loadDatabases(app)
+        const dbIndex = databases.findIndex(db => db.id === id)
+        if (dbIndex >= 0) {
+          databases[dbIndex].status = 'running'
+          databases[dbIndex].pid = child.pid
+          storage.saveDatabases(app, databases)
+          console.log(`[Database] ${id} status updated to running in storage (Redis)`)
+        }
+        
+        if (mainWindow) {
+          mainWindow.webContents.send('database-status-changed', { id, status: 'running', ready: true, pid: child.pid })
+        }
+        
+        // Configure Redis with custom password
+        setTimeout(async () => {
+          try {
+            await configureRedis(config)
+          } catch (configError) {
+            console.error(`[Redis] ${id} Failed to configure:`, configError.message)
+          }
+        }, 2000)
+      } catch (error) {
+        console.error(`[Database] ${id} failed to update status to running in storage:`, error)
+      }
+    }, 1000)
   } else {
-    // For other databases (MongoDB, Redis), mark as running immediately
+    // For other databases, mark as running immediately
     try {
       const databases = storage.loadDatabases(app)
       const dbIndex = databases.findIndex(db => db.id === id)
@@ -911,7 +1797,7 @@ async function startDatabaseProcessAsync(config) {
         databases[dbIndex].status = 'running'
         databases[dbIndex].pid = child.pid
         storage.saveDatabases(app, databases)
-        console.log(`[Database] ${id} status updated to running in storage (non-PostgreSQL)`)
+        console.log(`[Database] ${id} status updated to running in storage`)
       }
     } catch (error) {
       console.error(`[Database] ${id} failed to update status to running in storage:`, error)
