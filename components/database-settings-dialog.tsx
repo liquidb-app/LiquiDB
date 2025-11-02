@@ -462,6 +462,47 @@ export function DatabaseSettingsDialog({
         // @ts-ignore
         await window.electron.saveDatabase(updated)
       }
+      
+      // Check if password or database name changed (username cannot be changed)
+      const passwordChanged = password !== ""
+      const nameChanged = name !== database.name
+      const credentialsChanged = passwordChanged || nameChanged
+      
+      // If credentials changed and database is running, update credentials in the database
+      if (credentialsChanged && database.status === "running") {
+        try {
+          // Get password from keychain if not provided in form
+          let actualPassword = password
+          if (!actualPassword || actualPassword === "") {
+            // @ts-ignore
+            if (window.electron?.getPassword) {
+              // @ts-ignore
+              actualPassword = await window.electron.getPassword(database.id)
+            }
+          }
+          
+          // Username cannot be changed - always use the database's existing username
+          // @ts-ignore
+          if (window.electron?.updateDatabaseCredentials) {
+            // @ts-ignore
+            const result = await window.electron.updateDatabaseCredentials({
+              id: database.id,
+              username: database.username, // Always use existing username - cannot be changed
+              password: actualPassword,
+              name: name || database.name
+            })
+            
+            if (!result?.success) {
+              console.error("Failed to update database credentials:", result?.error)
+              // Don't block the save, just log the error
+            }
+          }
+        } catch (error) {
+          console.error("Error updating database credentials:", error)
+          // Don't block the save, just log the error
+        }
+      }
+      
       onUpdate(updated)
     }
     checkAndSave()

@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("electron", {
   deleteDatabase: (id) => ipcRenderer.invoke("db:delete", id),
   deleteAllDatabases: () => ipcRenderer.invoke("db:deleteAll"),
   getPassword: (id) => ipcRenderer.invoke("db:getPassword", id),
+  updateDatabaseCredentials: (dbConfig) => ipcRenderer.invoke("db:updateCredentials", dbConfig),
   brewIsInstalled: () => ipcRenderer.invoke("brew:isInstalled"),
   brewInstall: () => ipcRenderer.invoke("brew:install"),
   brewGetVersions: (dbType) => ipcRenderer.invoke("brew:getVersions", dbType),

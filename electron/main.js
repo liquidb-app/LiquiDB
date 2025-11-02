@@ -2595,6 +2595,73 @@ ipcMain.handle("db:getPassword", async (event, id) => {
   }
 })
 
+ipcMain.handle("db:updateCredentials", async (event, dbConfig) => {
+  try {
+    const { id, username, password, name, oldUsername } = dbConfig
+    
+    // Load the database from storage
+    const databases = storage.loadDatabases(app)
+    const dbRecord = databases.find(d => d.id === id)
+    
+    if (!dbRecord) {
+      return { success: false, error: "Database not found" }
+    }
+    
+    // Get password from keychain if not provided
+    let actualPassword = password
+    if (!actualPassword && keytar) {
+      try {
+        actualPassword = await keytar.getPassword("LiquiDB", id)
+      } catch {}
+    }
+    
+    // Check if database is running
+    const db = runningDatabases.get(id)
+    if (!db) {
+      return { success: false, error: "Database must be running to update credentials" }
+    }
+    
+    // Build config object for configuration functions
+    // Username cannot be changed - always use the database's existing username
+    const config = {
+      id: dbRecord.id,
+      type: dbRecord.type,
+      port: dbRecord.port,
+      username: dbRecord.username, // Username cannot be changed - always use existing
+      password: actualPassword || dbRecord.password || '',
+      containerId: dbRecord.containerId,
+      name: name || dbRecord.name,
+      oldUsername: null // Username changes are no longer allowed
+    }
+    
+    console.log(`[Update Credentials] ${id} Updating credentials - username: ${config.username} (cannot be changed)`)
+    
+    // Configure based on database type
+    if (dbRecord.type === "postgresql") {
+      await configurePostgreSQL(config)
+      console.log(`[Update Credentials] PostgreSQL ${id} credentials updated`)
+    } else if (dbRecord.type === "mysql") {
+      await configureMySQL(config)
+      console.log(`[Update Credentials] MySQL ${id} credentials updated`)
+    } else if (dbRecord.type === "mongodb") {
+      await configureMongoDB(config)
+      console.log(`[Update Credentials] MongoDB ${id} credentials updated`)
+    } else if (dbRecord.type === "redis") {
+      await configureRedis(config)
+      console.log(`[Update Credentials] Redis ${id} credentials updated`)
+      // Note: Redis password changes require restart for full persistence
+      // The CONFIG SET is temporary until restart
+    } else {
+      return { success: false, error: `Credential update not supported for ${dbRecord.type}` }
+    }
+    
+    return { success: true }
+  } catch (error) {
+    console.error("[Update Credentials] Error updating credentials:", error)
+    return { success: false, error: error.message }
+  }
+})
+
 ipcMain.handle("db:delete", async (event, id) => {
   try {
     // Stop the database if it's running
