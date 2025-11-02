@@ -2609,9 +2609,20 @@ export default function DatabaseManager() {
       }
     } else {
       setSettingsDialogOpen(false)
-      notifySuccess("Settings updated", {
-        description: `${updatedDatabase.name} has been updated.`,
-      })
+      
+      // Check if any settings actually changed (excluding status, pid, and other runtime fields)
+      const nameChanged = originalDatabase.name !== updatedDatabase.name
+      const portChanged_actual = originalDatabase.port !== updatedDatabase.port
+      const iconChanged = originalDatabase.icon !== updatedDatabase.icon
+      const autoStartChanged = originalDatabase.autoStart !== updatedDatabase.autoStart
+      // Note: password changes are handled separately in the settings dialog
+      
+      // Only show notification if something actually changed
+      if (nameChanged || portChanged_actual || iconChanged || autoStartChanged) {
+        notifySuccess("Settings updated", {
+          description: `${updatedDatabase.name} has been updated.`,
+        })
+      }
     }
   }
 
