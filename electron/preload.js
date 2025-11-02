@@ -88,6 +88,17 @@ contextBridge.exposeInMainWorld("electron", {
   // Fetch programming quotes in bulk (bypasses CORS)
   fetchQuotes: () => ipcRenderer.invoke("fetch-quotes"),
   
+  // Export specific database
+  exportDatabase: (databaseConfig) => ipcRenderer.invoke("export-database", databaseConfig),
+  
+  // Export progress events
+  onExportProgress: (callback) => {
+    ipcRenderer.on('export-progress', (event, data) => callback(data))
+  },
+  removeExportProgressListener: () => {
+    ipcRenderer.removeAllListeners('export-progress')
+  },
+  
   platform: process.platform,
   isElectron: true,
 })

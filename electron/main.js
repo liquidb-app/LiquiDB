@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron")
+const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron")
+const archiver = require("archiver")
 
 // Import logging system
 const { log } = require('./logger')
@@ -2594,8 +2595,25 @@ ipcMain.handle("get-database-system-info", async (event, id) => {
       } else if (db.config.type === "mysql") {
         // For MySQL, get actual database sessions
         try {
-          const mysqlCommand = `mysql -h localhost -P ${db.config.port} -u ${db.config.username} -p${db.config.password} -e "SHOW PROCESSLIST;" 2>/dev/null | wc -l || echo "0"`
-          const sessionCount = execSync(mysqlCommand, { encoding: 'utf8' }).trim()
+          // Get password from keychain if needed
+          let mysqlPassword = db.config.password
+          if ((!mysqlPassword || mysqlPassword === "__SECURE__") && keytar) {
+            try {
+              mysqlPassword = await keytar.getPassword("LiquiDB", db.config.id) || ''
+            } catch {}
+          }
+          
+          // Use --password= or --password="" to avoid password prompt
+          // If password is empty, use --password="" 
+          const passwordFlag = mysqlPassword && mysqlPassword.trim() !== '' 
+            ? `--password="${mysqlPassword.replace(/"/g, '\\"')}"` 
+            : '--password='
+          
+          const mysqlCommand = `mysql -h localhost -P ${db.config.port} -u ${db.config.username} ${passwordFlag} -e "SHOW PROCESSLIST;" 2>/dev/null | wc -l || echo "0"`
+          const sessionCount = execSync(mysqlCommand, { 
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'] // Prevent password prompt
+          }).trim()
           connections = Math.max(0, parseInt(sessionCount) - 1) // Subtract header line
           log.debug(`MySQL active sessions on port ${db.config.port}: ${connections}`)
         } catch (mysqlError) {
@@ -3498,6 +3516,233 @@ ipcMain.handle("db:getPassword", async (event, id) => {
     return await keytar.getPassword("LiquiDB", id)
   } catch {
     return null
+  }
+})
+
+
+// IPC handler to export a specific database with its data files
+ipcMain.handle("export-database", async (event, databaseConfig) => {
+  try {
+    if (!databaseConfig || !databaseConfig.id) {
+      return { success: false, error: "No database provided for export" }
+    }
+
+    // Show save dialog for zip file first
+    const dateStr = new Date().toISOString().split('T')[0]
+    const dbName = databaseConfig.name || 'database'
+    const result = await dialog.showSaveDialog(mainWindow || null, {
+      title: 'Export Database',
+      defaultPath: `${dbName}-${dateStr}.zip`,
+      filters: [
+        { name: 'ZIP Files', extensions: ['zip'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['showOverwriteConfirmation']
+    })
+
+    if (result.canceled) {
+      return { success: false, canceled: true }
+    }
+
+    let zipFilePath = result.filePath
+    // Ensure .zip extension
+    if (!zipFilePath.endsWith('.zip')) {
+      zipFilePath = zipFilePath + '.zip'
+    }
+
+    // Prepare export data for this specific database
+    const exportDb = { ...databaseConfig }
+    
+    // Get password from keychain if available
+    if (keytar && databaseConfig.id) {
+      try {
+        const password = await keytar.getPassword("LiquiDB", databaseConfig.id)
+        if (password) {
+          exportDb.password = password
+        } else {
+          exportDb.password = "__SECURE__"
+        }
+      } catch (error) {
+        exportDb.password = "__SECURE__"
+      }
+    } else {
+      exportDb.password = "__SECURE__"
+    }
+
+    // Remove sensitive runtime data
+    delete exportDb.pid
+    delete exportDb.systemInfo
+    delete exportDb.status
+
+    const exportData = {
+      exportDate: new Date().toISOString(),
+      version: "1.0.0",
+      database: exportDb
+    }
+
+    // Create zip file directly - no temp directory needed
+    return new Promise((resolve, reject) => {
+      const output = fs.createWriteStream(zipFilePath)
+      const archive = archiver('zip', {
+        zlib: { level: 9 }
+      })
+
+      let resolved = false
+
+      const cleanupAndResolve = (result) => {
+        if (resolved) return
+        resolved = true
+        resolve(result)
+      }
+
+      const cleanupAndReject = (err) => {
+        if (resolved) return
+        resolved = true
+        reject(err)
+      }
+
+      output.on('error', cleanupAndReject)
+      archive.on('error', cleanupAndReject)
+
+      archive.on('warning', (err) => {
+        if (err.code !== 'ENOENT') {
+          cleanupAndReject(err)
+        }
+      })
+
+      archive.on('progress', (progress) => {
+        try {
+          if (mainWindow && !mainWindow.isDestroyed() && progress.entries && progress.entries.total > 0) {
+            const zipProgress = Math.round((progress.entries.processed / progress.entries.total) * 100)
+            mainWindow.webContents.send('export-progress', {
+              stage: 'zipping',
+              message: `Compressing files... (${zipProgress}%)`,
+              progress: zipProgress,
+              total: 100
+            })
+          }
+        } catch (error) {
+          console.error("[Export] Error sending progress update:", error)
+          // Don't crash on progress update errors
+        }
+      })
+
+      output.on('close', () => {
+        try {
+          const size = archive.pointer()
+          cleanupAndResolve({ 
+            success: true, 
+            filePath: zipFilePath, 
+            databaseCount: 1,
+            size: size
+          })
+        } catch (error) {
+          console.error("[Export] Error getting archive size:", error)
+          cleanupAndResolve({ 
+            success: true, 
+            filePath: zipFilePath, 
+            databaseCount: 1,
+            size: 0
+          })
+        }
+      })
+
+      archive.pipe(output)
+
+      // Send progress update
+      try {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('export-progress', {
+            stage: 'preparing',
+            message: `Preparing export for ${databaseConfig.name}...`,
+            progress: 0,
+            total: 100
+          })
+        }
+      } catch (error) {
+        console.error("[Export] Error sending initial progress update:", error)
+        // Don't crash on progress update errors
+      }
+
+      // Add JSON config file to zip
+      archive.append(JSON.stringify(exportData, null, 2), { name: 'database-config.json' })
+
+      // Add database data directory directly from its source location
+      // This is where the database stores its actual data files (SQL data, etc.)
+      if (databaseConfig.containerId) {
+        const sourceDataDir = storage.getDatabaseDataDir(app, databaseConfig.containerId)
+        console.log(`[Export] Database data directory path: ${sourceDataDir}`)
+        
+        try {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('export-progress', {
+              stage: 'copying',
+              message: `Adding database files for ${databaseConfig.name}...`,
+              progress: 50,
+              total: 100
+            })
+          }
+        } catch (error) {
+          console.error("[Export] Error sending copying progress update:", error)
+          // Don't crash on progress update errors
+        }
+
+        if (fs.existsSync(sourceDataDir)) {
+          // Check if directory has any files
+          try {
+            const files = fs.readdirSync(sourceDataDir)
+            console.log(`[Export] Found ${files.length} items in database data directory`)
+            
+            // Add directory directly to zip from source location
+            // This includes all database files (e.g., PostgreSQL data files, MySQL data files, etc.)
+            archive.directory(sourceDataDir, `database-data`)
+            console.log(`[Export] Added database data directory to zip: ${sourceDataDir}`)
+          } catch (error) {
+            console.error(`[Export] Error reading database data directory:`, error)
+            // Still try to add it even if we can't read it
+            archive.directory(sourceDataDir, `database-data`)
+          }
+        } else {
+          console.warn(`[Export] Database data directory does not exist: ${sourceDataDir}`)
+          // Send warning to user
+          try {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('export-progress', {
+                stage: 'warning',
+                message: `Warning: Database data directory not found for ${databaseConfig.name}`,
+                progress: 50,
+                total: 100
+              })
+            }
+          } catch (error) {
+            console.error("[Export] Error sending warning progress update:", error)
+            // Don't crash on progress update errors
+          }
+        }
+      } else {
+        console.warn(`[Export] No containerId found for database: ${databaseConfig.name}`)
+      }
+
+      // Send progress update - finalizing
+      try {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('export-progress', {
+            stage: 'finishing',
+            message: 'Finalizing zip archive...',
+            progress: 100,
+            total: 100
+          })
+        }
+      } catch (error) {
+        console.error("[Export] Error sending final progress update:", error)
+        // Don't crash on progress update errors
+      }
+
+      archive.finalize()
+    })
+  } catch (error) {
+    console.error("[Export] Error exporting database:", error)
+    return { success: false, error: error.message }
   }
 })
 
