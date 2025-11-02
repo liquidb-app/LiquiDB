@@ -764,9 +764,8 @@ export function DatabaseSettingsDialog({
                   <Input
                     id="edit-username"
                     value={database.username}
-                    readOnly
-                    className="h-8 text-sm bg-muted cursor-not-allowed"
-                    title="Username cannot be changed after database creation"
+                    disabled
+                    className="h-8 text-sm"
                   />
                   <p className="text-[10px] text-muted-foreground">
                     Username is set during database creation and cannot be changed
