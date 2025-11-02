@@ -2539,6 +2539,17 @@ ipcMain.handle("db:save", async (event, db) => {
     // Load existing databases to check for duplicates
     const existingDatabases = storage.loadDatabases(app)
     
+    // Prevent username changes - username is set during creation and cannot be changed
+    if (db.id) {
+      const existingDb = existingDatabases.find(d => d.id === db.id)
+      if (existingDb && existingDb.username && db.username && existingDb.username !== db.username) {
+        return {
+          success: false,
+          error: "Username cannot be changed after database creation. It was set during initialization and must remain unchanged."
+        }
+      }
+    }
+    
     // Check for duplicate name
     const nameExists = existingDatabases.some(existingDb => 
       existingDb.name === db.name && existingDb.id !== db.id

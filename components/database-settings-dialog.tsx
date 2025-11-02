@@ -171,7 +171,7 @@ export function DatabaseSettingsDialog({
   useEffect(() => {
     setName(database.name)
     setPort(database.port.toString())
-    setUsername(database.username)
+    setUsername(database.username) // Username cannot be changed - always use database username
     setPassword("") // Don't show existing password
     setSelectedIcon(database.icon || "")
     setAutoStart(database.autoStart || false)
@@ -180,6 +180,13 @@ export function DatabaseSettingsDialog({
     setPortStatus(null)
     setPortConflictInfo(null)
   }, [database])
+  
+  // Username cannot be changed - always keep it in sync with database
+  useEffect(() => {
+    if (username !== database.username) {
+      setUsername(database.username)
+    }
+  }, [username, database.username])
 
   // Live port conflict checking as user types
   useEffect(() => {
@@ -418,7 +425,7 @@ export function DatabaseSettingsDialog({
     // Reset local state to original database values
     setName(database.name)
     setPort(database.port.toString())
-    setUsername(database.username)
+    setUsername(database.username) // Username cannot be changed
     setPassword("")
     setSelectedIcon(database.icon || "")
     setAutoStart(database.autoStart || false)
@@ -445,7 +452,7 @@ export function DatabaseSettingsDialog({
         ...database,
         name,
         port: portNum,
-        username,
+        username: database.username, // Username cannot be changed - always use existing username
         password: password || database.password, // Keep existing password if not changed
         icon: selectedIcon,
         autoStart,
@@ -628,10 +635,14 @@ export function DatabaseSettingsDialog({
                   </Label>
                   <Input
                     id="edit-username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="h-8 text-sm"
+                    value={database.username}
+                    readOnly
+                    className="h-8 text-sm bg-muted cursor-not-allowed"
+                    title="Username cannot be changed after database creation"
                   />
+                  <p className="text-[10px] text-muted-foreground">
+                    Username is set during database creation and cannot be changed
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="edit-password" className="text-xs">
@@ -666,7 +677,7 @@ export function DatabaseSettingsDialog({
                 <div className="rounded-lg bg-muted p-3">
                   <p className="text-xs font-medium mb-1.5">Connection String</p>
                   <code className="text-xs break-all">
-                    {database.type}://{username}:****@localhost:{port}
+                    {database.type}://{database.username}:****@localhost:{port}
                   </code>
                 </div>
               </TabsContent>
