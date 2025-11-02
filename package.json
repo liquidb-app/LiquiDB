@@ -104,6 +104,7 @@
     "@tabler/icons-react": "^3.35.0",
     "@types/canvas-confetti": "^1.9.0",
     "@vercel/analytics": "1.5.0",
+    "archiver": "^7.0.1",
     "auto-launch": "^5.0.6",
     "autoprefixer": "^10.4.20",
     "canvas-confetti": "^1.9.3",
