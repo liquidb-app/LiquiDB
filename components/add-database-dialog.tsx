@@ -112,22 +112,22 @@ const DATABASE_CONFIGS = {
   postgresql: {
     defaultPort: 5432,
     brewPackage: "postgresql",
-    icon: "🐘",
+    icon: "/Postgresql_elephant.svg",
   },
   mysql: {
     defaultPort: 3306,
     brewPackage: "mysql",
-    icon: "🐬",
+    icon: "/mysql-icon.svg",
   },
   mongodb: {
     defaultPort: 27017,
     brewPackage: "mongodb-community",
-    icon: "🍃",
+    icon: "/mongodb-icon.svg",
   },
   redis: {
     defaultPort: 6379,
     brewPackage: "redis",
-    icon: "🔴",
+    icon: "/redis-icon.svg",
   },
 }
 
@@ -825,7 +825,9 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                         : 'hover:border-foreground hover:bg-accent'
                     }`}
                   >
-                    <span className="text-3xl mb-2">{DATABASE_CONFIGS[type].icon}</span>
+                    <div className="w-12 h-12 mb-2 flex items-center justify-center">
+                      {renderDatabaseIcon(DATABASE_CONFIGS[type].icon, "w-12 h-12 object-contain")}
+                    </div>
                     <span className="font-semibold capitalize text-sm">{type}</span>
                     <span className="text-xs text-muted-foreground mt-0.5">
                       Port {DATABASE_CONFIGS[type].defaultPort}
@@ -862,7 +864,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                       className="w-full flex items-center gap-2 p-2 border-2 border-dashed rounded-lg hover:border-primary hover:bg-accent"
                     >
                       <div className="w-8 h-8 flex items-center justify-center bg-muted rounded text-lg">
-                        {renderDatabaseIcon(selectedIcon, "w-6 h-6 object-cover rounded")}
+                        {renderDatabaseIcon(selectedIcon, "w-6 h-6 object-contain rounded")}
                       </div>
                       <div className="text-left flex-1">
                         <p className="text-xs font-medium">{selectedIcon ? "Change Icon" : "Choose Icon"}</p>
