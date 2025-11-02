@@ -113,8 +113,50 @@ async function getRunningDatabaseProcesses() {
   return processes
 }
 
+// Check if the main LiquiDB app is running
+async function isMainAppRunning() {
+  try {
+    // Check for Electron processes running LiquiDB
+    // Look for processes matching "Electron" that have LiquiDB in their path
+    const { stdout } = await execAsync('ps aux | grep -i "[E]lectron.*[Ll]iquidb\|[Ll]iquidb.*[E]lectron" || true')
+    const processes = stdout.trim().split('\n').filter(line => {
+      // Filter out grep itself and helper processes
+      return line.length > 0 && 
+             !line.includes('grep') && 
+             !line.includes('liquidb-helper') &&
+             (line.includes('Electron') || line.includes('LiquiDB'))
+    })
+    
+    // Also check for standalone LiquiDB.app processes
+    if (processes.length === 0) {
+      try {
+        const { stdout: appStdout } = await execAsync('pgrep -fl "LiquiDB.app/Contents" || true')
+        const appProcesses = appStdout.trim().split('\n').filter(line => 
+          line.length > 0 && !line.includes('liquidb-helper')
+        )
+        if (appProcesses.length > 0) {
+          return true
+        }
+      } catch (e) {
+        // Ignore errors in this check
+      }
+    }
+    
+    return processes.length > 0
+  } catch (error) {
+    // If check fails, assume app is not running (safer to clean up orphans)
+    return false
+  }
+}
+
 // Check if a process is legitimate (matches a known database config)
-function isLegitimateProcess(process, configs) {
+// This now also checks if the main app is running - if not, all processes are orphaned
+async function isLegitimateProcess(process, configs, mainAppRunning) {
+  // If main app is not running, all processes are orphaned
+  if (!mainAppRunning) {
+    return false
+  }
+  
   return configs.some(config => {
     // Check if process type matches
     if (config.type !== process.type) return false
@@ -148,19 +190,31 @@ async function killProcess(pid, signal = 'SIGTERM') {
 async function cleanupOrphanedProcesses() {
   log('Starting orphaned process cleanup...')
   
+  // First check if main app is running
+  const mainAppRunning = await isMainAppRunning()
+  log(`Main LiquiDB app is ${mainAppRunning ? 'running' : 'not running'}`)
+  
   const runningProcesses = await getRunningDatabaseProcesses()
   const databaseConfigs = loadDatabaseConfigs()
   
   log(`Found ${runningProcesses.length} running database processes`)
   log(`Found ${databaseConfigs.length} database configurations`)
   
+  // If main app is not running, mark all processes as orphaned
+  if (!mainAppRunning && runningProcesses.length > 0) {
+    log('Main app is not running - all database processes will be considered orphaned', 'WARN')
+  }
+  
   let cleanedCount = 0
   
   for (const process of runningProcesses) {
-    const isLegitimate = isLegitimateProcess(process, databaseConfigs)
+    const isLegitimate = await isLegitimateProcess(process, databaseConfigs, mainAppRunning)
     
     if (!isLegitimate) {
-      log(`Found orphaned ${process.type} process (PID: ${process.pid}, Port: ${process.port || 'unknown'})`)
+      const reason = mainAppRunning 
+        ? 'not matching any known database config' 
+        : 'main app is not running'
+      log(`Found orphaned ${process.type} process (PID: ${process.pid}, Port: ${process.port || 'unknown'}) - ${reason}`)
       
       // Try SIGTERM first, then SIGKILL if needed
       const killed = await killProcess(process.pid, 'SIGTERM')
@@ -178,6 +232,10 @@ async function cleanupOrphanedProcesses() {
         } catch (e) {
           // Process is dead, good
         }
+      } else {
+        log(`Failed to kill process ${process.pid} with SIGTERM, trying SIGKILL...`)
+        await killProcess(process.pid, 'SIGKILL')
+        cleanedCount++
       }
     } else {
       log(`Process ${process.pid} is legitimate (${process.type} on port ${process.port || 'unknown'})`)
