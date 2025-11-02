@@ -71,10 +71,13 @@ function execBrew(args, { onStdout, onStderr } = {}) {
     const brewPath = findBrewPath()
     
     // Set up environment with Homebrew paths
+    // Disable auto-update to prevent Homebrew from installing unrelated packages
+    // (like migrating casks to formulae during installation)
     const env = {
       ...process.env,
       PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
-      HOMEBREW_PREFIX: "/opt/homebrew"
+      HOMEBREW_PREFIX: "/opt/homebrew",
+      HOMEBREW_NO_AUTO_UPDATE: "1"
     }
     
     const child = spawn(brewPath, args, { stdio: "pipe", env })
@@ -201,6 +204,9 @@ async function installDatabase({ dbType, version, onStdout, onStderr }) {
   }
   
   const formula = formulaFor(dbType, version)
+  if (!formula) {
+    throw new Error(`Could not determine formula for ${dbType} version ${version}`)
+  }
   console.log(`[Homebrew] Installing formula: ${formula}`)
   
   // Check if already installed first
@@ -219,7 +225,9 @@ async function installDatabase({ dbType, version, onStdout, onStderr }) {
     // Not installed, continue with installation
   }
   
-  const result = await execBrew(["install", formula], { 
+  // Use --formula flag to explicitly install as a formula (not cask)
+  // This prevents Homebrew from trying to migrate casks to formulae
+  const result = await execBrew(["install", "--formula", formula], { 
     onStdout: (data) => {
       console.log(`[Homebrew Install] ${data.trim()}`)
       onStdout?.(data)
