@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react"
+import React, { useRef, useCallback } from "react"
 
 interface AnimatedIconHandle {
   startAnimation: () => void
@@ -8,11 +8,11 @@ interface AnimatedIconHandle {
 export function useDatabaseIconHover() {
   const hoverStates = useRef<Map<string, React.RefObject<AnimatedIconHandle>>>(new Map())
 
-  const getIconRef = useCallback((databaseId: string, iconType: string) => {
+  const getIconRef = useCallback((databaseId: string, iconType: string): React.RefObject<AnimatedIconHandle> => {
     const key = `${databaseId}-${iconType}`
     
     if (!hoverStates.current.has(key)) {
-      hoverStates.current.set(key, { current: null })
+      hoverStates.current.set(key, React.createRef<AnimatedIconHandle>())
     }
     
     return hoverStates.current.get(key)!
@@ -32,12 +32,16 @@ export function useDatabaseIconHover() {
     }
   }, [getIconRef])
 
-  const createHoverHandlers = useCallback((databaseId: string, iconType: string) => {
+  const createHoverHandlers = useCallback((databaseId: string, iconType: string): {
+    onMouseEnter: () => void
+    onMouseLeave: () => void
+    iconRef: React.RefObject<AnimatedIconHandle>
+  } => {
     const iconRef = getIconRef(databaseId, iconType)
     
     return { 
-      onMouseEnter: () => onMouseEnter(databaseId, iconType),
-      onMouseLeave: () => onMouseLeave(databaseId, iconType),
+      onMouseEnter: (): void => onMouseEnter(databaseId, iconType),
+      onMouseLeave: (): void => onMouseLeave(databaseId, iconType),
       iconRef
     }
   }, [getIconRef, onMouseEnter, onMouseLeave])

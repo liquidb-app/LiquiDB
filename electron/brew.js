@@ -1,5 +1,5 @@
 const fs = require("fs")
-const path = require("path")
+// const path = require("path")
 const { spawn } = require("child_process")
 
 function findBrewPath() {
@@ -162,7 +162,7 @@ async function getDatabaseVersions(dbType) {
         return ["7.2", "7.0", "6.2"]
       }
     }
-  } catch (e) {
+  } catch (_e) {
     // Fallback to defaults
   }
   if (dbType === "postgresql") return ["16", "15", "14", "13"]
@@ -220,7 +220,7 @@ async function installDatabase({ dbType, version, onStdout, onStderr }) {
         alreadyInstalled: true 
       }
     }
-  } catch (e) {
+  } catch (_e) {
     console.log(`[Homebrew] ${formula} not found in list, will install`)
     // Not installed, continue with installation
   }

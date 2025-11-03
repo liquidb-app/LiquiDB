@@ -101,11 +101,11 @@ async function getRunningDatabaseProcesses() {
               port: port ? parseInt(port) : null
             })
           }
-        } catch (e) {
+        } catch (_e) {
           // Process might have died between pgrep and ps
         }
       }
-    } catch (e) {
+    } catch (_e) {
       // No processes found for this type
     }
   }
@@ -137,13 +137,13 @@ async function isMainAppRunning() {
         if (appProcesses.length > 0) {
           return true
         }
-      } catch (e) {
+      } catch (_e) {
         // Ignore errors in this check
       }
     }
     
     return processes.length > 0
-  } catch (error) {
+  } catch (_error) {
     // If check fails, assume app is not running (safer to clean up orphans)
     return false
   }
@@ -229,7 +229,7 @@ async function cleanupOrphanedProcesses() {
           // Still running, force kill
           log(`Process ${process.pid} still running, force killing...`)
           await killProcess(process.pid, 'SIGKILL')
-        } catch (e) {
+        } catch (_e) {
           // Process is dead, good
         }
       } else {
@@ -297,7 +297,7 @@ async function checkPortAvailability(port) {
 // Get process information for a port
 async function getProcessUsingPort(port) {
   return new Promise((resolve) => {
-    exec(`lsof -i :${port}`, (error, stdout, stderr) => {
+    exec(`lsof -i :${port}`, (error, stdout, _stderr) => {
       if (error || !stdout.trim()) {
         resolve(null)
         return
@@ -654,7 +654,7 @@ log('  1. Monitor orphaned database processes')
 log('  2. Monitor port conflicts and suggest alternatives')
 
 // Start IPC server
-const ipcServer = startIPCServer()
+startIPCServer()
 
 // Start monitoring
 monitor()
@@ -668,7 +668,7 @@ process.on('uncaughtException', (error) => {
   // Don't exit, keep running
 })
 
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason, _promise) => {
   log(`Unhandled rejection: ${reason}`, 'ERROR')
   // Don't exit, keep running
 })

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import {
   Dialog,
   DialogContent,
@@ -74,7 +74,7 @@ const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, class
       // If it's a file:// URL, convert it to data URL
       if (src.startsWith('file://')) {
         try {
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           const result = await window.electron?.convertFileToDataUrl?.(src)
           if (result?.success) {
             setImageSrc(result.dataUrl)
@@ -125,7 +125,6 @@ interface DatabaseSettingsDialogProps {
   allDatabases?: DatabaseContainer[]
 }
 
-const DEFAULT_ICONS = ["🐘", "🐬", "🍃", "🔴", "💾", "🗄️", "📊", "🔷", "🟦", "🟪", "🟩", "🟨", "🟧", "🟥"]
 
 export function DatabaseSettingsDialog({
   open,
@@ -156,14 +155,14 @@ export function DatabaseSettingsDialog({
   const copyConnectionStringRef = useRef<CopyIconHandle>(null)
 
   // Function to validate name length
-  const validateName = (nameValue: string) => {
+  const validateName = useCallback((nameValue: string) => {
     if (nameValue.length > MAX_NAME_LENGTH) {
       setNameError(`Name must be ${MAX_NAME_LENGTH} characters or less`)
       return false
     }
     setNameError("")
     return true
-  }
+  }, [MAX_NAME_LENGTH])
 
   // Function to handle name change with validation
   const handleNameChange = (value: string) => {
@@ -234,9 +233,9 @@ export function DatabaseSettingsDialog({
         }
         
         // Check for external conflicts
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.checkPortConflict) {
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           const conflictResult = await window.electron.checkPortConflict(portNum)
           if (conflictResult?.inUse) {
             const processInfo = conflictResult?.processInfo
@@ -251,9 +250,9 @@ export function DatabaseSettingsDialog({
           }
         } else {
           // Fallback check
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.checkPort) {
-            // @ts-ignore
+            // @ts-expect-error - Electron IPC types not available
             const res = await window.electron.checkPort(portNum)
             if (res?.available) {
               setPortStatus("available")
@@ -272,10 +271,10 @@ export function DatabaseSettingsDialog({
     }, 500) // Debounce for 500ms
 
     return () => clearTimeout(timeoutId)
-  }, [port, database.port, database.id, allDatabases])
+  }, [port, database.port, database.id, allDatabases, open])
 
   // Function to find next available port
-  const findNextAvailablePort = async (startPort: number): Promise<number> => {
+  const findNextAvailablePort = useCallback(async (startPort: number): Promise<number> => {
     let port = startPort
     const maxAttempts = 100
     
@@ -292,9 +291,9 @@ export function DatabaseSettingsDialog({
       
       // Check for external conflicts
       try {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.checkPortConflict) {
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           const conflictResult = await window.electron.checkPortConflict(port)
           if (conflictResult?.inUse) {
             port++
@@ -302,9 +301,9 @@ export function DatabaseSettingsDialog({
           }
           return port
         }
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.checkPort) {
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           const res = await window.electron.checkPort(port)
           if (res?.available) {
             return port
@@ -320,10 +319,10 @@ export function DatabaseSettingsDialog({
     }
     
     return startPort
-  }
+  }, [allDatabases, database.id])
 
   // Validate port with conflict checking
-  const validatePort = async (p: string) => {
+  const validatePort = useCallback(async (p: string) => {
     setPortError("")
     const portNum = Number.parseInt(p)
     if (isNaN(portNum)) {
@@ -356,9 +355,9 @@ export function DatabaseSettingsDialog({
       }
       
       // Check for external port conflicts
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.checkPortConflict) {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const conflictResult = await window.electron.checkPortConflict(portNum)
         if (conflictResult?.inUse) {
           const suggestedPort = await findNextAvailablePort(portNum + 1)
@@ -372,9 +371,9 @@ export function DatabaseSettingsDialog({
       }
       
       // Fallback to old checkPort method
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.checkPort) {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const res = await window.electron.checkPort(portNum)
         if (!res?.available) {
           if (res?.reason === "invalid_range") setPortError("Port must be between 1 and 65535")
@@ -398,7 +397,7 @@ export function DatabaseSettingsDialog({
       setCheckingPort(false)
     }
     return true
-  }
+  }, [allDatabases, database.id, database.port, findNextAvailablePort])
 
   // Check for port conflicts when enabling auto-start
   const checkAutoStartPortConflict = (enableAutoStart: boolean) => {
@@ -428,7 +427,7 @@ export function DatabaseSettingsDialog({
     }
   }
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     // Reset local state to original database values
     setName(database.name)
     setPort(database.port.toString())
@@ -438,10 +437,10 @@ export function DatabaseSettingsDialog({
     setAutoStart(database.autoStart || false)
     setAutoStartConflict(null)
     onOpenChange(false)
-  }
+  }, [database, onOpenChange])
 
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     // Validate name length
     if (!validateName(name)) {
       return
@@ -464,9 +463,9 @@ export function DatabaseSettingsDialog({
         icon: selectedIcon,
         autoStart,
       }
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.saveDatabase) {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         await window.electron.saveDatabase(updated)
       }
       
@@ -481,17 +480,17 @@ export function DatabaseSettingsDialog({
           // Get password from keychain if not provided in form
           let actualPassword = password
           if (!actualPassword || actualPassword === "") {
-            // @ts-ignore
+            // @ts-expect-error - Electron IPC types not available
             if (window.electron?.getPassword) {
-              // @ts-ignore
+              // @ts-expect-error - Electron IPC types not available
               actualPassword = await window.electron.getPassword(database.id)
             }
           }
           
           // Username cannot be changed - always use the database's existing username
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.updateDatabaseCredentials) {
-            // @ts-ignore
+            // @ts-expect-error - Electron IPC types not available
             const result = await window.electron.updateDatabaseCredentials({
               id: database.id,
               username: database.username, // Always use existing username - cannot be changed
@@ -513,7 +512,7 @@ export function DatabaseSettingsDialog({
       onUpdate(updated)
     }
     checkAndSave()
-  }
+  }, [name, port, selectedIcon, autoStart, password, database, validateName, validatePort, onUpdate])
 
   const handleDeleteClick = () => {
     setShowDeleteConfirm(true)
@@ -531,7 +530,7 @@ export function DatabaseSettingsDialog({
     if (isExporting) return // Prevent multiple exports
     
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.exportDatabase) {
         setIsExporting(true)
         
@@ -542,7 +541,7 @@ export function DatabaseSettingsDialog({
         })
 
         // Set up progress listener
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         window.electron?.onExportProgress?.((progress: { stage: string, message: string, progress: number, total: number }) => {
           if (progress.message && progress.message !== currentDescription) {
             currentDescription = progress.message
@@ -555,13 +554,13 @@ export function DatabaseSettingsDialog({
         })
 
         // Run export in background - pass the specific database
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         window.electron.exportDatabase(database)
-          .then((result: any) => {
+          .then((result: { success?: boolean; canceled?: boolean; error?: string; filePath?: string; size?: number }) => {
             setIsExporting(false)
             
             // Clean up progress listener
-            // @ts-ignore
+            // @ts-expect-error - Electron IPC types not available
             window.electron?.removeExportProgressListener?.()
             
             // Dismiss loading toast
@@ -586,11 +585,11 @@ export function DatabaseSettingsDialog({
               })
             }
           })
-          .catch((error: any) => {
+          .catch((error: unknown) => {
             setIsExporting(false)
             
             // Clean up progress listener
-            // @ts-ignore
+            // @ts-expect-error - Electron IPC types not available
             window.electron?.removeExportProgressListener?.()
             
             // Dismiss loading toast
@@ -639,7 +638,7 @@ export function DatabaseSettingsDialog({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open, handleSave, handleCancel])
+  }, [open, handleSave, handleCancel, onOpenChange])
 
   return (
     <>
@@ -747,7 +746,7 @@ export function DatabaseSettingsDialog({
                     {autoStartConflict && (
                       <p className="text-xs text-destructive flex items-center gap-1">
                         <AlertTriangle className="h-3 w-3" />
-                        Port conflict with "{autoStartConflict}" - change port first
+                        Port conflict with &quot;{autoStartConflict}&quot; - change port first
                       </p>
                     )}
                   </div>
@@ -794,7 +793,7 @@ export function DatabaseSettingsDialog({
                     {autoStartConflict && (
                       <p className="text-xs text-destructive flex items-center gap-1">
                         <AlertTriangle className="h-3 w-3" />
-                        Port conflict with "{autoStartConflict}" - change port first
+                        Port conflict with &quot;{autoStartConflict}&quot; - change port first
                       </p>
                     )}
                   </div>
@@ -838,7 +837,7 @@ export function DatabaseSettingsDialog({
                   {database.type === "mysql" && (
                     <div className="text-[10px] text-muted-foreground mt-1.5 space-y-1">
                       <p>
-                        <span className="font-medium text-foreground">Why?</span> MySQL 8.0+ uses <code className="text-xs bg-background/50 px-1 rounded">caching_sha2_password</code> which requires the server's RSA public key to encrypt passwords. The <code className="text-xs bg-background/50 px-1 rounded">allowPublicKeyRetrieval=true</code> parameter allows clients to request this key during connection.
+                        <span className="font-medium text-foreground">Why?</span> MySQL 8.0+ uses <code className="text-xs bg-background/50 px-1 rounded">caching_sha2_password</code> which requires the server&apos;s RSA public key to encrypt passwords. The <code className="text-xs bg-background/50 px-1 rounded">allowPublicKeyRetrieval=true</code> parameter allows clients to request this key during connection.
                       </p>
                       <p>
                         This parameter is <span className="text-green-600 dark:text-green-400">safe for localhost</span> and is already included in the connection string above.
@@ -869,7 +868,7 @@ export function DatabaseSettingsDialog({
                             <button
                               type="button"
                               onClick={async () => {
-                                // @ts-ignore
+                                // @ts-expect-error - Electron IPC types not available
                                 const actualPassword = await window.electron?.getPassword?.(database.id) || password || ""
                                 const dbName = database.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)
                                 let paramsText = `Host: localhost\nPort: ${port}\n`
@@ -936,7 +935,7 @@ export function DatabaseSettingsDialog({
                             <div className="space-y-1">
                               <p className="font-medium text-foreground">Why is this needed?</p>
                               <p className="text-[10px] leading-relaxed">
-                                MySQL 8.0+ uses <span className="font-mono bg-background/50 px-1 rounded">caching_sha2_password</span> authentication by default. This plugin uses RSA public key encryption to securely transmit passwords. The client needs the server's public key to encrypt your password. <span className="font-mono bg-background/50 px-1 rounded">allowPublicKeyRetrieval=true</span> allows the client to request this key during connection. This is <span className="text-green-600 dark:text-green-400">safe for localhost connections</span> (like your LiquiDB instances).
+                                MySQL 8.0+ uses <span className="font-mono bg-background/50 px-1 rounded">caching_sha2_password</span> authentication by default. This plugin uses RSA public key encryption to securely transmit passwords. The client needs the server&apos;s public key to encrypt your password. <span className="font-mono bg-background/50 px-1 rounded">allowPublicKeyRetrieval=true</span> allows the client to request this key during connection. This is <span className="text-green-600 dark:text-green-400">safe for localhost connections</span> (like your LiquiDB instances).
                               </p>
                             </div>
                             <div className="space-y-1">

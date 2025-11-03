@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Dialog,
   DialogContent,
@@ -26,10 +26,10 @@ interface PortConflictDialogProps {
 export function PortConflictDialog({ open, onOpenChange, port, onResolve }: PortConflictDialogProps) {
   const [newPort, setNewPort] = useState((port + 1).toString())
 
-  const handleResolve = () => {
+  const handleResolve = useCallback(() => {
     onResolve(Number.parseInt(newPort))
     onOpenChange(false)
-  }
+  }, [newPort, onResolve, onOpenChange])
 
   // Keyboard event handlers
   useEffect(() => {

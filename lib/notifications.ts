@@ -58,7 +58,7 @@ class NotificationManager {
     this.loadNotificationSetting()
   }
 
-  public success(message: string, options?: any, critical: boolean = false) {
+  public success(message: string, options?: Parameters<typeof toast.success>[1], critical: boolean = false) {
     log.debug("Success called, enabled:", this.notificationsEnabled, "critical:", critical, "message:", message)
     if (this.notificationsEnabled || critical) {
       toast.success(message, options)
@@ -67,7 +67,7 @@ class NotificationManager {
     }
   }
 
-  public error(message: string, options?: any, critical: boolean = false) {
+  public error(message: string, options?: Parameters<typeof toast.error>[1], critical: boolean = false) {
     log.debug("Error called, enabled:", this.notificationsEnabled, "critical:", critical, "message:", message)
     if (this.notificationsEnabled || critical) {
       toast.error(message, options)
@@ -76,7 +76,7 @@ class NotificationManager {
     }
   }
 
-  public info(message: string, options?: any, critical: boolean = false) {
+  public info(message: string, options?: Parameters<typeof toast.info>[1], critical: boolean = false) {
     log.debug("Info called, enabled:", this.notificationsEnabled, "critical:", critical, "message:", message)
     if (this.notificationsEnabled || critical) {
       toast.info(message, options)
@@ -85,7 +85,7 @@ class NotificationManager {
     }
   }
 
-  public warning(message: string, options?: any, critical: boolean = false) {
+  public warning(message: string, options?: Parameters<typeof toast.warning>[1], critical: boolean = false) {
     log.debug("Warning called, enabled:", this.notificationsEnabled, "critical:", critical, "message:", message)
     if (this.notificationsEnabled || critical) {
       toast.warning(message, options)
@@ -119,7 +119,7 @@ const areNotificationsEnabled = (): boolean => {
 }
 
 // Export individual methods for convenience with safety checks
-export const notifySuccess = (message: string, options?: any, critical: boolean = false) => {
+export const notifySuccess = (message: string, options?: Parameters<typeof toast.success>[1], critical: boolean = false) => {
   log.debug("Called with message:", message, "critical:", critical)
   const enabled = areNotificationsEnabled()
   log.debug("Notifications enabled:", enabled)
@@ -131,7 +131,7 @@ export const notifySuccess = (message: string, options?: any, critical: boolean 
   }
 }
 
-export const notifyError = (message: string, options?: any, critical: boolean = false) => {
+export const notifyError = (message: string, options?: Parameters<typeof toast.error>[1], critical: boolean = false) => {
   log.debug("Called with message:", message, "critical:", critical)
   const enabled = areNotificationsEnabled()
   log.debug("Notifications enabled:", enabled)
@@ -143,7 +143,7 @@ export const notifyError = (message: string, options?: any, critical: boolean = 
   }
 }
 
-export const notifyInfo = (message: string, options?: any, critical: boolean = false) => {
+export const notifyInfo = (message: string, options?: Parameters<typeof toast.info>[1], critical: boolean = false) => {
   log.debug("Called with message:", message, "critical:", critical)
   const enabled = areNotificationsEnabled()
   log.debug("Notifications enabled:", enabled)
@@ -155,7 +155,7 @@ export const notifyInfo = (message: string, options?: any, critical: boolean = f
   }
 }
 
-export const notifyWarning = (message: string, options?: any, critical: boolean = false) => {
+export const notifyWarning = (message: string, options?: Parameters<typeof toast.warning>[1], critical: boolean = false) => {
   log.debug("Called with message:", message, "critical:", critical)
   const enabled = areNotificationsEnabled()
   log.debug("Notifications enabled:", enabled)

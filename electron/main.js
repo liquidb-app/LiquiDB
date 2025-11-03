@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron")
+const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage } = require("electron")
 const archiver = require("archiver")
 
 // Import logging system
@@ -10,7 +10,7 @@ const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
   app.quit()
 } else {
-  app.on('second-instance', (event, commandLine, workingDirectory) => {
+  app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
     // Someone tried to run a second instance, we should focus our window instead.
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
@@ -22,7 +22,7 @@ const path = require("path")
 const { spawn } = require("child_process")
 const fs = require("fs")
 const net = require("net")
-const os = require("os")
+// const os = require("os")
 const { exec } = require("child_process")
 const brew = require("./brew")
 const storage = require("./storage")
@@ -31,12 +31,7 @@ const PermissionsManager = require("./permissions")
 const https = require("https")
 const http = require("http")
 const AutoLaunch = require("auto-launch")
-let keytar
-try {
-  keytar = require("keytar")
-} catch {
-  keytar = null
-}
+// Keychain functionality removed - passwords are stored directly in database config
 
 let mainWindow
 const runningDatabases = new Map() // id -> { process, config }
@@ -132,7 +127,7 @@ async function alternativeMySQLInit(mysqldPath, dataDir, env) {
         try {
           const logContent = await fs.readFile(`${dataDir}/mysql-alt-init.log`, 'utf8')
           console.error(`[MySQL Alt] Error log:`, logContent)
-        } catch (logError) {
+        } catch (_logError) {
           console.log(`[MySQL Alt] Could not read error log`)
         }
         
@@ -150,7 +145,7 @@ async function alternativeMySQLInit(mysqldPath, dataDir, env) {
 
 // Configure PostgreSQL with custom username, password, and database name
 async function configurePostgreSQL(config) {
-  const { id, type, port, username, password, containerId, name } = config
+  const { id, type, port, username, password, containerId: _containerId, name } = config
   
   if (type !== "postgresql") return
   
@@ -162,14 +157,8 @@ async function configurePostgreSQL(config) {
       return
     }
     
-    // Get password from keychain if not provided or if it's "__SECURE__"
-    let actualPassword = password
-    if ((!actualPassword || actualPassword === "__SECURE__") && keytar) {
-      try {
-        actualPassword = await keytar.getPassword("LiquiDB", id) || ''
-      } catch {}
-    }
-    if (!actualPassword) actualPassword = ''
+    // Use password directly from config
+    let actualPassword = password || ''
     
     const psqlPath = `${dbRecord.homebrewPath}/psql`
     const { execSync } = require("child_process")
@@ -179,8 +168,34 @@ async function configurePostgreSQL(config) {
       HOMEBREW_PREFIX: "/opt/homebrew"
     }
     
-    // Wait a moment for PostgreSQL to be fully ready
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // Wait for PostgreSQL to be fully ready and accepting connections
+    // Retry connection attempts with exponential backoff
+    let postgresReady = false
+    const maxRetries = 10
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Try to connect to PostgreSQL to check if it's ready
+        execSync(`${psqlPath} -h localhost -p ${port} -U postgres -d postgres -c "SELECT 1;"`, {
+          env: { ...env, PGPASSWORD: '' },
+          stdio: 'pipe',
+          timeout: 2000
+        })
+        postgresReady = true
+        break
+      } catch (pingError) {
+        if (attempt < maxRetries - 1) {
+          // Wait with exponential backoff: 500ms, 1s, 2s, etc.
+          const waitTime = Math.min(500 * Math.pow(2, attempt), 5000)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+        }
+      }
+    }
+    
+    if (!postgresReady) {
+      console.log(`[PostgreSQL Config] ${id} PostgreSQL not ready after ${maxRetries} attempts, skipping configuration`)
+      console.log(`[PostgreSQL Config] ${id} Note: Configuration will be retried on next database restart`)
+      return
+    }
     
     // Sanitize database name (PostgreSQL database names must be valid identifiers)
     const dbName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63) || 'liquidb_db'
@@ -224,7 +239,7 @@ async function configurePostgreSQL(config) {
             encoding: 'utf8'
           }).trim()
           postgresExists = !!result
-        } catch (e) {
+        } catch (_e) {
           // postgres doesn't exist or can't connect
           postgresExists = false
         }
@@ -240,7 +255,7 @@ async function configurePostgreSQL(config) {
               encoding: 'utf8'
             }).trim()
             customUserExists = !!result
-          } catch (e) {
+          } catch (_e) {
             customUserExists = false
           }
         } else {
@@ -254,7 +269,7 @@ async function configurePostgreSQL(config) {
             })
             customUserExists = true
             connectAsUser = actualUsername
-          } catch (e) {
+          } catch (_e) {
             customUserExists = false
           }
         }
@@ -293,7 +308,7 @@ async function configurePostgreSQL(config) {
             })
             console.log(`[PostgreSQL Config] ${id} Dropped postgres user`)
             connectAsUser = actualUsername
-          } catch (dropError) {
+          } catch (_dropError) {
             // If that fails, try as postgres
             try {
               const revokePostgresCmd = `REVOKE ALL PRIVILEGES ON DATABASE "${dbName}" FROM postgres;`
@@ -345,7 +360,7 @@ async function configurePostgreSQL(config) {
               encoding: 'utf8'
             }).trim()
             userExists = !!result
-          } catch (e) {
+          } catch (_e) {
             userExists = false
           }
           
@@ -424,7 +439,7 @@ async function configurePostgreSQL(config) {
 
 // Configure MySQL with custom username, password, and database name
 async function configureMySQL(config) {
-  const { id, type, port, username, password, containerId, name, oldUsername } = config
+  const { id, type, port: _port, username, password, containerId: _containerId, name, oldUsername } = config
   
   if (type !== "mysql") return
   
@@ -436,14 +451,11 @@ async function configureMySQL(config) {
       return
     }
     
-    // Get password from keychain if not provided or if it's "__SECURE__"
-    let actualPassword = password
-    if ((!actualPassword || actualPassword === "__SECURE__") && keytar) {
-      try {
-        actualPassword = await keytar.getPassword("LiquiDB", id) || ''
-      } catch {}
-    }
-    if (!actualPassword) actualPassword = ''
+    // Get containerId from config or dbRecord
+    const containerId = config.containerId || dbRecord.containerId || id
+    
+    // Use password directly from config
+    let actualPassword = password || ''
     
     const mysqlPath = `${dbRecord.homebrewPath}/mysql`
     const { execSync } = require("child_process")
@@ -582,7 +594,7 @@ async function configureMySQL(config) {
               stdio: 'pipe'
             })
             console.log(`[MySQL Config] ${id} Updated password for user: ${actualUsername}`)
-          } catch (updateError) {
+          } catch (_updateError) {
             // Try SET PASSWORD as fallback (for older MySQL versions)
             const setPasswordCmd = `SET PASSWORD FOR '${actualUsername}'@'localhost' = PASSWORD('${actualPassword.replace(/'/g, "''")}'); FLUSH PRIVILEGES;`
             try {
@@ -622,7 +634,7 @@ async function configureMySQL(config) {
           stdio: 'pipe'
         })
         console.log(`[MySQL Config] ${id} Updated root user password`)
-      } catch (passError) {
+      } catch (_passError) {
         // Try SET PASSWORD as fallback (for older MySQL versions)
         try {
           const setPasswordCmd = `SET PASSWORD FOR 'root'@'localhost' = PASSWORD('${actualPassword.replace(/'/g, "''")}'); FLUSH PRIVILEGES;`
@@ -645,7 +657,7 @@ async function configureMySQL(config) {
 
 // Configure MongoDB with custom username, password, and database name
 async function configureMongoDB(config) {
-  const { id, type, port, username, password, containerId, name, oldUsername } = config
+  const { id, type, port: _port, username, password, containerId: _containerId, name, oldUsername } = config
   
   if (type !== "mongodb") return
   
@@ -657,14 +669,8 @@ async function configureMongoDB(config) {
       return
     }
     
-    // Get password from keychain if not provided or if it's "__SECURE__"
-    let actualPassword = password
-    if ((!actualPassword || actualPassword === "__SECURE__") && keytar) {
-      try {
-        actualPassword = await keytar.getPassword("LiquiDB", id) || ''
-      } catch {}
-    }
-    if (!actualPassword) actualPassword = ''
+    // Use password directly from config
+    let actualPassword = password || ''
     
     const mongoshPath = `${dbRecord.homebrewPath}/mongosh`
     // Fallback to mongosh if mongosh doesn't exist in same path
@@ -819,7 +825,7 @@ async function configureMongoDB(config) {
           timeout: 10000
         })
         console.log(`[MongoDB Config] ${id} Ensured database exists: ${dbName}`)
-      } catch (dbError) {
+      } catch (_dbError) {
         // Database creation is automatic in MongoDB, so errors here are usually fine
         console.log(`[MongoDB Config] ${id} Database ${dbName} will be created on first use`)
       }
@@ -847,14 +853,8 @@ async function configureRedis(config) {
       return
     }
     
-    // Get password from keychain if not provided or if it's "__SECURE__"
-    let actualPassword = password
-    if ((!actualPassword || actualPassword === "__SECURE__") && keytar) {
-      try {
-        actualPassword = await keytar.getPassword("LiquiDB", id) || ''
-      } catch {}
-    }
-    if (!actualPassword) actualPassword = ''
+    // Use password directly from config
+    let actualPassword = password || ''
     
     const redisCliPath = `${dbRecord.homebrewPath}/redis-cli`
     // Fallback to redis-cli if it doesn't exist in same path
@@ -880,8 +880,34 @@ async function configureRedis(config) {
       HOMEBREW_PREFIX: "/opt/homebrew"
     }
     
-    // Wait a moment for Redis to be fully ready
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // Wait for Redis to be fully ready and accepting connections
+    // Retry connection attempts with exponential backoff
+    let redisReady = false
+    const maxRetries = 10
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Try to ping Redis to check if it's ready
+        execSync(`${redisCliCmd} -h localhost -p ${port} PING`, {
+          env,
+          stdio: 'pipe',
+          timeout: 2000
+        })
+        redisReady = true
+        break
+      } catch (pingError) {
+        if (attempt < maxRetries - 1) {
+          // Wait with exponential backoff: 500ms, 1s, 2s, etc.
+          const waitTime = Math.min(500 * Math.pow(2, attempt), 5000)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+        }
+      }
+    }
+    
+    if (!redisReady) {
+      console.log(`[Redis Config] ${id} Redis not ready after ${maxRetries} attempts, skipping configuration`)
+      console.log(`[Redis Config] ${id} Note: Configuration will be retried on next database restart`)
+      return
+    }
     
     console.log(`[Redis Config] ${id} Configuring Redis authentication`)
     
@@ -935,9 +961,8 @@ async function configureRedis(config) {
           })
           // If this succeeds, no password is set
         } catch {
-          // If this fails, password might be set - try to get it from keychain
-          // But we can't easily remove password without knowing it
-          // So we'll just note that removal requires restart
+          // If this fails, password might be set
+          // Password removal requires restart
           console.log(`[Redis Config] ${id} Password removal requires Redis restart`)
         }
         
@@ -1152,7 +1177,10 @@ async function startDatabaseProcess(config) {
 }
 
 async function startDatabaseProcessAsync(config) {
-  const { id, type, version, port, username, password, containerId } = config
+  const { id, type, version, port, username, password, containerId: configContainerId } = config
+  
+  // Ensure containerId is available - use from config, or fallback to id
+  const containerId = configContainerId || config.containerId || id
   
   try {
     let cmd, args, env = { 
@@ -1227,13 +1255,42 @@ async function startDatabaseProcessAsync(config) {
       // Directory might already exist
     }
     
+    // Create container-specific temp directory for PostgreSQL
+    const tempDir = path.join(dataDir, 'tmp')
+    try {
+      await fs.mkdir(tempDir, { recursive: true })
+    } catch (e) {
+      // Directory might already exist
+    }
+    
     cmd = postgresPath
-    args = ["-D", dataDir, "-p", port.toString(), "-h", "localhost"]
+    args = [
+      "-D", dataDir, 
+      "-p", port.toString(), 
+      "-h", "localhost",
+      "-c", "log_min_messages=warning",  // Reduce log verbosity
+      "-c", "log_line_prefix=%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h ",  // Compact log format
+      "-c", "log_directory=log",  // Store logs in data directory
+      "-c", "log_filename=postgresql-%Y-%m-%d.log",  // Rotate logs daily
+      "-c", "log_rotation_age=1d",  // Rotate logs daily
+      "-c", "log_rotation_size=10MB",  // Rotate logs at 10MB
+      "-c", "max_wal_size=1GB",  // Limit WAL size to prevent unbounded growth
+      "-c", "min_wal_size=80MB",  // Minimum WAL size
+      "-c", "wal_keep_size=500MB",  // Keep only 500MB of WAL files
+      "-c", "temp_file_limit=2GB",  // Limit temporary file usage to 2GB per query
+      "-c", "work_mem=64MB"  // Increase work memory to reduce temp file usage
+    ]
+    
+    // Set TMPDIR environment variable to use container-specific temp directory
+    env.TMPDIR = tempDir
+    env.TMP = tempDir
+    env.TEMP = tempDir
     
     // Check if database directory already exists and is initialized
     const pgVersionPath = `${dataDir}/PG_VERSION`
+    const pgConfigPath = `${dataDir}/postgresql.conf`
     
-    if (!fsSync.existsSync(pgVersionPath)) {
+    if (!fsSync.existsSync(pgVersionPath) || !fsSync.existsSync(pgConfigPath)) {
       try {
         console.log(`[PostgreSQL] Initializing database with ${initdbPath}`)
         // Use spawn instead of execSync to prevent blocking
@@ -1243,24 +1300,47 @@ async function startDatabaseProcessAsync(config) {
           stdio: "pipe"
         })
         
+        let initOutput = ""
+        let initError = ""
+        
+        initProcess.stdout.on("data", (data) => {
+          const output = data.toString()
+          initOutput += output
+          console.log(`[PostgreSQL Init] ${output.trim()}`)
+        })
+        
+        initProcess.stderr.on("data", (data) => {
+          const error = data.toString()
+          initError += error
+          console.log(`[PostgreSQL Init] ${error.trim()}`)
+        })
+        
         await new Promise((resolve, reject) => {
           initProcess.on("exit", (code) => {
             if (code === 0) {
-              console.log(`[PostgreSQL] Database initialized successfully`)
-              resolve()
+              // Verify that postgresql.conf was actually created
+              if (fsSync.existsSync(pgConfigPath)) {
+                console.log(`[PostgreSQL] Database initialized successfully`)
+                resolve()
+              } else {
+                console.error(`[PostgreSQL] Init completed but postgresql.conf not found`)
+                reject(new Error("PostgreSQL initialization failed: postgresql.conf not created"))
+              }
             } else {
-              console.log("PostgreSQL init failed, continuing without initialization")
-              resolve() // Don't reject, just continue
+              console.error(`[PostgreSQL] Init failed with code ${code}`)
+              console.error(`[PostgreSQL] Init output: ${initOutput}`)
+              console.error(`[PostgreSQL] Init error: ${initError}`)
+              reject(new Error(`PostgreSQL initialization failed with exit code ${code}: ${initError || initOutput}`))
             }
           })
           initProcess.on("error", (err) => {
-            console.log("PostgreSQL init error:", err.message)
-            resolve() // Don't reject, just continue
+            console.error(`[PostgreSQL] Init process error:`, err.message)
+            reject(new Error(`PostgreSQL initialization failed: ${err.message}`))
           })
         })
       } catch (e) {
-        console.log("PostgreSQL init failed:", e.message)
-        console.log(`[PostgreSQL] Continuing without initialization - database may still work`)
+        console.error(`[PostgreSQL] Initialization failed:`, e.message)
+        throw new Error(`Failed to initialize PostgreSQL database: ${e.message}`)
       }
     } else {
       console.log(`[PostgreSQL] Database already initialized, skipping initdb`)
@@ -1311,17 +1391,36 @@ async function startDatabaseProcessAsync(config) {
     // Get the MySQL base directory from the mysqld path
     const mysqlBaseDir = mysqldPath.replace('/bin/mysqld', '')
     
+    // Use container-specific temp directory to allow cleanup
+    const tempDir = path.join(dataDir, 'tmp')
+    
+    // Ensure data directory exists first
+    try {
+      await fs.mkdir(dataDir, { recursive: true })
+    } catch (e) {
+      // Directory might already exist
+    }
+    
+    // Ensure temp directory exists (will be recreated after init if needed)
+    try {
+      await fs.mkdir(tempDir, { recursive: true })
+    } catch (e) {
+      // Directory might already exist
+    }
+    
     cmd = mysqldPath
+    
     args = [
       "--port", port.toString(), 
       "--datadir", dataDir, 
       "--bind-address=127.0.0.1",
       `--log-error=${dataDir}/mysql-error.log`,
       `--basedir=${mysqlBaseDir}`,
-      "--tmpdir=/tmp",
+      `--tmpdir=${tempDir}`,  // Use container-specific temp dir instead of /tmp
       `--pid-file=${dataDir}/mysql.pid`,
       `--socket=/tmp/mysql-${containerId}.sock`,
-      "--mysqlx=OFF"  // Disable X Plugin to allow multiple MySQL instances
+      "--mysqlx=OFF",  // Disable X Plugin to allow multiple MySQL instances
+      "--skip-log-bin"  // Disable binary logging to prevent log file growth
     ]
     
     console.log(`[MySQL] Starting MySQL with ID: ${id}, Container ID: ${containerId}, Port: ${port}`)
@@ -1406,6 +1505,13 @@ async function startDatabaseProcessAsync(config) {
                 const mysqlDirExists = await fs.access(`${dataDir}/mysql`).then(() => true).catch(() => false)
                 if (mysqlDirExists) {
                   console.log(`[MySQL] Verified mysql directory exists`)
+                  // Recreate temp directory after initialization (it was deleted during rmdir)
+                  try {
+                    await fs.mkdir(tempDir, { recursive: true })
+                    console.log(`[MySQL] Recreated temp directory: ${tempDir}`)
+                  } catch (e) {
+                    console.warn(`[MySQL] Could not recreate temp directory:`, e.message)
+                  }
                   resolve()
                 } else {
                   console.error(`[MySQL] MySQL directory not found after initialization`)
@@ -1453,6 +1559,13 @@ async function startDatabaseProcessAsync(config) {
       }
     } else {
       console.log(`[MySQL] Database already initialized, skipping initialization`)
+      // Ensure temp directory exists even if database was already initialized
+      try {
+        await fs.mkdir(tempDir, { recursive: true })
+        console.log(`[MySQL] Ensured temp directory exists: ${tempDir}`)
+      } catch (e) {
+        console.warn(`[MySQL] Could not ensure temp directory exists:`, e.message)
+      }
     }
   } else if (type === "mongodb") {
     // Get MongoDB binary path from database record or find it
@@ -1489,8 +1602,26 @@ async function startDatabaseProcessAsync(config) {
       // Directory might already exist
     }
     
+    // Create container-specific temp directory for MongoDB
+    const tempDir = path.join(dataDir, 'tmp')
+    try {
+      await fs.mkdir(tempDir, { recursive: true })
+    } catch (e) {
+      // Directory might already exist
+    }
+    
     cmd = mongodPath
-    args = ["--port", port.toString(), "--dbpath", dataDir, "--bind_ip", "127.0.0.1"]
+    args = [
+      "--port", port.toString(), 
+      "--dbpath", dataDir, 
+      "--bind_ip", "127.0.0.1",
+      "--logpath", path.join(dataDir, "mongod.log"),  // Store logs in data directory
+      "--logappend",  // Append to log file instead of overwriting
+      "--logRotate", "rename",  // Rotate logs by renaming
+      "--setParameter", "logLevel=1",  // Reduce log verbosity (0=off, 1=low, 2=higher)
+      "--smallfiles",  // Use smaller data files to reduce disk usage
+      "--noprealloc"  // Don't preallocate data files
+    ]
   } else if (type === "redis") {
     // Get Redis binary path from database record or find it
     const databases = storage.loadDatabases(app)
@@ -1525,18 +1656,16 @@ async function startDatabaseProcessAsync(config) {
       // Directory might already exist
     }
     
-    // Get password for Redis (check keychain if needed)
-    let redisPassword = password
-    if ((!redisPassword || redisPassword === "__SECURE__") && keytar) {
-      try {
-        const databases = storage.loadDatabases(app)
-        const dbRecord = databases.find(d => d.id === id)
-        if (dbRecord) {
-          redisPassword = await keytar.getPassword("LiquiDB", id) || ''
-        }
-      } catch {}
+    // Use password directly from config
+    let redisPassword = password || ''
+    
+    // Create container-specific temp directory for Redis
+    const tempDir = path.join(redisDataDir, 'tmp')
+    try {
+      await fs.mkdir(tempDir, { recursive: true })
+    } catch (e) {
+      // Directory might already exist
     }
-    if (!redisPassword) redisPassword = ''
     
     cmd = redisPath
     args = [
@@ -1546,7 +1675,12 @@ async function startDatabaseProcessAsync(config) {
       "--dbfilename", `dump-${containerId}.rdb`,
       "--save", "900 1", // Save after 900 seconds if at least 1 key changed
       "--save", "300 10", // Save after 300 seconds if at least 10 keys changed
-      "--save", "60 10000" // Save after 60 seconds if at least 10000 keys changed
+      "--save", "60 10000", // Save after 60 seconds if at least 10000 keys changed
+      "--maxmemory", "512mb",  // Limit memory usage to prevent swap file growth
+      "--maxmemory-policy", "allkeys-lru",  // Evict least recently used keys when memory limit reached
+      "--no-appendfsync-on-rewrite",  // Don't fsync during rewrite to reduce I/O
+      "--auto-aof-rewrite-percentage", "100",  // Rewrite AOF when it's 100% larger than previous
+      "--auto-aof-rewrite-min-size", "64mb"  // Minimum AOF size before rewrite
     ]
     
     // Add --requirepass if password is provided (for persistence)
@@ -1556,6 +1690,18 @@ async function startDatabaseProcessAsync(config) {
     }
   }
 
+  // Ensure temp directory exists right before starting the process (for MySQL and PostgreSQL)
+  if (type === "mysql" || type === "postgresql") {
+    try {
+      const fsPromises = require("fs").promises
+      const tempDir = path.join(storage.getDatabaseDataDir(app, containerId), 'tmp')
+      await fsPromises.mkdir(tempDir, { recursive: true })
+      console.log(`[${type}] Ensured temp directory exists before start: ${tempDir}`)
+    } catch (e) {
+      console.warn(`[${type}] Could not ensure temp directory exists:`, e.message)
+    }
+  }
+  
   // Use stdio: "pipe" to prevent terminal interactions (password prompts, etc.)
   const child = spawn(cmd, args, { 
     env, 
@@ -2072,7 +2218,7 @@ app.whenReady().then(async () => {
     try {
       onboardingCheckCount++
       
-      // @ts-ignore - This will be available in the renderer process
+      // @ts-expect-error - This will be available in the renderer process
       const isOnboardingComplete = await mainWindow?.webContents?.executeJavaScript('window.electron?.isOnboardingComplete ? window.electron.isOnboardingComplete() : false')
       
       if (isOnboardingComplete) {
@@ -2169,6 +2315,122 @@ app.on("activate", () => {
   }
 })
 
+// Cleanup temporary files for a database
+async function cleanupDatabaseTempFiles(app, containerId, dbType) {
+  try {
+    const dataDir = storage.getDatabaseDataDir(app, containerId)
+    const tempDir = path.join(dataDir, 'tmp')
+    
+    // Clean up temp directory
+    if (fs.existsSync(tempDir)) {
+      const files = fs.readdirSync(tempDir)
+      for (const file of files) {
+        try {
+          const filePath = path.join(tempDir, file)
+          const stats = fs.statSync(filePath)
+          // Remove temp files older than 1 hour or larger than 100MB
+          const oneHourAgo = Date.now() - (60 * 60 * 1000)
+          if (stats.mtimeMs < oneHourAgo || stats.size > 100 * 1024 * 1024) {
+            fs.unlinkSync(filePath)
+            console.log(`[Cleanup] Removed temp file: ${filePath}`)
+          }
+        } catch (error) {
+          // Ignore errors deleting individual files
+        }
+      }
+    }
+    
+    // Database-specific cleanup
+    if (dbType === "postgresql") {
+      // Clean up old PostgreSQL log files (keep only last 7 days)
+      const logDir = path.join(dataDir, 'log')
+      if (fs.existsSync(logDir)) {
+        const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
+        const files = fs.readdirSync(logDir)
+        for (const file of files) {
+          if (file.startsWith('postgresql-') && file.endsWith('.log')) {
+            try {
+              const filePath = path.join(logDir, file)
+              const stats = fs.statSync(filePath)
+              if (stats.mtimeMs < sevenDaysAgo) {
+                fs.unlinkSync(filePath)
+                console.log(`[Cleanup] Removed old PostgreSQL log: ${filePath}`)
+              }
+            } catch (error) {
+              // Ignore errors
+            }
+          }
+        }
+      }
+      
+      // Clean up old WAL files if they exceed limits (PostgreSQL manages this, but we can check)
+      const pgWalDir = path.join(dataDir, 'pg_wal')
+      if (fs.existsSync(pgWalDir)) {
+        try {
+          const files = fs.readdirSync(pgWalDir)
+          // If there are more than 32 WAL files (typical for 1GB max_wal_size), clean old ones
+          if (files.length > 32) {
+            const walFiles = files
+              .filter(f => f.match(/^[0-9A-F]{24}$/))
+              .map(f => ({
+                name: f,
+                path: path.join(pgWalDir, f),
+                mtime: fs.statSync(path.join(pgWalDir, f)).mtimeMs
+              }))
+              .sort((a, b) => a.mtime - b.mtime)
+            
+            // Keep only the 32 most recent WAL files
+            const toRemove = walFiles.slice(0, walFiles.length - 32)
+            for (const walFile of toRemove) {
+              try {
+                fs.unlinkSync(walFile.path)
+                console.log(`[Cleanup] Removed old WAL file: ${walFile.name}`)
+              } catch (error) {
+                // Ignore errors - file might be in use
+              }
+            }
+          }
+        } catch (error) {
+          // Ignore errors accessing pg_wal directory
+        }
+      }
+    } else if (dbType === "mongodb") {
+      // Clean up old MongoDB log files (keep only last 7 days)
+      const logFile = path.join(dataDir, 'mongod.log')
+      if (fs.existsSync(logFile)) {
+        try {
+          const stats = fs.statSync(logFile)
+          const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
+          // If log file is older than 7 days and larger than 100MB, rotate it
+          if (stats.mtimeMs < sevenDaysAgo && stats.size > 100 * 1024 * 1024) {
+            const rotatedLog = `${logFile}.${new Date().toISOString().split('T')[0]}`
+            fs.renameSync(logFile, rotatedLog)
+            console.log(`[Cleanup] Rotated MongoDB log: ${rotatedLog}`)
+          }
+        } catch (error) {
+          // Ignore errors
+        }
+      }
+    } else if (dbType === "redis") {
+      // Clean up old Redis AOF files if they exist
+      const aofFile = path.join(dataDir, `appendonly-${containerId}.aof`)
+      if (fs.existsSync(aofFile)) {
+        try {
+          const stats = fs.statSync(aofFile)
+          // If AOF file is larger than 500MB, it should be rewritten (Redis handles this, but we can check)
+          if (stats.size > 500 * 1024 * 1024) {
+            console.log(`[Cleanup] Redis AOF file is large (${(stats.size / 1024 / 1024).toFixed(2)}MB), consider rewriting`)
+          }
+        } catch (error) {
+          // Ignore errors
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`[Cleanup] Error cleaning temp files for ${containerId}:`, error)
+  }
+}
+
 // Cleanup on app termination
 app.on("before-quit", async () => {
   log.info("Stopping all databases...")
@@ -2176,6 +2438,12 @@ app.on("before-quit", async () => {
     try {
       log.debug(`Stopping database ${id}`)
       db.process.kill("SIGTERM")
+      // Clean up temporary files
+      const databases = storage.loadDatabases(app)
+      const dbRecord = databases.find(d => d.id === id)
+      if (dbRecord?.containerId) {
+        await cleanupDatabaseTempFiles(app, dbRecord.containerId, dbRecord.type)
+      }
     } catch (error) {
       console.error(`[App Quit] Error stopping database ${id}:`, error)
     }
@@ -2444,6 +2712,17 @@ ipcMain.handle("check-database-status", async (event, id) => {
 })
 
 ipcMain.handle("stop-database", async (event, id) => {
+  // Clean up temporary files when stopping database
+  try {
+    const databases = storage.loadDatabases(app)
+    const dbRecord = databases.find(d => d.id === id)
+    if (dbRecord?.containerId) {
+      await cleanupDatabaseTempFiles(app, dbRecord.containerId, dbRecord.type)
+    }
+  } catch (error) {
+    console.error(`[Stop DB] Error cleaning temp files for ${id}:`, error)
+  }
+  
   const db = runningDatabases.get(id)
   if (!db) {
     return { success: false, error: "Database not running" }
@@ -2595,13 +2874,8 @@ ipcMain.handle("get-database-system-info", async (event, id) => {
       } else if (db.config.type === "mysql") {
         // For MySQL, get actual database sessions
         try {
-          // Get password from keychain if needed
-          let mysqlPassword = db.config.password
-          if ((!mysqlPassword || mysqlPassword === "__SECURE__") && keytar) {
-            try {
-              mysqlPassword = await keytar.getPassword("LiquiDB", db.config.id) || ''
-            } catch {}
-          }
+          // Use password directly from config
+          let mysqlPassword = db.config.password || ''
           
           // Use --password= or --password="" to avoid password prompt
           // If password is empty, use --password="" 
@@ -3479,12 +3753,7 @@ ipcMain.handle("db:save", async (event, db) => {
       }
     }
     
-    if (db?.password && keytar) {
-      try {
-        await keytar.setPassword("LiquiDB", db.id, db.password)
-        db.password = "__SECURE__"
-      } catch {}
-    }
+    // Password is stored directly in database config (no keychain)
     const saved = storage.upsertDatabase(app, db)
     return saved
   } catch (error) {
@@ -3494,12 +3763,10 @@ ipcMain.handle("db:save", async (event, db) => {
 })
 
 ipcMain.handle("db:getPassword", async (event, id) => {
-  if (!keytar) return null
-  try {
-    return await keytar.getPassword("LiquiDB", id)
-  } catch {
-    return null
-  }
+  // Get password directly from database config
+  const databases = storage.loadDatabases(app)
+  const db = databases.find(d => d.id === id)
+  return db?.password || null
 })
 
 
@@ -3536,21 +3803,8 @@ ipcMain.handle("export-database", async (event, databaseConfig) => {
     // Prepare export data for this specific database
     const exportDb = { ...databaseConfig }
     
-    // Get password from keychain if available
-    if (keytar && databaseConfig.id) {
-      try {
-        const password = await keytar.getPassword("LiquiDB", databaseConfig.id)
-        if (password) {
-          exportDb.password = password
-        } else {
-          exportDb.password = "__SECURE__"
-        }
-      } catch (error) {
-        exportDb.password = "__SECURE__"
-      }
-    } else {
-      exportDb.password = "__SECURE__"
-    }
+    // Don't export password for security
+    exportDb.password = ""
 
     // Remove sensitive runtime data
     delete exportDb.pid
@@ -3741,13 +3995,8 @@ ipcMain.handle("db:updateCredentials", async (event, dbConfig) => {
       return { success: false, error: "Database not found" }
     }
     
-    // Get password from keychain if not provided
-    let actualPassword = password
-    if (!actualPassword && keytar) {
-      try {
-        actualPassword = await keytar.getPassword("LiquiDB", id)
-      } catch {}
-    }
+    // Use password directly from config
+    let actualPassword = password || ''
     
     // Check if database is running
     const db = runningDatabases.get(id)
@@ -3810,12 +4059,7 @@ ipcMain.handle("db:delete", async (event, id) => {
       runningDatabases.delete(id)
     }
     
-    // Delete password from keychain
-    if (keytar) {
-      try {
-        await keytar.deletePassword("LiquiDB", id)
-      } catch {}
-    }
+    // Password removed with database (no keychain cleanup needed)
     
     // Delete database data files
     const fs = require("fs")
@@ -3857,14 +4101,7 @@ ipcMain.handle("db:deleteAll", async (event) => {
     // Get all databases before deleting them
     const databases = storage.loadDatabases(app)
     
-    // Delete all passwords from keychain
-    if (keytar) {
-      for (const db of databases) {
-        try {
-          await keytar.deletePassword("LiquiDB", db.id)
-        } catch {}
-      }
-    }
+    // Passwords removed with databases (no keychain cleanup needed)
     
     // Delete all database data files
     const fs = require("fs")
@@ -3995,6 +4232,7 @@ ipcMain.handle("permissions:check", async (event) => {
     if (!permissionsManager) {
       return { success: false, error: "Permissions manager not initialized" }
     }
+    // Keychain functionality removed
     const result = await permissionsManager.checkAllPermissions()
     return { success: true, data: result }
   } catch (error) {
@@ -4057,6 +4295,10 @@ ipcMain.handle("permissions:request", async (event, permissionName) => {
   try {
     if (!permissionsManager) {
       return { success: false, error: "Permissions manager not initialized" }
+    }
+    // Keychain functionality removed - skip keychain permission requests
+    if (permissionName === 'keychainAccess') {
+      return { success: true, data: { granted: false } }
     }
     const granted = await permissionsManager.requestPermission(permissionName)
     return { success: true, data: { granted } }

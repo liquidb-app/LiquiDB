@@ -5,7 +5,6 @@ import { log } from '../lib/logger'
 import { useTheme } from "next-themes"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Monitor, ExternalLink, Globe, Ban, AlertTriangle, Settings } from "lucide-react"
@@ -17,10 +16,9 @@ import { SunIcon } from "@/components/ui/sun"
 import { MoonIcon } from "@/components/ui/moon"
 import { useAnimatedIconHover } from "@/hooks/use-animated-icon-hover"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { BannedPortsDialog } from "./banned-ports-dialog"
 import { toast } from "sonner"
-import { notifications, notifySuccess, notifyError, notifyInfo, notifyWarning, updateNotificationSetting } from "@/lib/notifications"
+import { notifications as notificationManager, notifySuccess, notifyError, updateNotificationSetting } from "@/lib/notifications"
 
 interface AppSettingsDialogProps {
   open: boolean
@@ -62,7 +60,6 @@ const colorSchemes = [
 
 export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps) {
   const { theme, setTheme, resolvedTheme } = useTheme()
-  const [autoStart, setAutoStart] = useState(false)
   const [notifications, setNotifications] = useState(true)
   const [colorScheme, setColorScheme] = useState("mono")
   const [mounted, setMounted] = useState(false)
@@ -97,7 +94,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     
     try {
       console.log("Loading helper status...")
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.getHelperStatus?.()
       console.log("Helper status result:", result)
       
@@ -144,7 +141,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   // Background status checking without UI updates
   const checkHelperStatusBackground = useCallback(async () => {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.getHelperStatus?.()
       
       if (result?.success && result.data) {
@@ -177,8 +174,8 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     try {
       // Check if we're in a browser environment
       if (typeof window !== 'undefined') {
-        if (notifications && typeof (notifications as any).areNotificationsEnabled === 'function') {
-          const enabled = (notifications as any).areNotificationsEnabled()
+        if (notificationManager && typeof notificationManager.areNotificationsEnabled === 'function') {
+          const enabled = notificationManager.areNotificationsEnabled()
           setNotifications(enabled)
         } else {
           // Fallback to localStorage directly
@@ -227,7 +224,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
 
   const checkAutoLaunchStatus = async () => {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const enabled = await window.electron?.isAutoLaunchEnabled?.()
       setAutoLaunchEnabled(enabled || false)
     } catch (error) {
@@ -239,7 +236,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     setAutoLaunchLoading(true)
     try {
       if (enabled) {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const result = await window.electron?.enableAutoLaunch?.()
         if (result?.success) {
           setAutoLaunchEnabled(true)
@@ -252,7 +249,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
           })
         }
       } else {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const result = await window.electron?.disableAutoLaunch?.()
         if (result?.success) {
           setAutoLaunchEnabled(false)
@@ -265,7 +262,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
           })
         }
       }
-    } catch (error) {
+    } catch {
       notifyError("Failed to update auto-launch setting", {
         description: "Could not connect to system service.",
       })
@@ -274,11 +271,6 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
     }
   }
 
-  const handleColorSchemeChange = (value: string) => {
-    setColorScheme(value)
-    localStorage.setItem("color-scheme", value)
-    document.documentElement.setAttribute("data-color-scheme", value)
-  }
 
   // Preview handlers that apply changes immediately
   const handleThemePreview = (newTheme: string) => {
@@ -312,14 +304,14 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
 
   const handleOpenExternalLink = async (url: string) => {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.openExternalLink?.(url)
       if (!result?.success) {
         notifyError("Failed to open link", {
           description: result?.error || "Could not open the link in your default browser.",
         })
       }
-    } catch (error) {
+    } catch {
       notifyError("Failed to open link", {
         description: "Could not open the link in your default browser.",
       })
@@ -332,7 +324,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   const handleDeleteAllDatabases = async () => {
     setDeleting(true)
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.deleteAllDatabases?.()
       if (result?.success) {
         notifySuccess("All databases deleted", {
@@ -347,7 +339,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
           description: result?.error || "Unknown error occurred",
         })
       }
-    } catch (error) {
+    } catch {
       notifyError("Failed to delete databases", {
         description: "Could not connect to database service",
       })
@@ -360,7 +352,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   const handleHelperAction = async (action: 'install' | 'start' | 'cleanup') => {
     setHelperLoading(true)
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.[`${action}Helper`]?.()
       if (result?.success) {
         const method = result.data?.method === 'direct' ? ' (direct cleanup)' : ''
@@ -385,7 +377,7 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
           description,
         })
       }
-    } catch (error) {
+    } catch {
       notifyError(`Failed to ${action} helper service`, {
         description: "Could not connect to helper service",
       })

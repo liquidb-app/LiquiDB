@@ -4,7 +4,7 @@
  * Manages the background helper service that monitors database processes and port conflicts
  */
 
-const { spawn, exec } = require('child_process')
+const { exec } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const os = require('os')

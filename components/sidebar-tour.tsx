@@ -3,25 +3,18 @@
 import React, { useState, useEffect, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
+// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+// import { Badge } from "@/components/ui/badge"
 import { Kbd } from "@/components/ui/kbd"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarProvider,
-  SidebarTrigger,
 } from "@/components/ui/sidebar"
 import {
   ChevronLeft,
-  ChevronRight,
-  X,
   CheckCircle,
 } from "lucide-react"
 import { notifySuccess, notifyInfo } from "@/lib/notifications"
@@ -55,7 +48,7 @@ const FALLBACK_QUOTES: Quote[] = [
     author: "John Johnson"
   },
   {
-    quote: "Code is like humor. When you have to explain it, it's bad.",
+    quote: "Code is like humor. When you have to explain it, it&apos;s bad.",
     author: "Cory House"
   },
   {
@@ -71,7 +64,7 @@ const FALLBACK_QUOTES: Quote[] = [
     author: "Dennis Ritchie"
   },
   {
-    quote: "Programming isn't about what you know; it's about what you can figure out.",
+    quote: "Programming isn&apos;t about what you know; it&apos;s about what you can figure out.",
     author: "Chris Pine"
   }
 ]
@@ -208,7 +201,7 @@ const tourSteps: TourStep[] = [
           <CheckCircle className="w-6 h-6 text-muted-foreground" />
         </motion.div>
         <p className="text-muted-foreground text-sm">
-          You're now ready to start managing your databases. Create your first database and begin building amazing applications!
+          You&apos;re now ready to start managing your databases. Create your first database and begin building amazing applications!
         </p>
       </div>
     ),
@@ -271,7 +264,7 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
       document.body.removeAttribute('data-tour-mode')
       // Force a reflow to ensure CSS changes take effect
       requestAnimationFrame(() => {
-        document.body.offsetHeight // Force reflow
+        void document.body.offsetHeight // Force reflow
         // Ensure all elements with tour-mode classes reset
         const tourModeElements = document.querySelectorAll('.tour-mode\\:ml-80')
         tourModeElements.forEach((el) => {
@@ -330,68 +323,6 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
     }
   }, [currentStep, isOpen])
 
-  const handleNext = useCallback(() => {
-    if (currentStep < tourSteps.length - 1) {
-      setCurrentStep(currentStep + 1)
-    } else {
-      handleComplete()
-    }
-  }, [currentStep])
-
-  const handlePrevious = useCallback(() => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1)
-    }
-  }, [currentStep])
-
-  const handleSkip = useCallback(() => {
-    notifyInfo("Tour Skipped", {
-      description: "Tour mode disabled. You can now create databases and use all features.",
-      duration: 3000
-    })
-    // Remove tour mode flag before closing
-    document.body.removeAttribute('data-tour-mode')
-    requestAnimationFrame(() => {
-      document.body.offsetHeight // Force reflow
-    })
-    onClose()
-  }, [onClose])
-
-  // Keyboard event handlers
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Don't handle shortcuts when typing in inputs
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-        return
-      }
-
-      switch (event.key) {
-        case 'Enter':
-          event.preventDefault()
-          handleNext()
-          break
-        case 'ArrowRight':
-          event.preventDefault()
-          handleNext()
-          break
-        case 'ArrowLeft':
-        case 'Backspace':
-          event.preventDefault()
-          handlePrevious()
-          break
-        case 'Escape':
-          event.preventDefault()
-          handleSkip()
-          break
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown)
-      return () => document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isOpen, handleNext, handlePrevious, handleSkip])
-
   const handleComplete = useCallback(() => {
     // Trigger confetti with theme colors
     const end = Date.now() + 3 * 1000
@@ -432,10 +363,72 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
     // Remove tour mode flag before closing
     document.body.removeAttribute('data-tour-mode')
     requestAnimationFrame(() => {
-      document.body.offsetHeight // Force reflow
+      void document.body.offsetHeight // Force reflow
     })
     onClose()
   }, [onClose])
+
+  const handleNext = useCallback(() => {
+    if (currentStep < tourSteps.length - 1) {
+      setCurrentStep(currentStep + 1)
+    } else {
+      handleComplete()
+    }
+  }, [currentStep, handleComplete])
+
+  const handlePrevious = useCallback(() => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1)
+    }
+  }, [currentStep])
+
+  const handleSkip = useCallback(() => {
+    notifyInfo("Tour Skipped", {
+      description: "Tour mode disabled. You can now create databases and use all features.",
+      duration: 3000
+    })
+    // Remove tour mode flag before closing
+    document.body.removeAttribute('data-tour-mode')
+    requestAnimationFrame(() => {
+      void document.body.offsetHeight // Force reflow
+    })
+    onClose()
+  }, [onClose])
+
+  // Keyboard event handlers
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Don't handle shortcuts when typing in inputs
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      switch (event.key) {
+        case 'Enter':
+          event.preventDefault()
+          handleNext()
+          break
+        case 'ArrowRight':
+          event.preventDefault()
+          handleNext()
+          break
+        case 'ArrowLeft':
+        case 'Backspace':
+          event.preventDefault()
+          handlePrevious()
+          break
+        case 'Escape':
+          event.preventDefault()
+          handleSkip()
+          break
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown)
+      return () => document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, handleNext, handlePrevious, handleSkip])
 
   const currentStepData = tourSteps[currentStep]
 
@@ -509,18 +502,18 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
               />
               {/* Highlight border around target element */}
               <motion.div
-                className="absolute border border-border rounded-lg"
+                className="absolute border-4 border-primary rounded-lg pointer-events-none"
                 style={{
-                  boxShadow: '0 0 0 1px hsl(var(--border)), 0 0 8px hsl(var(--border) / 0.3)',
+                  boxShadow: '0 0 0 2px hsl(var(--primary) / 0.2)',
                 }}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ 
                   opacity: 1,
                   scale: 1,
-                  x: targetElement.offsetLeft - 4,
-                  y: targetElement.offsetTop - 4,
-                  width: targetElement.offsetWidth + 8,
-                  height: targetElement.offsetHeight + 8
+                  x: targetElement.offsetLeft - 8,
+                  y: targetElement.offsetTop - 8,
+                  width: targetElement.offsetWidth + 16,
+                  height: targetElement.offsetHeight + 16
                 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.3, ease: "easeOut" }}
@@ -588,7 +581,7 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
                           transition={{ duration: 0.2 }}
                           className="text-xs text-muted-foreground/50 leading-relaxed"
                         >
-                          <p className="italic mb-1">"{currentQuote.quote}"</p>
+                          <p className="italic mb-1">&quot;{currentQuote.quote}&quot;</p>
                           <p className="text-right">— {currentQuote.author}</p>
                         </motion.div>
                       ) : null}

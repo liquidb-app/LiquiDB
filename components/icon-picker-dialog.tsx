@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Dialog,
   DialogContent,
@@ -38,7 +38,7 @@ const SavedImageIcon = ({ src, alt, className }: { src: string, alt: string, cla
       // If it's a file:// URL, convert it to data URL
       if (src.startsWith('file://')) {
         try {
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           const result = await window.electron?.convertFileToDataUrl?.(src)
           if (result?.success) {
             setImageSrc(result.dataUrl)
@@ -148,7 +148,7 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
     }
   }, [open])
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (activeTab === "emoji") {
       onSave(selectedIcon)
     } else if (activeTab === "image" && imageUrl) {
@@ -193,7 +193,7 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
       }
     }
     onOpenChange(false)
-  }
+  }, [activeTab, selectedIcon, imageUrl, onSave, onOpenChange])
 
   // Keyboard event handlers
   useEffect(() => {

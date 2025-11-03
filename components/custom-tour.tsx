@@ -3,9 +3,8 @@
 import React, { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { X, ChevronLeft, ChevronRight, Play, Square, Settings, Copy, Check, Zap, Shield, Clock, ArrowRight, Info } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { X, ChevronLeft, ChevronRight, Play, Square, Settings, Check, Zap, Shield, ArrowRight, Info } from "lucide-react"
 import { BoxesIcon } from "@/components/ui/boxes"
 import { Logo } from "@/components/ui/logo"
 import { wasTourRequested, setTourRequested } from "@/lib/preferences"
@@ -224,7 +223,7 @@ export function CustomTour() {
   const [isOpen, setIsOpen] = useState(true) // Tour is open when this component renders
   const [currentStep, setCurrentStep] = useState(0)
   const [targetElement, setTargetElement] = useState<HTMLElement | null>(null)
-  const { theme, resolvedTheme } = useTheme()
+  useTheme() // Keep for theme context
 
   // Set tour mode flag to prevent database creation
   useEffect(() => {
@@ -267,7 +266,7 @@ export function CustomTour() {
     })
     // Remove tour mode flag and force reflow to ensure CSS updates
     document.body.removeAttribute('data-tour-mode')
-    document.body.offsetHeight // Force reflow
+    void document.body.offsetHeight // Force reflow
     setIsOpen(false)
   }
 
@@ -315,7 +314,7 @@ export function CustomTour() {
     setTimeout(() => {
       // Remove tour mode flag and force reflow to ensure CSS updates
       document.body.removeAttribute('data-tour-mode')
-      document.body.offsetHeight // Force reflow
+      void document.body.offsetHeight // Force reflow
       setIsOpen(false)
     }, 500)
   }
@@ -416,7 +415,7 @@ export function CustomTour() {
             // Element is visible
             break
           }
-        } catch (e) {
+        } catch {
           // Invalid selector, continue
           continue
         }
@@ -537,18 +536,17 @@ export function CustomTour() {
         {/* Highlight Box */}
         {targetElement && currentStepData.highlight && (
           <motion.div
-            className="absolute border-4 border-primary rounded-lg pointer-events-none shadow-lg"
+            className="absolute border-4 border-primary rounded-lg pointer-events-none"
             style={{
-              boxShadow: '0 0 0 4px hsl(var(--primary) / 0.3), 0 0 20px hsl(var(--primary) / 0.5)',
-              background: 'hsl(var(--primary) / 0.1)'
+              boxShadow: '0 0 0 2px hsl(var(--primary) / 0.2)',
             }}
             initial={{ opacity: 0 }}
             animate={{ 
               opacity: 1,
-              x: targetElement.offsetLeft - 12,
-              y: targetElement.offsetTop - 12,
-              width: targetElement.offsetWidth + 24,
-              height: targetElement.offsetHeight + 24
+              x: targetElement.offsetLeft - 8,
+              y: targetElement.offsetTop - 8,
+              width: targetElement.offsetWidth + 16,
+              height: targetElement.offsetHeight + 16
             }}
             transition={{ duration: 0.2, ease: "easeOut" }}
           />

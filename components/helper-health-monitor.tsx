@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button"
 import { AlertTriangle, Settings } from "lucide-react"
 import { RotateCCWIcon } from "@/components/ui/rotate-ccw"
 import { useAnimatedIconHover } from "@/hooks/use-animated-icon-hover"
-import { toast } from "sonner"
-import { notifications, notifySuccess, notifyError } from "@/lib/notifications"
+import { notifySuccess, notifyError } from "@/lib/notifications"
 import { isOnboardingComplete } from "@/lib/preferences"
 
 interface HelperHealthMonitorProps {
@@ -26,7 +25,7 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
   const checkHealth = async () => {
     setIsChecking(true)
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.getHelperHealth?.()
       if (result?.success) {
         // Only show as unhealthy if the main app is not running
@@ -55,14 +54,14 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
     setIsReinstalling(true)
     try {
       // First try to uninstall
-      // @ts-ignore
-      const uninstallResult = await window.electron?.uninstallHelper?.()
+      // @ts-expect-error - Electron IPC types not available
+      await window.electron?.uninstallHelper?.()
       
       // Wait a moment
       await new Promise(resolve => setTimeout(resolve, 1000))
       
       // Then reinstall by starting
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const installResult = await window.electron?.startHelper?.()
       
       if (installResult?.success) {
@@ -73,7 +72,7 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
           description: installResult?.error || "Unknown error occurred",
         })
       }
-    } catch (error) {
+    } catch {
       notifyError("Failed to reinstall helper service", {
         description: "Could not connect to helper service",
       })

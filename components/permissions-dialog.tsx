@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -47,14 +47,14 @@ export function PermissionsDialog({
   const missingCritical = criticalPermissions.filter(p => !p.granted)
   const missingOptional = optionalPermissions.filter(p => !p.granted)
 
-  const handleRetry = async () => {
+  const handleRetry = useCallback(async () => {
     setIsRetrying(true)
     try {
       await onRetry()
     } finally {
       setIsRetrying(false)
     }
-  }
+  }, [onRetry])
 
   const handleOpenSettings = () => {
     onOpenSettings()

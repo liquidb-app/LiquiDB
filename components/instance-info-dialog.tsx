@@ -1,17 +1,16 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { X, RefreshCw, Cpu, MemoryStick, Clock } from "lucide-react"
-import { SettingsIcon } from "@/components/ui/settings"
+import { Cpu, MemoryStick } from "lucide-react"
 import { ActivityIcon } from "@/components/ui/activity"
 import { SquareActivityIcon } from "@/components/ui/square-activity"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+// import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { Area, AreaChart, Bar, BarChart, Line, LineChart, Pie, PieChart, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid } from "recharts"
+import { Area, AreaChart, Line, LineChart, Pie, PieChart, Cell, XAxis, YAxis, CartesianGrid } from "recharts"
 
 interface SystemInfo {
   success: boolean
@@ -45,21 +44,21 @@ interface InstanceInfoDialogProps {
 
 export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseName }: InstanceInfoDialogProps) {
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [memoryHistory, setMemoryHistory] = useState<Array<{ time: string, rss: number, vsz: number }>>([])
   const [cpuHistory, setCpuHistory] = useState<Array<{ time: string, cpu: number }>>([])
   const lastMemoryValues = useRef({ rss: 120000000, vsz: 250000000 })
   const lastCpuValue = useRef(1.5)
 
-  const fetchSystemInfo = async () => {
+  const fetchSystemInfo = useCallback(async () => {
     if (!databaseId) return
     
     setLoading(true)
     setError(null)
     
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const info = await window.electron?.getDatabaseSystemInfo?.(databaseId)
       setSystemInfo(info)
       
@@ -70,7 +69,7 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
     } finally {
       setLoading(false)
     }
-  }
+  }, [databaseId])
 
   useEffect(() => {
     if (open && databaseId) {
@@ -164,7 +163,7 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
         setCpuHistory([])
       }
     }
-  }, [open, databaseId])
+  }, [open, databaseId, fetchSystemInfo, generateSmoothCpuData, generateSmoothMemoryData])
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B'

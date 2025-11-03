@@ -34,7 +34,7 @@ DropdownMenuLabel.displayName = DropdownMenuPrimitive.Label.displayName
 export const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item>
->(({ className, inset, ...props }: any, ref) => (
+>(({ className, inset, ...props }, ref) => (
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(

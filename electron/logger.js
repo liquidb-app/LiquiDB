@@ -17,7 +17,7 @@ class Logger {
     return level <= this.level
   }
 
-  formatMessage(level, message, ...args) {
+  formatMessage(level, message, ..._args) {
     const timestamp = new Date().toISOString()
     return `[${timestamp}] [${level}] ${message}`
   }

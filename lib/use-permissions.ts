@@ -30,7 +30,7 @@ export function usePermissions() {
     setError(null)
     
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const [permissionsResult, descriptionsResult] = await Promise.all([
         window.electron?.checkPermissions?.(),
         window.electron?.getPermissionDescriptions?.()
@@ -67,7 +67,7 @@ export function usePermissions() {
 
   const openSystemPreferences = useCallback(async () => {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.openSystemPreferences?.()
       if (!result?.success) {
         throw new Error(result?.error || 'Failed to open system preferences')
@@ -79,7 +79,7 @@ export function usePermissions() {
 
   const openPermissionPage = useCallback(async (permissionType: string) => {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.openPermissionPage?.(permissionType)
       if (!result?.success) {
         throw new Error(result?.error || 'Failed to open permission page')
@@ -94,7 +94,7 @@ export function usePermissions() {
     setError(null)
     
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.requestCriticalPermissions?.()
       if (result?.success) {
         const permissionList: Permission[] = result.data.results.map((result) => {
@@ -122,7 +122,7 @@ export function usePermissions() {
 
   const requestPermission = useCallback(async (permissionName: string) => {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.requestPermission?.(permissionName)
       if (result?.success) {
         // Refresh permissions after requesting

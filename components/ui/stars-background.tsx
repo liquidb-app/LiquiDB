@@ -17,7 +17,7 @@ type StarsBackgroundProps = React.ComponentProps<"div"> & {
 export function StarsBackground({
   factor = 0.05,
   speed = 100,
-  transition,
+  transition: _transition,
   starColor = "#fff",
   pointerEvents = true,
   parallaxFactor = 20,

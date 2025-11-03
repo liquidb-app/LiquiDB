@@ -1,10 +1,9 @@
 "use client"
 
-import React, { useEffect, useState, useRef, useMemo } from "react"
+import React, { useEffect, useState, useRef, useCallback } from "react"
 import { log } from '../lib/logger'
 import { motion, AnimatePresence } from "framer-motion"
-import { Plus, Square, RotateCw, CheckSquare, CheckSquare2, MousePointer2 } from "lucide-react"
-import { CogIcon } from "@/components/ui/cog"
+import { Square, RotateCw } from "lucide-react"
 import { CopyIcon } from "@/components/ui/copy"
 import { PlayIcon } from "@/components/ui/play"
 import { PlusIcon } from "@/components/ui/plus"
@@ -27,19 +26,17 @@ import { InstanceInfoDialog } from "@/components/instance-info-dialog"
 import { HelperHealthMonitor } from "@/components/helper-health-monitor"
 import { PermissionsDialog } from "@/components/permissions-dialog"
 import { usePermissions } from "@/lib/use-permissions"
-import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { toast } from "sonner"
 import { notifySuccess, notifyError, notifyInfo, notifyWarning } from "@/lib/notifications"
-import type { DatabaseContainer } from "@/lib/types"
+import type { DatabaseContainer, DatabaseStatus } from "@/lib/types"
 import { OnboardingOverlay } from "@/components/onboarding"
 import { MaybeStartSidebarTour } from "@/components/sidebar-tour"
 import { ProfileMenuTrigger } from "@/components/profile-menu"
 import { LoadingScreen } from "@/components/loading-screen"
 import { SystemStats } from "@/components/system-stats"
-import { isOnboardingComplete, wasTourRequested, setTourRequested } from "@/lib/preferences"
+import { isOnboardingComplete, setTourRequested } from "@/lib/preferences"
 
 // Helper function to format bytes
 const formatBytes = (bytes: number) => {
@@ -92,6 +89,7 @@ const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, class
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
 
+  // This effect sets up long-lived Electron IPC listeners and should run only once on mount
   useEffect(() => {
     const loadImage = async () => {
       if (!src) return
@@ -106,7 +104,7 @@ const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, class
       // If it's a file:// URL, convert it to data URL
       if (src.startsWith('file://')) {
         try {
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           const result = await window.electron?.convertFileToDataUrl?.(src)
           if (result?.success) {
             setImageSrc(result.dataUrl)
@@ -153,7 +151,6 @@ export default function DatabaseManager() {
   const [showOnboarding, setShowOnboarding] = useState(false) // Don't show onboarding until loading is complete
   const [dashboardOpacity, setDashboardOpacity] = useState(0) // Start with 0, fade in when onboarding finishes
   const [databases, setDatabases] = useState<DatabaseContainer[]>([])
-  const [animationThrottled, setAnimationThrottled] = useState(false)
   
   // Cache for per-port warning state to prevent UI twitching
   const [portWarningCache, setPortWarningCache] = useState<Record<number, {
@@ -164,7 +161,7 @@ export default function DatabaseManager() {
 
   // Update cache only when values actually change to avoid unnecessary re-renders
   const updatePortWarningCache = React.useCallback((portNumber: number, next: { show: boolean; info: { processName: string; pid: string } | null; freeStreak: number }) => {
-    setPortWarningCache(prev => {
+    setPortWarningCache((prev: Record<number, { show: boolean; info: { processName: string; pid: string } | null; freeStreak: number }>): Record<number, { show: boolean; info: { processName: string; pid: string } | null; freeStreak: number }> => {
       const current = prev[portNumber]
       // Null-safe equality for info objects
       const currentInfo = current?.info
@@ -178,34 +175,34 @@ export default function DatabaseManager() {
       if (current && current.show === next.show && current.freeStreak === next.freeStreak && infoEqual) {
         return prev // No change; skip state update
       }
-      return { ...prev, [portNumber]: next }
+      const result: Record<number, { show: boolean; info: { processName: string; pid: string } | null; freeStreak: number }> = { ...prev }
+      result[portNumber] = next
+      return result
     })
   }, [])
   
   // Animated icon hover hooks
-  const settingsIconHover = useAnimatedIconHover()
-  const copyIconHover = useAnimatedIconHover()
   const playIconHover = useAnimatedIconHover()
   const plusIconHover = useAnimatedIconHover()
-  const checkIconHover = useAnimatedIconHover()
   const gripIconHover = useAnimatedIconHover()
-  const debugIconHover = useAnimatedIconHover()
-  const restartIconHover = useAnimatedIconHover()
   
   // Database-specific icon hover hook
   const { createHoverHandlers } = useDatabaseIconHover()
+  
+  // Refs and state that need to be declared before useEffects
+  const databasesRef = useRef<DatabaseContainer[]>([])
+  const lastStatusCheckRef = useRef<Record<string, number>>({})
+  const [lastSystemInfoCheck, setLastSystemInfoCheck] = useState<Record<string, number>>({})
+  const lastSystemInfoCheckRef = useRef<Record<string, number>>({})
   
   // Update databases ref whenever databases state changes
   useEffect(() => {
     databasesRef.current = databases
   }, [databases])
 
-  // Animation throttling based on running databases
   useEffect(() => {
-    const runningDatabases = databases.filter(db => db.status === "running" || db.status === "starting")
-    // Throttle animations when more than 2 databases are running
-    setAnimationThrottled(runningDatabases.length > 2)
-  }, [databases])
+    lastSystemInfoCheckRef.current = lastSystemInfoCheck
+  }, [lastSystemInfoCheck])
 
   // Real-time uptime counter that updates every 5 seconds (reduced frequency)
   useEffect(() => {
@@ -252,10 +249,6 @@ export default function DatabaseManager() {
   const [selectedDatabase, setSelectedDatabase] = useState<DatabaseContainer | null>(null)
   const [conflictingPort, setConflictingPort] = useState<number | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [lastStatusCheck, setLastStatusCheck] = useState<Record<string, number>>({})
-  const lastStatusCheckRef = useRef<Record<string, number>>({})
-  const [lastSystemInfoCheck, setLastSystemInfoCheck] = useState<Record<string, number>>({})
-  const databasesRef = useRef<DatabaseContainer[]>([])
   const [activeTab, setActiveTab] = useState<string>("all")
   const [selectedDatabases, setSelectedDatabases] = useState<Set<string>>(new Set())
   const [showBulkActions, setShowBulkActions] = useState(false)
@@ -263,6 +256,7 @@ export default function DatabaseManager() {
   const [portConflictDialogOpen, setPortConflictDialogOpen] = useState(false)
   const [portConflicts, setPortConflicts] = useState<[number, DatabaseContainer[]][]>([])
   // No port conflict caching - all checks are dynamic
+  const startDatabaseWithErrorHandlingRef = useRef<(id: string) => Promise<void>>(async () => {})
   
   // Permissions
   const {
@@ -272,8 +266,6 @@ export default function DatabaseManager() {
     openSystemPreferences,
     openPermissionPage,
     requestCriticalPermissions,
-    hasAllCriticalPermissions,
-    hasAllPermissions
   } = usePermissions()
   const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false)
 
@@ -324,9 +316,7 @@ export default function DatabaseManager() {
   useEffect(() => {
     const loadBannedPorts = async () => {
       try {
-        // @ts-ignore
         if (window.electron?.getBannedPorts) {
-          // @ts-ignore
           const ports = await window.electron.getBannedPorts()
           setBannedPorts(Array.isArray(ports) ? ports : [])
         } else {
@@ -375,9 +365,9 @@ export default function DatabaseManager() {
   // Function to check for port conflicts dynamically (no caching)
   const checkPortConflict = async (port: number): Promise<{ inUse: boolean; processName?: string; pid?: string }> => {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.checkPortConflict) {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const result = await window.electron.checkPortConflict(port)
         // Only return false if we got a definitive success response
         if (result?.success === true && result?.inUse === false) {
@@ -404,11 +394,6 @@ export default function DatabaseManager() {
     }
   }
 
-  // Function to check if a port has a conflict (dynamic check)
-  const hasPortConflict = async (port: number): Promise<boolean> => {
-    const result = await checkPortConflict(port)
-    return result.inUse
-  }
 
   // Function to get port conflict info (dynamic check)
   const getPortConflictInfo = async (port: number): Promise<{ processName: string; pid: string } | null> => {
@@ -419,7 +404,7 @@ export default function DatabaseManager() {
   // Dynamic port conflict warning component
   const PortConflictWarning = ({ port, databaseId, databaseStatus }: { port: number; databaseId: string; databaseStatus: string }) => {
     const [conflictInfo, setConflictInfo] = useState<{ processName: string; pid: string } | null>(null)
-    const [isChecking, setIsChecking] = useState(false)
+    const [, setIsChecking] = useState(false)
     const freeConfirmationsRef = React.useRef(0) // Track consecutive "free" confirmations
     const hasWarningRef = React.useRef(false) // Track if we currently have a warning displayed
     const cachedState = portWarningCache[port]
@@ -445,10 +430,10 @@ export default function DatabaseManager() {
         setIsChecking(true)
         try {
           // Get the current database to check its PID (use ref to avoid effect restarts)
-          const currentDb = databasesRef.current.find(db => db.id === databaseId)
+          const currentDb = databasesRef.current.find((db: DatabaseContainer) => db.id === databaseId)
           
           // Check for internal conflicts first (faster) using ref snapshot
-          const internalConflict = databasesRef.current.find(otherDb => 
+          const internalConflict = databasesRef.current.find((otherDb: DatabaseContainer) => 
             otherDb.id !== databaseId && 
             otherDb.port === port && 
             (otherDb.status === "running" || otherDb.status === "starting")
@@ -529,8 +514,9 @@ export default function DatabaseManager() {
               }
             }
           }
-        } catch (error) {
-          console.error(`[Port Warning] Error checking port ${port}:`, error)
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          console.error(`[Port Warning] Error checking port ${port}:`, errorMessage)
           // On error, preserve existing warning state - don't clear it
           // The port might still be in use, we just couldn't verify
           // Don't increment confirmation counter on error
@@ -554,15 +540,11 @@ export default function DatabaseManager() {
         freeConfirmationsRef.current = 0
         clearInterval(interval)
       }
-    }, [port, databaseId, databaseStatus])
+    }, [port, databaseId, databaseStatus, cachedState, conflictInfo])
 
-    // Memoize display info to prevent unnecessary recalculations
-    const displayInfo = useMemo(() => {
-      return conflictInfo || cachedState?.info || null
-    }, [conflictInfo, cachedState?.info])
+    const displayInfo = conflictInfo || cachedState?.info || null
 
-    // Memoize warning message to prevent tooltip twitching
-    const warningMessage = useMemo(() => {
+    const warningMessage = (() => {
       if (!displayInfo) return null
 
       const isStopped = databaseStatus === "stopped" || databaseStatus === "stopping"
@@ -575,7 +557,7 @@ export default function DatabaseManager() {
         : isStopped
           ? `Port ${port} is in use by ${displayInfo.processName} (PID: ${displayInfo.pid}). Database won't start.`
           : `Port ${port} is in use by external process: ${displayInfo.processName} (PID: ${displayInfo.pid})`
-    }, [displayInfo, databaseStatus, port])
+    })()
 
     // Only show warning if there's an actual conflict (live or cached)
     const shouldShow = hasWarningRef.current || cachedState?.show
@@ -626,58 +608,12 @@ export default function DatabaseManager() {
 
   // Function to check if a database name already exists
   const isNameDuplicate = (name: string, excludeId?: string): boolean => {
-    return databases.some(db => db.name === name && db.id !== excludeId)
+    return databases.some((db: DatabaseContainer) => db.name === name && db.id !== excludeId)
   }
 
   // Function to check if a container ID already exists
   const isContainerIdDuplicate = (containerId: string, excludeId?: string): boolean => {
-    return databases.some(db => db.containerId === containerId && db.id !== excludeId)
-  }
-
-  // Function to find the next available port starting from a given port
-  const findNextAvailablePort = async (startPort: number, excludeId?: string): Promise<number> => {
-    let port = startPort
-    const maxAttempts = 100 // Prevent infinite loops
-    
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      // Check if port is banned
-      if (isPortBanned(port)) {
-        port++
-        continue
-      }
-      
-      // Check for internal conflicts (other databases in the app)
-      const internalConflict = databases.some(db => 
-        db.id !== excludeId && 
-        db.port === port && 
-        (db.status === "running" || db.status === "starting")
-      )
-      
-      if (internalConflict) {
-        port++
-        continue
-      }
-      
-      // Check for external conflicts (other services)
-      try {
-        const conflictResult = await checkPortConflict(port)
-        if (conflictResult.inUse) {
-          port++
-          continue
-        }
-      } catch (error) {
-        console.error(`[Port Check] Error checking port ${port}:`, error)
-        port++
-        continue
-      }
-      
-      // Port is available
-      return port
-    }
-    
-    // If we couldn't find an available port, return the original port
-    console.warn(`[Port Check] Could not find available port starting from ${startPort}, returning original`)
-    return startPort
+    return databases.some((db: DatabaseContainer) => db.containerId === containerId && db.id !== excludeId)
   }
 
   // Function to fetch system info for running databases
@@ -685,7 +621,7 @@ export default function DatabaseManager() {
   const fetchSystemInfo = async (databaseId: string) => {
     try {
       log.debug(`Fetching system info for database ${databaseId}`)
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const systemInfo = await window.electron?.getDatabaseSystemInfo?.(databaseId)
       
       log.verbose(`Raw system info for ${databaseId}:`, systemInfo)
@@ -754,17 +690,8 @@ export default function DatabaseManager() {
     }
   }
 
-  // Helper function to parse uptime string to seconds
-  const parseUptimeToSeconds = (uptimeStr: string): number => {
-    // Parse format like "00:02:34" or "2:34:56"
-    const parts = uptimeStr.split(':').map(part => parseInt(part, 10))
-    if (parts.length === 3) {
-      return parts[0] * 3600 + parts[1] * 60 + parts[2]
-    }
-    return 0
-  }
-
   // Main useEffect to load databases and set up monitoring
+  // This effect wires Electron IPC listeners and long-running timers; it intentionally runs once on mount
   useEffect(() => {
     let isMounted = true
     let statusInterval: NodeJS.Timeout | null = null
@@ -778,7 +705,6 @@ export default function DatabaseManager() {
       const maxRetries = 3
       
       // Check if Electron is available
-      // @ts-ignore
       if (!window.electron) {
         console.log("[Debug] Electron not available yet, retrying in 1 second")
         setTimeout(() => load(retryCount), 1000)
@@ -788,7 +714,7 @@ export default function DatabaseManager() {
       // Check if databases.json file exists
       let fileExists = false
       try {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const fileCheck = await window.electron?.checkDatabasesFile?.()
         fileExists = fileCheck?.exists || false
         
@@ -804,9 +730,9 @@ export default function DatabaseManager() {
       
       // Try to load databases with retry logic
       try {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.getDatabases) {
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           const list = await window.electron.getDatabases()
           const databases = Array.isArray(list) ? list : []
           
@@ -836,14 +762,14 @@ export default function DatabaseManager() {
             
             // Clean up any dead processes first
             try {
-              // @ts-ignore
+              // @ts-expect-error - Electron IPC types not available
               if (window.electron?.cleanupDeadProcesses) {
-                // @ts-ignore
+                // @ts-expect-error - Electron IPC types not available
                 const cleanupResult = await window.electron.cleanupDeadProcesses()
                 if (cleanupResult.success && (cleanupResult.cleanedProcesses > 0 || cleanupResult.updatedStatuses > 0)) {
                   console.log(`[Cleanup] Cleaned up ${cleanupResult.cleanedProcesses} dead processes, updated ${cleanupResult.updatedStatuses} statuses`)
                   // Reload databases after cleanup
-                  // @ts-ignore
+                  // @ts-expect-error - Electron IPC types not available
                   const cleanedList = await window.electron.getDatabases()
                   const cleanedDatabases = Array.isArray(cleanedList) ? cleanedList : []
                   setDatabases(cleanedDatabases)
@@ -860,7 +786,7 @@ export default function DatabaseManager() {
           // Force immediate status check for all databases
           const checkDatabasesFileExists = async () => {
             try {
-              // @ts-ignore
+              // @ts-expect-error - Electron IPC types not available
               const fileCheck = await window.electron?.checkDatabasesFile?.()
               if (!fileCheck?.exists) {
                 console.log("[Storage] databases.json file deleted, clearing dashboard")
@@ -910,12 +836,12 @@ export default function DatabaseManager() {
                 
                 // Process status checks sequentially to prevent state update accumulation
                 // Batch all updates into a single setState call
-                const statusUpdates: Array<{id: string, status: string, pid?: number}> = []
+                const statusUpdates: Array<{id: string, status: DatabaseStatus, pid?: number}> = []
                 
                 for (const db of databasesToCheck) {
                   if (!isMounted) break
                   try {
-                    // @ts-ignore
+                    // @ts-expect-error - Electron IPC types not available
                     const status = await window.electron?.checkDatabaseStatus?.(db.id)
                     
                     if (status?.status && status.status !== db.status && isMounted) {
@@ -959,7 +885,7 @@ export default function DatabaseManager() {
                         // Fetch system info for newly running databases
                         if (update.status === "running" && db.status !== "running") {
                           const now = Date.now()
-                          const lastCheck = lastSystemInfoCheck[db.id] || 0
+                          const lastCheck = lastSystemInfoCheckRef.current[db.id] || 0
                           // Only fetch system info every 30 seconds to avoid excessive calls
                           if (now - lastCheck > 30000) {
                             setLastSystemInfoCheck(prevCheck => ({ ...prevCheck, [db.id]: now }))
@@ -971,7 +897,7 @@ export default function DatabaseManager() {
                             })
                           }
                         }
-                        return { ...db, status: update.status as any, pid: update.pid || db.pid }
+                        return { ...db, status: update.status as DatabaseStatus, pid: update.pid || db.pid }
                       }
                       return db
                     })
@@ -1012,7 +938,7 @@ export default function DatabaseManager() {
                   
                   const db = currentDatabases[i]
                   const now = Date.now()
-                  const lastCheck = lastSystemInfoCheck[db.id] || 0
+                  const lastCheck = lastSystemInfoCheckRef.current[db.id] || 0
                   
                   // Update system info every 20 seconds for live updates (reduced frequency to save CPU)
                   if (now - lastCheck > 20000) {
@@ -1043,11 +969,11 @@ export default function DatabaseManager() {
           systemInfoInterval = startSystemInfoMonitoring()
           
           // Set up real-time status change listener from electron main process
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.onDatabaseStatusChanged) {
             log.debug(`Setting up database status listener`)
-            // @ts-ignore
-            window.electron.onDatabaseStatusChanged((data: { id: string, status: string, error?: string, exitCode?: number, ready?: boolean, pid?: number }) => {
+            // @ts-expect-error - Electron IPC types not available
+            window.electron.onDatabaseStatusChanged((data: { id: string, status: DatabaseStatus, error?: string, exitCode?: number, ready?: boolean, pid?: number }) => {
               if (!isMounted) return
               
               log.debug(`Database ${data.id} status changed to ${data.status}${data.ready ? ' (ready)' : ''} (PID: ${data.pid})`)
@@ -1071,12 +997,6 @@ export default function DatabaseManager() {
               
               // Update the last processed time (both ref and state)
               lastStatusCheckRef.current[eventKey] = now
-              if (isMounted) {
-                setLastStatusCheck(prev => ({
-                  ...prev,
-                  [eventKey]: now
-                }))
-              }
               
               log.debug(`Processing event: ${eventKey}`)
               
@@ -1086,7 +1006,7 @@ export default function DatabaseManager() {
                   const updated = prev.map(db => 
                     db.id === data.id ? { 
                       ...db, 
-                      status: data.status as any, 
+                      status: data.status, 
                       pid: data.pid,
                       // Set lastStarted timestamp when database starts running
                       lastStarted: data.status === "running" ? Date.now() : db.lastStarted,
@@ -1110,7 +1030,7 @@ export default function DatabaseManager() {
                           id: `db-failed-start-${db.id}-${now}`, // Unique ID to prevent duplicates
                           action: {
                             label: "Retry",
-                            onClick: () => startDatabaseWithErrorHandling(data.id)
+                            onClick: () => startDatabaseWithErrorHandlingRef.current(data.id)
                           }
                         })
                       } else {
@@ -1119,7 +1039,7 @@ export default function DatabaseManager() {
                           id: `db-stopped-${db.id}-${now}`, // Unique ID to prevent duplicates
                           action: {
                             label: "Restart",
-                            onClick: () => startDatabaseWithErrorHandling(data.id)
+                            onClick: () => startDatabaseWithErrorHandlingRef.current(data.id)
                           }
                         })
                       }
@@ -1151,24 +1071,24 @@ export default function DatabaseManager() {
           }
           
           // Set up auto-start event listeners (remove existing listeners first to prevent leaks)
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.removeAllListeners) {
-            // @ts-ignore
+            // @ts-expect-error - Electron IPC types not available
             window.electron.removeAllListeners('auto-start-port-conflicts')
-            // @ts-ignore
+            // @ts-expect-error - Electron IPC types not available
             window.electron.removeAllListeners('auto-start-completed')
           }
           
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.onAutoStartPortConflicts) {
-            // @ts-ignore
+            // @ts-expect-error - Electron IPC types not available
             window.electron.onAutoStartPortConflicts((event, data) => {
               if (!isMounted) return
               
               console.log(`[Auto-start] Port conflicts detected:`, data.conflicts)
               
               // Show individual conflict notifications
-              data.conflicts.forEach((conflict: any) => {
+              data.conflicts.forEach((conflict: { databaseName: string, originalPort: number, newPort: number, conflictingDatabase: string }) => {
                 notifyWarning("Auto-start Port Conflict Resolved", {
                   description: `${conflict.databaseName} port changed from ${conflict.originalPort} to ${conflict.newPort} due to conflict with ${conflict.conflictingDatabase}`,
                   duration: 8000,
@@ -1177,9 +1097,9 @@ export default function DatabaseManager() {
             })
           }
           
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.onAutoStartCompleted) {
-            // @ts-ignore
+            // @ts-expect-error - Electron IPC types not available
             window.electron.onAutoStartCompleted((event, data) => {
               if (!isMounted) return
               
@@ -1247,13 +1167,13 @@ export default function DatabaseManager() {
         })
         pendingTimeouts.clear()
         
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.removeAllListeners) {
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           window.electron.removeAllListeners('database-status-changed')
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           window.electron.removeAllListeners('auto-start-port-conflicts')
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           window.electron.removeAllListeners('auto-start-completed')
         }
       }
@@ -1281,14 +1201,14 @@ export default function DatabaseManager() {
 
   const checkDatabasesFileExists = async () => {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const fileCheck = await window.electron?.checkDatabasesFile?.()
       if (fileCheck && !fileCheck.exists) {
         console.log("[Storage] databases.json file missing during runtime, clearing dashboard")
         setDatabases([])
         
         // Recreate the file
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const recreateResult = await window.electron?.recreateDatabasesFile?.()
         if (recreateResult?.success) {
           console.log("[Storage] Recreated databases.json file")
@@ -1420,7 +1340,7 @@ export default function DatabaseManager() {
         // Use the existing startDatabaseWithErrorHandling function
         // This function handles the async startup properly
         // Note: Port conflicts are already checked upfront, so this should succeed
-        await startDatabaseWithErrorHandling(id)
+        await startDatabaseWithErrorHandlingRef.current(id)
         
         // Since startDatabaseWithErrorHandling doesn't return a value,
         // we'll assume success if no error was thrown
@@ -1494,7 +1414,7 @@ export default function DatabaseManager() {
           await new Promise(resolve => setTimeout(resolve, 500 * index))
         }
 
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const result = await window.electron?.stopDatabase?.(db.id)
         return { id: db.id, success: result?.success || false, error: result?.error }
       } catch (error) {
@@ -1543,7 +1463,7 @@ export default function DatabaseManager() {
     })
   }
 
-  const getVisibleDatabases = () => {
+  const getVisibleDatabases = useCallback(() => {
     switch (activeTab) {
       case "active":
         return databases.filter(db => db.status === "running" || db.status === "starting")
@@ -1554,7 +1474,7 @@ export default function DatabaseManager() {
       default:
         return []
     }
-  }
+  }, [activeTab, databases])
 
   const selectAllDatabases = () => {
     const visibleDatabases = getVisibleDatabases()
@@ -1634,7 +1554,7 @@ export default function DatabaseManager() {
     })
     
     // Find ports with multiple databases
-    const conflicts = Array.from(portGroups.entries()).filter(([port, dbs]) => dbs.length > 1)
+    const conflicts = Array.from(portGroups.entries()).filter(([, dbs]) => dbs.length > 1)
     return conflicts
   }
 
@@ -1664,7 +1584,7 @@ export default function DatabaseManager() {
       }
       
       // Skip if it's a conflicting database (different from the selected one)
-      const isConflicting = portConflicts.some(([port, dbs]) => 
+      const isConflicting = portConflicts.some(([, dbs]) => 
         dbs.some(conflictDb => conflictDb.id === id && conflictDb.id !== dbId)
       )
       
@@ -1728,7 +1648,6 @@ export default function DatabaseManager() {
 
     const load = async () => {
       // Check if Electron is available
-      // @ts-ignore
       if (!window.electron) {
         console.log("[Debug] Electron not available yet, retrying in 1 second")
         const timeoutId = setTimeout(load, 1000)
@@ -1738,14 +1657,14 @@ export default function DatabaseManager() {
       
       // Check if databases.json file exists
       try {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const fileCheck = await window.electron?.checkDatabasesFile?.()
         if (fileCheck && !fileCheck.exists) {
           console.log("[Storage] databases.json file missing, clearing dashboard")
           if (isMounted) setDatabases([])
           
           // Recreate the file
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           const recreateResult = await window.electron?.recreateDatabasesFile?.()
           if (recreateResult?.success) {
             console.log("[Storage] Recreated databases.json file")
@@ -1756,9 +1675,9 @@ export default function DatabaseManager() {
         console.error("[Storage] Error checking databases file:", error)
       }
       
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.getDatabases) {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const list = await window.electron.getDatabases()
         const databases = Array.isArray(list) ? list : []
         
@@ -1773,10 +1692,10 @@ export default function DatabaseManager() {
         
         // Save updated databases if any were fixed
         if (updatedDatabases.some((db, index) => db.status !== databases[index]?.status)) {
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.saveDatabase) {
             for (const db of updatedDatabases) {
-              // @ts-ignore
+              // @ts-expect-error - Electron IPC types not available
               await window.electron.saveDatabase(db)
             }
           }
@@ -1790,7 +1709,7 @@ export default function DatabaseManager() {
           if (!isMounted) return
           for (const db of updatedDatabases) {
             try {
-              // @ts-ignore
+              // @ts-expect-error - Electron IPC types not available
               const status = await window.electron?.checkDatabaseStatus?.(db.id)
               if (status?.status && status.status !== db.status && isMounted) {
                 console.log(`[App Load] Database ${db.id} is actually ${status.status}`)
@@ -1798,7 +1717,7 @@ export default function DatabaseManager() {
                   d.id === db.id ? { ...d, status: status.status } : d
                 ))
               }
-            } catch (e) {
+            } catch {
               // Ignore errors during initial load
             }
           }
@@ -1851,7 +1770,7 @@ export default function DatabaseManager() {
                 databasesToCheck.forEach(async (db) => {
                   if (!isMounted) return
                   try {
-                    // @ts-ignore
+                    // @ts-expect-error - Electron IPC types not available
                     const status = await window.electron?.checkDatabaseStatus?.(db.id)
                     
                     if (status?.status && status.status !== db.status && isMounted) {
@@ -1903,11 +1822,11 @@ export default function DatabaseManager() {
         statusInterval = startStatusMonitoring()
         
         // Set up real-time status change listener from electron main process
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.onDatabaseStatusChanged) {
           console.log(`[Listener Setup] Setting up database status listener`)
-          // @ts-ignore
-          window.electron.onDatabaseStatusChanged((data: { id: string, status: string, error?: string, exitCode?: number, ready?: boolean, pid?: number }) => {
+          // @ts-expect-error - Electron IPC types not available
+          window.electron.onDatabaseStatusChanged((data: { id: string, status: DatabaseStatus, error?: string, exitCode?: number, ready?: boolean, pid?: number }) => {
             if (!isMounted) return
             
             console.log(`[Real-time Status] Database ${data.id} status changed to ${data.status}${data.ready ? ' (ready)' : ''} (PID: ${data.pid})`)
@@ -1931,12 +1850,6 @@ export default function DatabaseManager() {
             
             // Update the last processed time (both ref and state)
             lastStatusCheckRef.current[eventKey] = now
-            if (isMounted) {
-              setLastStatusCheck(prev => ({
-                ...prev,
-                [eventKey]: now
-              }))
-            }
             
             console.log(`[Real-time Status] Processing event: ${eventKey}`)
             
@@ -1944,7 +1857,7 @@ export default function DatabaseManager() {
             if (isMounted) {
               setDatabases(prev => {
                 const updated = prev.map(db => 
-                  db.id === data.id ? { ...db, status: data.status as any, pid: data.pid } : db
+                  db.id === data.id ? { ...db, status: data.status as DatabaseStatus, pid: data.pid } : db
                 )
                 
                 // Show notifications only for actual status changes
@@ -1959,7 +1872,7 @@ export default function DatabaseManager() {
                           id: `db-failed-start-${db.id}-${now}`, // Unique ID to prevent duplicates
                           action: {
                             label: "Retry",
-                            onClick: () => startDatabaseWithErrorHandling(data.id)
+                            onClick: () => startDatabaseWithErrorHandlingRef.current(data.id)
                           }
                         })
                       } else {
@@ -1968,7 +1881,7 @@ export default function DatabaseManager() {
                           id: `db-failed-start-${db.id}-${now}`, // Unique ID to prevent duplicates
                           action: {
                             label: "Retry",
-                            onClick: () => startDatabaseWithErrorHandling(data.id)
+                            onClick: () => startDatabaseWithErrorHandlingRef.current(data.id)
                           }
                         })
                       }
@@ -2015,25 +1928,25 @@ export default function DatabaseManager() {
     }
     
     // Set up auto-start port conflict listener (remove existing listeners first to prevent leaks)
-    // @ts-ignore
+    // @ts-expect-error - Electron IPC types not available
     if (window.electron?.removeAllListeners) {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       window.electron.removeAllListeners('auto-start-port-conflicts')
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       window.electron.removeAllListeners('auto-start-completed')
     }
     
-    // @ts-ignore
+    // @ts-expect-error - Electron IPC types not available
     if (window.electron?.onAutoStartPortConflicts) {
       console.log(`[Listener Setup] Setting up auto-start port conflicts listener`)
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       window.electron.onAutoStartPortConflicts((event, data) => {
         if (!isMounted) return
         
         console.log(`[Auto-start] Port conflicts detected:`, data.conflicts)
         
         // Show notification for each port conflict
-        data.conflicts.forEach((conflict: any) => {
+        data.conflicts.forEach((conflict: { databaseName: string, originalPort: number, newPort: number, conflictingDatabase: string }) => {
           notifyWarning("Auto-start Port Conflict Resolved", {
             description: `${conflict.databaseName} port changed from ${conflict.originalPort} to ${conflict.newPort} due to conflict with ${conflict.conflictingDatabase}`,
             duration: 8000,
@@ -2043,10 +1956,10 @@ export default function DatabaseManager() {
     }
     
     // Set up auto-start completion listener
-    // @ts-ignore
+    // @ts-expect-error - Electron IPC types not available
     if (window.electron?.onAutoStartCompleted) {
       console.log(`[Listener Setup] Setting up auto-start completion listener`)
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       window.electron.onAutoStartCompleted((event, data) => {
         if (!isMounted) return
         
@@ -2088,15 +2001,13 @@ export default function DatabaseManager() {
       })
       pendingTimeouts.clear()
       
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.removeDatabaseStatusListener) {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         window.electron.removeDatabaseStatusListener()
       }
     }
   }, []) // Empty dependency array is correct here
-
-
   // Clear selections when switching tabs to avoid confusion
   useEffect(() => {
     if (showBulkActions) {
@@ -2109,7 +2020,7 @@ export default function DatabaseManager() {
         setSelectedDatabases(new Set())
       }
     }
-  }, [activeTab, showBulkActions, selectedDatabases])
+  }, [activeTab, showBulkActions, selectedDatabases, getVisibleDatabases])
 
   const handleAddDatabase = async (database: DatabaseContainer) => {
     // Check for duplicate name
@@ -2120,23 +2031,19 @@ export default function DatabaseManager() {
       return
     }
 
-    // Check for duplicate container ID
-    if (isContainerIdDuplicate(database.containerId)) {
-      notifyError("Container ID already exists", {
-        description: `A database with container ID "${database.containerId}" already exists. Please try again.`,
-      })
+    const conflict = await getPortConflictInfo(database.port)
+
+    if (conflict) {
+      setConflictingPort(database.port)
+      setPortConflictDialogOpen(true)
       return
     }
 
-    // Save to backend with validation
     try {
-      // @ts-ignore
-      const result = await window.electron?.saveDatabase?.(database)
-      if (result && result.success === false) {
-        notifyError("Failed to save database", {
-          description: result.error || "An error occurred while saving the database.",
-        })
-        return
+      // @ts-expect-error - Electron IPC types not available
+      if (window.electron?.saveDatabase) {
+        // @ts-expect-error - Electron IPC types not available
+        await window.electron.saveDatabase(database)
       }
     } catch (error) {
       console.error("[Database Save] Error saving database:", error)
@@ -2227,14 +2134,14 @@ export default function DatabaseManager() {
             // Update the database port and save it
             const updatedDb = { ...targetDb, port: suggestedPort }
             try {
-              // @ts-ignore
+              // @ts-expect-error - Electron IPC types not available
               await window.electron?.saveDatabase?.(updatedDb)
               setDatabases(prev => prev.map(db => db.id === id ? updatedDb : db))
               notifySuccess("Port Updated", {
                 description: `Database port changed to ${suggestedPort}`,
               })
               // Start the database with the new port
-              await startDatabaseWithErrorHandling(id)
+              await startDatabaseWithErrorHandlingRef.current(id)
             } catch (error) {
               console.log(`[Port Update] Error updating database port:`, error)
               notifyError("Failed to update port", {
@@ -2291,7 +2198,7 @@ export default function DatabaseManager() {
     })
 
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.startDatabase?.(targetDb)
       
       if (result?.success) {
@@ -2309,7 +2216,7 @@ export default function DatabaseManager() {
                   description: `${targetDb.name} took too long to start. Please check the logs.`,
                   action: {
                     label: "Retry",
-                    onClick: () => startDatabaseWithErrorHandling(id)
+                    onClick: () => startDatabaseWithErrorHandlingRef.current(id)
                   }
                 })
                 return { ...db, status: "stopped" as const }
@@ -2329,23 +2236,23 @@ export default function DatabaseManager() {
           )
         )
         // Provide more specific error messages for common failure scenarios
-        let errorMessage = result?.error || "Unknown error occurred"
-        let errorDescription = `${targetDb.name}: ${errorMessage}`
-        
-        // Handle specific error cases
-        if (errorMessage.includes("port") || errorMessage.includes("Port")) {
-          errorDescription = `${targetDb.name}: Port ${targetDb.port} is already in use. Please choose a different port.`
-        } else if (errorMessage.includes("permission") || errorMessage.includes("Permission")) {
-          errorDescription = `${targetDb.name}: Permission denied. Please check your system permissions.`
-        } else if (errorMessage.includes("not found") || errorMessage.includes("command not found")) {
-          errorDescription = `${targetDb.name}: Database software not found. Please install ${targetDb.type} first.`
-        }
+        const errorMessage = result?.error || "Unknown error occurred"
+        const errorDescription = (() => {
+          if (errorMessage.includes("port") || errorMessage.includes("Port")) {
+            return `${targetDb.name}: Port ${targetDb.port} is already in use. Please choose a different port.`
+          } else if (errorMessage.includes("permission") || errorMessage.includes("Permission")) {
+            return `${targetDb.name}: Permission denied. Please check your system permissions.`
+          } else if (errorMessage.includes("not found") || errorMessage.includes("command not found")) {
+            return `${targetDb.name}: Database software not found. Please install ${targetDb.type} first.`
+          }
+          return `${targetDb.name}: ${errorMessage}`
+        })()
         
         notifyError("Failed to start database", {
           description: errorDescription,
           action: {
             label: "Retry",
-            onClick: () => startDatabaseWithErrorHandling(id)
+            onClick: () => startDatabaseWithErrorHandlingRef.current(id)
           }
         })
       }
@@ -2373,11 +2280,13 @@ export default function DatabaseManager() {
         description: `${targetDb.name}: ${errorDescription}`,
         action: {
           label: "Retry",
-          onClick: () => startDatabaseWithErrorHandling(id)
+          onClick: () => startDatabaseWithErrorHandlingRef.current(id)
         }
       })
     }
   }
+
+  startDatabaseWithErrorHandlingRef.current = startDatabaseWithErrorHandling
 
   const handleStartStop = async (id: string) => {
     const targetDb = databases.find((db) => db.id === id)
@@ -2402,14 +2311,14 @@ export default function DatabaseManager() {
               // Update the database port and save it
               const updatedDb = { ...targetDb, port: suggestedPort }
               try {
-                // @ts-ignore
+                // @ts-expect-error - Electron IPC types not available
                 await window.electron?.saveDatabase?.(updatedDb)
                 setDatabases(prev => prev.map(db => db.id === id ? updatedDb : db))
                 notifySuccess("Port Updated", {
                   description: `Database port changed to ${suggestedPort}`,
                 })
                 // Start the database with the new port
-                await startDatabaseWithErrorHandling(id)
+                await startDatabaseWithErrorHandlingRef.current(id)
               } catch (error) {
                 console.log(`[Port Update] Error updating database port:`, error)
                 notifyError("Failed to update port", {
@@ -2425,7 +2334,7 @@ export default function DatabaseManager() {
         console.log(`[Port Conflict] Starting database ${id} on port ${targetDb.port} despite conflict with ${conflictingDb.name}`)
       }
 
-      await startDatabaseWithErrorHandling(id)
+      await startDatabaseWithErrorHandlingRef.current(id)
     } else {
       // Stop the database
       // Set status to stopping first
@@ -2436,7 +2345,7 @@ export default function DatabaseManager() {
       )
 
       try {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const result = await window.electron?.stopDatabase?.(id)
         if (result?.success) {
           setDatabases((prev) =>
@@ -2462,7 +2371,7 @@ export default function DatabaseManager() {
             description: result?.error || "Unknown error occurred",
           })
         }
-      } catch (error) {
+      } catch {
         // If stop failed, revert to running status
         setDatabases((prev) =>
           prev.map((db) =>
@@ -2476,43 +2385,11 @@ export default function DatabaseManager() {
     }
   }
 
-  const handleRestart = async (id: string) => {
-    const db = databases.find((d) => d.id === id)
-    if (!db || db.status !== "running") return
-
-    notifyInfo("Restarting database", {
-      description: `${db.name} is restarting...`,
-    })
-
-    try {
-      // Stop the database first
-      // @ts-ignore
-      const stopResult = await window.electron?.stopDatabase?.(id)
-      
-      if (stopResult?.success) {
-        // Wait a moment for the process to fully stop
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        
-        // Start the database again - this will trigger the real-time listener notifications
-        await startDatabaseWithErrorHandling(id)
-      } else {
-        notifyError("Failed to restart database", {
-          description: "Could not stop the database for restart",
-        })
-      }
-    } catch (error) {
-      console.log(`[Restart] Error restarting database ${id}:`, error)
-      notifyError("Failed to restart database", {
-        description: "Could not restart the database",
-      })
-    }
-  }
-
   const handleDelete = (id: string) => {
     const db = databases.find((d) => d.id === id)
-    // @ts-ignore
+    // @ts-expect-error - Electron IPC types not available
     if (window.electron?.deleteDatabase) {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       window.electron.deleteDatabase(id)
     }
     setDatabases(databases.filter((d) => d.id !== id))
@@ -2559,7 +2436,7 @@ export default function DatabaseManager() {
     
     // Save the updated database to Electron storage with validation
     try {
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.saveDatabase?.(updatedDatabase)
       if (result && result.success === false) {
         notifyError("Failed to update database", {
@@ -2585,7 +2462,7 @@ export default function DatabaseManager() {
 
       try {
         // Stop the database first
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const stopResult = await window.electron?.stopDatabase?.(updatedDatabase.id)
         
         if (stopResult?.success) {
@@ -2598,7 +2475,7 @@ export default function DatabaseManager() {
           await new Promise(resolve => setTimeout(resolve, 2000))
           
           // Start the database with the new port
-          await startDatabaseWithErrorHandling(updatedDatabase.id)
+          await startDatabaseWithErrorHandlingRef.current(updatedDatabase.id)
         } else {
           notifyError("Failed to restart database", {
             description: "Could not stop the database for port change",
@@ -2629,7 +2506,7 @@ export default function DatabaseManager() {
     }
   }
 
-  const handleResolvePortConflict = (newPort: number) => {
+  const handleResolvePortConflict = () => {
     setConflictingPort(null)
     setPortConflictDialogOpen(false)
   }
@@ -2649,7 +2526,7 @@ export default function DatabaseManager() {
 
     // If database is not running, start it instead of restarting
     if (db.status === "stopped") {
-      await startDatabaseWithErrorHandling(id)
+      await startDatabaseWithErrorHandlingRef.current(id)
       return
     }
 
@@ -2661,7 +2538,7 @@ export default function DatabaseManager() {
 
       try {
         // Stop the database first
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const stopResult = await window.electron?.stopDatabase?.(id)
         
         if (stopResult?.success) {
@@ -2669,7 +2546,7 @@ export default function DatabaseManager() {
           await new Promise(resolve => setTimeout(resolve, 2000))
           
           // Start the database again - this will trigger the real-time listener notifications
-          await startDatabaseWithErrorHandling(id)
+          await startDatabaseWithErrorHandlingRef.current(id)
         } else {
           notifyError("Failed to restart database", {
             description: "Could not stop the database for restart",
@@ -2734,7 +2611,7 @@ export default function DatabaseManager() {
                       onMouseEnter={playIconHover.onMouseEnter}
                       onMouseLeave={playIconHover.onMouseLeave}
                     >
-                      <PlayIcon ref={playIconHover.iconRef} size={12} />
+                      <PlayIcon ref={playIconHover.iconRef as React.RefObject<import("@/components/ui/play").PlayIconHandle>} size={12} />
                       Start All
                     </Button>
                   )}
@@ -2775,7 +2652,7 @@ export default function DatabaseManager() {
                 onMouseEnter={gripIconHover.onMouseEnter}
                 onMouseLeave={gripIconHover.onMouseLeave}
               >
-                <GripIcon ref={gripIconHover.iconRef} size={16} className={`transition-transform duration-200 ${showBulkActions ? 'rotate-12' : ''}`} />
+                <GripIcon ref={gripIconHover.iconRef as React.RefObject<import("@/components/ui/grip").GripIconHandle>} size={16} className={`transition-transform duration-200 ${showBulkActions ? 'rotate-12' : ''}`} />
               </Button>
             )}
             <Button
@@ -2800,7 +2677,7 @@ export default function DatabaseManager() {
               onMouseEnter={plusIconHover.onMouseEnter}
               onMouseLeave={plusIconHover.onMouseLeave}
             >
-              <PlusIcon ref={plusIconHover.iconRef} size={16} />
+              <PlusIcon ref={plusIconHover.iconRef as React.RefObject<import("@/components/ui/plus").PlusIconHandle>} size={16} />
               Add Database
             </Button>
             {/* User/profile menu replacing gear */}
@@ -2853,7 +2730,7 @@ export default function DatabaseManager() {
                 onMouseEnter={plusIconHover.onMouseEnter}
                 onMouseLeave={plusIconHover.onMouseLeave}
               >
-                <PlusIcon ref={plusIconHover.iconRef} size={16} />
+                <PlusIcon ref={plusIconHover.iconRef as React.RefObject<import("@/components/ui/plus").PlusIconHandle>} size={16} />
                 Add Your First Database
               </Button>
             </CardContent>
@@ -3005,7 +2882,7 @@ export default function DatabaseManager() {
                           <div className="flex items-center gap-1">
                             <span className="font-mono font-medium text-success">{db.port}</span>
                             {isPortBanned(db.port) && (
-                              <span className="text-destructive text-[10px]" title="This port is banned and cannot be used">
+                              <span className="text-destructive text-[10px]" title={"This port is banned and cannot be used"}>
                                 🚫
                               </span>
                             )}
@@ -3075,7 +2952,7 @@ export default function DatabaseManager() {
                             // Trigger system info fetch if not available
                             setTimeout(() => {
                               const now = Date.now()
-                              const lastCheck = lastSystemInfoCheck[db.id] || 0
+                              const lastCheck = lastSystemInfoCheckRef.current[db.id] || 0
                               if (now - lastCheck > 5000) { // Allow more frequent checks for missing data
                                 setLastSystemInfoCheck(prev => ({ ...prev, [db.id]: now }))
                                 fetchSystemInfo(db.id)
@@ -3307,7 +3184,7 @@ export default function DatabaseManager() {
                                     <div className="flex items-center gap-1">
                                       <span className="font-mono font-medium text-success">{db.port}</span>
                                       {isPortBanned(db.port) && (
-                                        <span className="text-destructive text-[10px]" title="This port is banned and cannot be used">
+                                        <span className="text-destructive text-[10px]" title={"This port is banned and cannot be used"}>
                                           🚫
                                         </span>
                                       )}
@@ -3508,7 +3385,7 @@ export default function DatabaseManager() {
                       <div className="flex items-center gap-1">
                         <span className="font-mono font-medium text-success">{db.port}</span>
                         {isPortBanned(db.port) && (
-                          <span className="text-destructive text-[10px]" title="This port is banned and cannot be used">
+                          <span className="text-destructive text-[10px]" title={"This port is banned and cannot be used"}>
                             🚫
                           </span>
                         )}
@@ -3578,7 +3455,7 @@ export default function DatabaseManager() {
                         // Trigger system info fetch if not available
                         setTimeout(() => {
                           const now = Date.now()
-                          const lastCheck = lastSystemInfoCheck[db.id] || 0
+                          const lastCheck = lastSystemInfoCheckRef.current[db.id] || 0
                           if (now - lastCheck > 5000) { // Allow more frequent checks for missing data
                             setLastSystemInfoCheck(prev => ({ ...prev, [db.id]: now }))
                             fetchSystemInfo(db.id)
@@ -3818,7 +3695,7 @@ export default function DatabaseManager() {
                             <div className="flex items-center gap-1">
                               <span className="font-mono font-medium text-success">{db.port}</span>
                               {isPortBanned(db.port) && (
-                                <span className="text-destructive text-[10px]" title="This port is banned and cannot be used">
+                                <span className="text-destructive text-[10px]" title={"This port is banned and cannot be used"}>
                                   🚫
                                 </span>
                               )}

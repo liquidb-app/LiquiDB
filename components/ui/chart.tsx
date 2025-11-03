@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 
 // Chart context
 const ChartContext = React.createContext<{
-  config: any
+  config: Record<string, unknown>
 }>({
   config: {},
 })
@@ -15,7 +15,7 @@ const ChartContext = React.createContext<{
 const ChartContainer = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
-    config: any
+    config: Record<string, unknown>
   }
 >(({ id, className, children, config, ...props }, ref) => {
   const uniqueId = React.useId()
@@ -72,7 +72,7 @@ const ChartTooltipContent = React.forwardRef<
       labelClassName,
       formatter,
       color,
-      nameKey,
+      nameKey: _nameKey,
       labelKey,
     },
     ref
@@ -86,7 +86,7 @@ const ChartTooltipContent = React.forwardRef<
 
       const [item] = payload
       const key = `${labelKey || item.dataKey || item.name || "value"}`
-      const value =
+      const _value =
         config?.[key]?.label || item.name || item.dataKey || "Value"
       const formattedLabel =
         typeof labelFormatter === "function"
@@ -112,7 +112,7 @@ const ChartTooltipContent = React.forwardRef<
       return null
     }
 
-    const nestLabel = (item: any, i: number) => {
+    const nestLabel = (item: Record<string, unknown> & { dataKey?: string, name?: string, payload?: { fill?: string }, color?: string }, i: number) => {
       const key = `${labelKey || item.dataKey || item.name || "value"}`
       const itemConfig = config?.[key]
       const indicatorColor = color || item.payload?.fill || item.color

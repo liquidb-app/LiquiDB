@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,7 @@ import { Eye, EyeOff, Info } from "lucide-react"
 import { SparklesIcon } from "@/components/ui/sparkles"
 import { toast } from "sonner"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import type { DatabaseContainer } from "@/lib/types"
 
 // Helper function to render database icons (emoji or custom image)
 const renderDatabaseIcon = (icon: string | undefined, className: string = "w-full h-full object-cover") => {
@@ -65,7 +66,7 @@ const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, class
       // If it's a file:// URL, convert it to data URL
       if (src.startsWith('file://')) {
         try {
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           const result = await window.electron?.convertFileToDataUrl?.(src)
           if (result?.success) {
             setImageSrc(result.dataUrl)
@@ -136,7 +137,6 @@ const DATABASE_CONFIGS = {
   },
 }
 
-const DEFAULT_ICONS = ["🐘", "🐬", "🍃", "🔴", "💾", "🗄️", "📊", "🔷", "🟦", "🟪", "🟩", "🟨", "🟧", "🟥"]
 
 // Function to determine if a version should be marked as "stable"
 function getStableVersion(databaseType: string, versions: string[], currentIndex: number, dynamicStableVersions: string[] = []): boolean {
@@ -217,14 +217,14 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
   const MAX_NAME_LENGTH = 15
 
   // Function to validate name length
-  const validateName = (nameValue: string) => {
+  const validateName = useCallback((nameValue: string) => {
     if (nameValue.length > MAX_NAME_LENGTH) {
       setNameError(`Name must be ${MAX_NAME_LENGTH} characters or less`)
       return false
     }
     setNameError("")
     return true
-  }
+  }, [MAX_NAME_LENGTH])
 
   // Function to handle name change with validation
   const handleNameChange = (value: string) => {
@@ -245,7 +245,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
   const [autoStart, setAutoStart] = useState(false)
   const [bannedPorts, setBannedPorts] = useState<number[]>([])
   const [portError, setPortError] = useState<string>("")
-  const [checkingPort, setCheckingPort] = useState(false)
+  const [, setCheckingPort] = useState(false)
   const [portStatus, setPortStatus] = useState<"available" | "conflict" | "checking" | null>(null)
   const [portConflictInfo, setPortConflictInfo] = useState<{ processName: string; pid: string } | null>(null)
   const [findingPort, setFindingPort] = useState(false)
@@ -253,7 +253,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
   const [installMsg, setInstallMsg] = useState<string>("")
   const [installProgress, setInstallProgress] = useState<number>(0)
   const [canStart, setCanStart] = useState(false)
-  const [forceUpdate, setForceUpdate] = useState(0)
+  const [, setForceUpdate] = useState(0)
   const [availableVersions, setAvailableVersions] = useState<Array<{majorVersion: string, fullVersion: string, packageName: string}>>([])
   const [loadingVersions, setLoadingVersions] = useState(false)
   const [stableVersions, setStableVersions] = useState<string[]>([])
@@ -270,9 +270,9 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       
       // Fetch both versions and stable versions in parallel
       const [versionDetails, stableVersionsData] = await Promise.all([
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         window.electron?.getBrewVersions?.(brewPackage) || Promise.resolve([]),
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         window.electron?.getStableVersions?.(databaseType) || Promise.resolve([])
       ])
       
@@ -304,16 +304,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
     }
   }
 
-  // Fallback versions for when brew is unavailable
-  const getFallbackVersions = (databaseType: DatabaseType): string[] => {
-    const fallbackVersions = {
-      postgresql: ["16", "15", "14", "13"],
-      mysql: ["8.0", "5.7", "5.6"],
-      mongodb: ["7.0", "6.0", "5.0"],
-      redis: ["7.2", "7.0", "6.2"],
-    }
-    return fallbackVersions[databaseType] || ["latest"]
-  }
+  // Fallback versions for when brew is unavailable - removed unused function
 
   // Fallback version details for when brew is unavailable
   const getFallbackVersionDetails = (databaseType: DatabaseType): Array<{majorVersion: string, fullVersion: string, packageName: string}> => {
@@ -405,9 +396,9 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
   useEffect(() => {
     const load = async () => {
       try {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.getBannedPorts) {
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           const ports = await window.electron.getBannedPorts()
           setBannedPorts(Array.isArray(ports) ? ports : [])
         } else {
@@ -440,9 +431,9 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       
       try {
         // Check for internal conflicts first
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const allDatabases = await window.electron?.getAllDatabases?.() || []
-        const internalConflict = allDatabases.find((db: any) => db.port === portNum)
+        const internalConflict = allDatabases.find((db: DatabaseContainer) => db.port === portNum)
         
         if (internalConflict) {
           setPortStatus("conflict")
@@ -451,9 +442,9 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
         }
         
         // Check for external conflicts
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.checkPortConflict) {
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           const conflictResult = await window.electron.checkPortConflict(portNum)
           if (conflictResult?.inUse) {
             const processInfo = conflictResult?.processInfo
@@ -468,9 +459,9 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
           }
         } else {
           // Fallback check
-          // @ts-ignore
+          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.checkPort) {
-            // @ts-ignore
+            // @ts-expect-error - Electron IPC types not available
             const res = await window.electron.checkPort(portNum)
             if (res?.available) {
               setPortStatus("available")
@@ -492,9 +483,8 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
   }, [port, open])
 
   // Function to find the next available port starting from a given port
-  const findNextAvailablePort = async (startPort: number): Promise<number> => {
+  const findNextAvailablePort = useCallback(async (startPort: number): Promise<number> => {
     console.log(`[Port Search] Starting search from port ${startPort}`)
-    let port = startPort
     const maxAttempts = 50 // Reduced for faster checking
     const batchSize = 5 // Check multiple ports in parallel
     
@@ -512,22 +502,21 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       }
       
       if (portsToCheck.length === 0) {
-        port += batchSize
         continue
       }
       
       // Check all ports in the batch in parallel
       try {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.checkPortConflict) {
           const conflictChecks = await Promise.all(
             portsToCheck.map(async (p) => {
               try {
                 // First check for internal conflicts (other databases in the app)
-                // @ts-ignore
+                // @ts-expect-error - Electron IPC types not available
                 const allDatabases = await window.electron?.getAllDatabases?.() || []
                 console.log(`[Port Check] Checking port ${p} against ${allDatabases.length} existing databases`)
-                const internalConflict = allDatabases.some((db: any) => {
+                const internalConflict = allDatabases.some((db: DatabaseContainer) => {
                   const isConflict = db.port === p // Check ALL databases regardless of status
                   if (isConflict) {
                     console.log(`[Port Check] Internal conflict found: ${db.name} (${db.port}) - ${db.status}`)
@@ -540,7 +529,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                 }
                 
                 // Then check for external conflicts
-                // @ts-ignore
+                // @ts-expect-error - Electron IPC types not available
                 const result = await window.electron.checkPortConflict(p)
                 return { port: p, inUse: result?.inUse || false }
               } catch (error) {
@@ -561,10 +550,10 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
             portsToCheck.map(async (p) => {
               try {
                 // First check for internal conflicts (other databases in the app)
-                // @ts-ignore
+                // @ts-expect-error - Electron IPC types not available
                 const allDatabases = await window.electron?.getAllDatabases?.() || []
                 console.log(`[Port Check] Checking port ${p} against ${allDatabases.length} existing databases`)
-                const internalConflict = allDatabases.some((db: any) => {
+                const internalConflict = allDatabases.some((db: DatabaseContainer) => {
                   const isConflict = db.port === p // Check ALL databases regardless of status
                   if (isConflict) {
                     console.log(`[Port Check] Internal conflict found: ${db.name} (${db.port}) - ${db.status}`)
@@ -577,7 +566,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                 }
                 
                 // Then check for external conflicts
-                // @ts-ignore
+                // @ts-expect-error - Electron IPC types not available
                 const result = await window.electron.checkPort(p)
                 return { port: p, available: result?.available || false }
               } catch (error) {
@@ -598,15 +587,15 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
         console.error(`[Port Check] Error checking port batch:`, error)
       }
       
-      port += batchSize
+      // Continue to next batch
     }
     
     // If we couldn't find an available port, return the original port
     console.warn(`[Port Check] Could not find available port starting from ${startPort}, returning original`)
     return startPort
-  }
+  }, [bannedPorts])
 
-  const validatePort = async (p: string) => {
+  const validatePort = useCallback(async (p: string) => {
     setPortError("")
     const portNum = Number.parseInt(p)
     if (isNaN(portNum)) return false
@@ -622,9 +611,9 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       setCheckingPort(true)
       
       // First check for internal conflicts (other databases in the app)
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const allDatabases = await window.electron?.getAllDatabases?.() || []
-      const internalConflict = allDatabases.find((db: any) => db.port === portNum)
+      const internalConflict = allDatabases.find((db: DatabaseContainer) => db.port === portNum)
       
       if (internalConflict) {
         // Find next available port as suggestion
@@ -635,9 +624,9 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       }
       
       // Check for external port conflicts
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.checkPortConflict) {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const conflictResult = await window.electron.checkPortConflict(portNum)
         if (conflictResult?.inUse) {
           const suggestedPort = await findNextAvailablePort(portNum + 1)
@@ -651,9 +640,9 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       }
       
       // Fallback to old checkPort method
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.checkPort) {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         const res = await window.electron.checkPort(portNum)
         if (!res?.available) {
           if (res?.reason === "invalid_range") setPortError("Port must be between 1 and 65535")
@@ -672,9 +661,22 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       setCheckingPort(false)
     }
     return true
-  }
+  }, [bannedPorts, findNextAvailablePort])
 
-  const handleSubmit = async () => {
+  const handleReset = useCallback(() => {
+    setStep("type")
+    setName("")
+    setVersion("")
+    setPort("")
+    setUsername("")
+    setPassword("")
+    setSelectedIcon("")
+    setShowPassword(false)
+    setDisplayedPassword("")
+    setIsAutoGenerated(false)
+  }, [])
+
+  const handleSubmit = useCallback(async () => {
     // Validate name length
     if (!validateName(name)) {
       return
@@ -689,12 +691,12 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       setInstallProgress(10)
       setInstallMsg("Checking Homebrew…")
       
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const hasBrew = await window.electron?.brewIsInstalled?.()
       if (!hasBrew) {
         setInstallProgress(20)
         setInstallMsg("Installing Homebrew… this could take a few minutes")
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         await window.electron?.brewInstall?.()
         setInstallProgress(50)
       }
@@ -706,7 +708,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       const versionDetail = availableVersions.find(v => v.fullVersion === version)
       const majorVersion = versionDetail?.majorVersion || version.split('.').slice(0, 2).join('.')
       
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       const installResult = await window.electron?.brewInstallDb?.({ dbType: selectedType, version: majorVersion })
       
       setInstallProgress(100)
@@ -754,9 +756,9 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       }
       
       // Persist via Electron (secure password via keychain)
-      // @ts-ignore
+      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.saveDatabase) {
-        // @ts-ignore
+        // @ts-expect-error - Electron IPC types not available
         await window.electron.saveDatabase(database)
       }
       
@@ -770,7 +772,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
         setForceUpdate(prev => prev + 1)
         console.log("Installation process completed, UI should update")
       }, 500)
-    } catch (e) {
+    } catch {
       setInstalling(false)
       setInstallMsg("")
       setInstallProgress(0)
@@ -778,31 +780,18 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       alert("Failed to install the selected database via Homebrew.")
       return
     }
-  }
+  }, [name, port, selectedType, version, username, password, selectedIcon, autoStart, availableVersions, onAdd, validateName, validatePort, handleReset])
 
-  const handleReset = () => {
-    setStep("type")
-    setName("")
-    setVersion("")
-    setPort("")
-    setUsername("")
-    setPassword("")
-    setSelectedIcon("")
-    setShowPassword(false)
-    setDisplayedPassword("")
-    setIsAutoGenerated(false)
-  }
-
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     handleReset()
     onOpenChange(false)
-  }
+  }, [onOpenChange, handleReset])
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (step === "config") {
       setStep("type")
     }
-  }
+  }, [step])
 
   // Keyboard event handlers
   useEffect(() => {
@@ -1130,7 +1119,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                       <div className="flex items-start gap-1.5 p-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded text-[10px]">
                         <Info className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
                         <p className="text-blue-800 dark:text-blue-300 leading-relaxed">
-                          <span className="font-medium">Tip:</span> When connecting with external tools (DBeaver, MySQL Workbench, etc.), enable <code className="text-xs bg-blue-100 dark:bg-blue-900/50 px-1 rounded">allowPublicKeyRetrieval=true</code> in connection settings if you see a "Public Key Retrieval is not allowed" error.
+                          <span className="font-medium">Tip:</span> When connecting with external tools (DBeaver, MySQL Workbench, etc.), enable <code className="text-xs bg-blue-100 dark:bg-blue-900/50 px-1 rounded">allowPublicKeyRetrieval=true</code> in connection settings if you see a &quot;Public Key Retrieval is not allowed&quot; error.
                         </p>
                       </div>
                     )}

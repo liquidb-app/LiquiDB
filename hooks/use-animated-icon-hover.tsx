@@ -3,7 +3,7 @@
 import { useRef, useCallback } from "react"
 
 export function useAnimatedIconHover() {
-  const iconRef = useRef<any>(null)
+  const iconRef = useRef<{ startAnimation?: () => void; stopAnimation?: () => void } | null>(null)
 
   const handleMouseEnter = useCallback(() => {
     if (iconRef.current?.startAnimation) {

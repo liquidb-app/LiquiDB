@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { loadProfile, getInitials } from "@/lib/preferences"
-import { Monitor, User } from "lucide-react"
+import { Monitor } from "lucide-react"
 import { CogIcon } from "@/components/ui/cog"
 import { CircleHelpIcon } from "@/components/ui/circle-help"
 import { LogoutIcon } from "@/components/ui/logout"
@@ -174,7 +174,7 @@ export function ProfileMenuTrigger() {
           <DropdownMenuItem
             onClick={() => {
               setDropdownOpen(false)
-              // @ts-ignore
+              // @ts-expect-error - Electron IPC types not available
               window.electron?.openExternalLink?.("https://liquidb.app/help")
             }}
             className="cursor-pointer gap-2"
@@ -191,7 +191,7 @@ export function ProfileMenuTrigger() {
         <DropdownMenuItem
           onClick={() => {
             setDropdownOpen(false)
-            // @ts-ignore
+            // @ts-expect-error - Electron IPC types not available
             window.electron?.quitApp?.()
           }}
           className="cursor-pointer text-destructive focus:text-destructive gap-2"
