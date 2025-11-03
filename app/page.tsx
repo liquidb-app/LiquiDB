@@ -2385,19 +2385,44 @@ export default function DatabaseManager() {
     }
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const db = databases.find((d) => d.id === id)
-    // @ts-expect-error - Electron IPC types not available
-    if (window.electron?.deleteDatabase) {
-      // @ts-expect-error - Electron IPC types not available
-      window.electron.deleteDatabase(id)
-    }
-    setDatabases(databases.filter((d) => d.id !== id))
+    
+    // Optimistically update UI immediately to prevent freeze
+    setDatabases(prev => prev.filter((d) => d.id !== id))
     setSelectedDatabase(null)
     setSettingsDialogOpen(false)
+    
+    // Show notification immediately
     notifyError("Database removed", {
       description: `${db?.name} has been removed.`,
     })
+    
+    // Perform actual deletion in background (non-blocking)
+    try {
+      // @ts-expect-error - Electron IPC types not available
+      if (window.electron?.deleteDatabase) {
+        // @ts-expect-error - Electron IPC types not available
+        await window.electron.deleteDatabase(id)
+      }
+    } catch (error) {
+      console.error(`[Delete] Error deleting database ${id}:`, error)
+      // If deletion failed, reload databases to sync state
+      try {
+        // @ts-expect-error - Electron IPC types not available
+        if (window.electron?.getDatabases) {
+          // @ts-expect-error - Electron IPC types not available
+          const list = await window.electron.getDatabases()
+          setDatabases(Array.isArray(list) ? list : [])
+        }
+      } catch (reloadError) {
+        console.error("[Delete] Error reloading databases after failed delete:", reloadError)
+      }
+      
+      notifyError("Failed to delete database", {
+        description: `An error occurred while deleting ${db?.name}. The database may still exist.`,
+      })
+    }
   }
 
   const handleSettings = (database: DatabaseContainer) => {
