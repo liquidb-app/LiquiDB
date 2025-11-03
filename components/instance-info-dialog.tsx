@@ -71,6 +71,28 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
     }
   }, [databaseId])
 
+  // Smooth data generation functions - using refs to avoid re-renders
+  const generateSmoothMemoryData = useCallback(() => {
+    // Small gradual changes (±2% max change per second)
+    const rssChange = (Math.random() - 0.5) * 0.04 * lastMemoryValues.current.rss
+    const vszChange = (Math.random() - 0.5) * 0.04 * lastMemoryValues.current.vsz
+    
+    const newRss = Math.max(80000000, Math.min(200000000, lastMemoryValues.current.rss + rssChange))
+    const newVsz = Math.max(150000000, Math.min(400000000, lastMemoryValues.current.vsz + vszChange))
+    
+    lastMemoryValues.current = { rss: newRss, vsz: newVsz }
+    return lastMemoryValues.current
+  }, [])
+
+  const generateSmoothCpuData = useCallback(() => {
+    // Small gradual changes (±0.5% max change per second)
+    const cpuChange = (Math.random() - 0.5) * 1.0
+    const newCpu = Math.max(0, Math.min(8, lastCpuValue.current + cpuChange))
+    
+    lastCpuValue.current = newCpu
+    return lastCpuValue.current
+  }, [])
+
   useEffect(() => {
     if (open && databaseId) {
       // Initialize with some sample data to make charts visible
@@ -172,28 +194,6 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
-
-  // Smooth data generation functions - using refs to avoid re-renders
-  const generateSmoothMemoryData = useCallback(() => {
-    // Small gradual changes (±2% max change per second)
-    const rssChange = (Math.random() - 0.5) * 0.04 * lastMemoryValues.current.rss
-    const vszChange = (Math.random() - 0.5) * 0.04 * lastMemoryValues.current.vsz
-    
-    const newRss = Math.max(80000000, Math.min(200000000, lastMemoryValues.current.rss + rssChange))
-    const newVsz = Math.max(150000000, Math.min(400000000, lastMemoryValues.current.vsz + vszChange))
-    
-    lastMemoryValues.current = { rss: newRss, vsz: newVsz }
-    return lastMemoryValues.current
-  }, [])
-
-  const generateSmoothCpuData = useCallback(() => {
-    // Small gradual changes (±0.5% max change per second)
-    const cpuChange = (Math.random() - 0.5) * 1.0
-    const newCpu = Math.max(0, Math.min(8, lastCpuValue.current + cpuChange))
-    
-    lastCpuValue.current = newCpu
-    return lastCpuValue.current
-  }, [])
 
   const formatPercentage = (value: number) => {
     return value.toFixed(1) + '%'
