@@ -2403,6 +2403,37 @@ async function cleanupDatabaseTempFiles(app, containerId, dbType) {
           // Ignore errors
         }
       }
+    } else if (dbType === "mysql") {
+      // MySQL log files are disabled (redirected to /dev/null), so no log cleanup needed
+      // Clean up any large temporary files in MySQL data directory
+      try {
+        const files = fs.readdirSync(dataDir)
+        for (const file of files) {
+          // Skip system directories and important files
+          if (file === 'mysql' || file === 'tmp' || file.startsWith('.')) {
+            continue
+          }
+          
+          const filePath = path.join(dataDir, file)
+          try {
+            const stats = fs.statSync(filePath)
+            // Remove temporary files larger than 50MB or older than 1 day
+            const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000)
+            if (stats.isFile() && (stats.size > 50 * 1024 * 1024 || stats.mtimeMs < oneDayAgo)) {
+              // Only remove files that look like temporary files
+              if (file.includes('tmp') || file.includes('temp') || file.endsWith('.tmp') || file.match(/^\./)) {
+                fs.unlinkSync(filePath)
+                console.log(`[Cleanup] Removed MySQL temp file: ${filePath} (size: ${(stats.size / 1024 / 1024).toFixed(2)}MB)`)
+              }
+            }
+          } catch (error) {
+            // Ignore errors for individual files
+          }
+        }
+      } catch (error) {
+        // Ignore errors reading directory
+        console.debug(`[Cleanup] Could not read MySQL data directory:`, error.message)
+      }
     } else if (dbType === "redis") {
       // Clean up old Redis AOF files if they exist
       const aofFile = path.join(dataDir, `appendonly-${containerId}.aof`)
