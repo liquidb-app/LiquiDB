@@ -80,7 +80,7 @@ async function alternativeMySQLInit(mysqldPath, dataDir, env) {
   const initProcess = spawn(mysqldPath, [
     "--initialize-insecure", 
     `--datadir=${dataDir}`,
-    `--log-error=${dataDir}/mysql-alt-init.log`,
+    // Don't specify --log-error to prevent log file creation during alternative initialization
     "--skip-log-bin",
     "--skip-innodb",
     "--default-storage-engine=MyISAM"
@@ -123,13 +123,7 @@ async function alternativeMySQLInit(mysqldPath, dataDir, env) {
         console.error(`[MySQL Alt] Output:`, initOutput)
         console.error(`[MySQL Alt] Error:`, initError)
         
-        // Try to read the error log
-        try {
-          const logContent = await fs.readFile(`${dataDir}/mysql-alt-init.log`, 'utf8')
-          console.error(`[MySQL Alt] Error log:`, logContent)
-        } catch (_logError) {
-          console.log(`[MySQL Alt] Could not read error log`)
-        }
+        // Log files are disabled, error details are in initError
         
         reject(new Error(`Alternative MySQL initialization failed with exit code ${code}`))
       }
@@ -1414,7 +1408,7 @@ async function startDatabaseProcessAsync(config) {
       "--port", port.toString(), 
       "--datadir", dataDir, 
       "--bind-address=127.0.0.1",
-      `--log-error=${dataDir}/mysql-error.log`,
+      // Don't specify --log-error to prevent log file creation
       `--basedir=${mysqlBaseDir}`,
       `--tmpdir=${tempDir}`,  // Use container-specific temp dir instead of /tmp
       `--pid-file=${dataDir}/mysql.pid`,
@@ -1460,7 +1454,7 @@ async function startDatabaseProcessAsync(config) {
         const initProcess = spawn(mysqldPath, [
           "--initialize-insecure", 
           `--datadir=${dataDir}`,
-          `--log-error=${dataDir}/mysql-init.log`,
+          // Don't specify --log-error to prevent log file creation during initialization
           `--basedir=${mysqlBaseDir}`,
           "--tmpdir=/tmp"
         ], { 
@@ -1526,13 +1520,7 @@ async function startDatabaseProcessAsync(config) {
               console.error(`[MySQL] Init output:`, initOutput)
               console.error(`[MySQL] Init error:`, initError)
               
-              // Try to read the error log for more details
-              try {
-                const logContent = await fs.readFile(`${dataDir}/mysql-init.log`, 'utf8')
-                console.error(`[MySQL] Error log content:`, logContent)
-              } catch (logError) {
-                console.log(`[MySQL] Could not read error log:`, logError.message)
-              }
+              // Log files are disabled, error details are in initError above
               
               // Try alternative initialization method
               console.log(`[MySQL] Attempting alternative initialization method...`)
