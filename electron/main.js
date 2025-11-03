@@ -2196,6 +2196,10 @@ app.whenReady().then(async () => {
   permissionsManager = new PermissionsManager()
   
   resetDatabaseStatuses()
+  
+  // Clean up orphaned database directories on startup
+  await cleanupOrphanedDatabases(app)
+  
   createWindow()
   
   // Check if onboarding is complete before starting background processes
@@ -2416,6 +2420,74 @@ async function cleanupDatabaseTempFiles(app, containerId, dbType) {
     }
   } catch (error) {
     console.error(`[Cleanup] Error cleaning temp files for ${containerId}:`, error)
+  }
+}
+
+// Find and clean up orphaned database directories
+async function cleanupOrphanedDatabases(app) {
+  try {
+    const fs = require("fs")
+    const databases = storage.loadDatabases(app)
+    const validContainerIds = new Set(databases.map(db => db.containerId || db.id))
+    
+    const databasesDir = path.join(app.getPath("userData"), "databases")
+    if (!fs.existsSync(databasesDir)) {
+      return
+    }
+    
+    const dirs = fs.readdirSync(databasesDir)
+    let cleanedCount = 0
+    let cleanedSize = 0
+    
+    for (const dir of dirs) {
+      const dirPath = path.join(databasesDir, dir)
+      try {
+        const stats = fs.statSync(dirPath)
+        if (stats.isDirectory() && !validContainerIds.has(dir)) {
+          // This directory doesn't belong to any database - it's orphaned
+          // Calculate size before deleting
+          let dirSize = 0
+          try {
+            const calculateSize = (currentPath) => {
+              let size = 0
+              const files = fs.readdirSync(currentPath)
+              for (const file of files) {
+                const filePath = path.join(currentPath, file)
+                try {
+                  const fileStats = fs.statSync(filePath)
+                  if (fileStats.isDirectory()) {
+                    size += calculateSize(filePath)
+                  } else {
+                    size += fileStats.size
+                  }
+                } catch (e) {
+                  // Skip files we can't access
+                }
+              }
+              return size
+            }
+            dirSize = calculateSize(dirPath)
+            
+            // Remove orphaned directory
+            fs.rmSync(dirPath, { recursive: true, force: true })
+            cleanedCount++
+            cleanedSize += dirSize
+            console.log(`[Cleanup] Removed orphaned database directory: ${dir} (${(dirSize / 1024 / 1024).toFixed(2)}MB)`)
+          } catch (error) {
+            console.error(`[Cleanup] Error removing orphaned directory ${dir}:`, error.message)
+          }
+        }
+      } catch (error) {
+        // Skip directories we can't access
+        console.debug(`[Cleanup] Could not check directory ${dir}:`, error.message)
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      console.log(`[Cleanup] Cleaned up ${cleanedCount} orphaned database directories (total: ${(cleanedSize / 1024 / 1024).toFixed(2)}MB)`)
+    }
+  } catch (error) {
+    console.error(`[Cleanup] Error cleaning orphaned databases:`, error)
   }
 }
 
