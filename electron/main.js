@@ -471,10 +471,34 @@ async function configureMySQL(config) {
     // Connect using socket (more reliable than TCP for initial setup)
     const socketPath = `/tmp/mysql-${containerId}.sock`
     
+    // Check if MySQL server is running by checking if socket exists
+    const fs = require("fs")
+    if (!fs.existsSync(socketPath)) {
+      console.log(`[MySQL Config] ${id} MySQL server is not running (socket not found: ${socketPath}). Skipping configuration.`)
+      return
+    }
+    
+    // Verify MySQL is actually accessible by checking connection
+    try {
+      const testCmd = 'SELECT 1;'
+      const escapedTestCmd = testCmd.replace(/'/g, "'\\''")
+      execSync(`${mysqlPath} --socket=${socketPath} -e '${escapedTestCmd}'`, {
+        env,
+        stdio: 'pipe',
+        timeout: 5000
+      })
+    } catch (testError) {
+      console.log(`[MySQL Config] ${id} MySQL server is not accessible (socket exists but connection failed). Skipping configuration.`)
+      return
+    }
+    
     try {
       // Create database if it doesn't exist
+      // Use single quotes around SQL command to prevent shell interpretation of backticks
       const createDbCmd = `CREATE DATABASE IF NOT EXISTS \`${dbName}\`;`
-      execSync(`${mysqlPath} --socket=${socketPath} -e "${createDbCmd}"`, {
+      // Escape single quotes in the SQL command for shell execution
+      const escapedCmd = createDbCmd.replace(/'/g, "'\\''")
+      execSync(`${mysqlPath} --socket=${socketPath} -e '${escapedCmd}'`, {
         env,
         stdio: 'pipe'
       })
@@ -540,7 +564,8 @@ async function configureMySQL(config) {
             console.log(`[MySQL Config] ${id} New username ${actualUsername} already exists, dropping old user`)
             try {
               const revokeCmd = `REVOKE ALL PRIVILEGES ON \`${dbName}\`.* FROM '${oldUsername}'@'localhost'; FLUSH PRIVILEGES;`
-              execSync(`${mysqlPath} --socket=${socketPath} -e "${revokeCmd}"`, {
+              const escapedRevokeCmd = revokeCmd.replace(/'/g, "'\\''")
+              execSync(`${mysqlPath} --socket=${socketPath} -e '${escapedRevokeCmd}'`, {
                 env,
                 stdio: 'pipe'
               })
@@ -606,7 +631,8 @@ async function configureMySQL(config) {
         // Grant privileges on the database to the user
         try {
           const grantCmd = `GRANT ALL PRIVILEGES ON \`${dbName}\`.* TO '${actualUsername}'@'localhost'; FLUSH PRIVILEGES;`
-          execSync(`${mysqlPath} --socket=${socketPath} -e "${grantCmd}"`, {
+          const escapedGrantCmd = grantCmd.replace(/'/g, "'\\''")
+          execSync(`${mysqlPath} --socket=${socketPath} -e '${escapedGrantCmd}'`, {
             env,
             stdio: 'pipe'
           })
