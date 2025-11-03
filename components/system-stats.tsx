@@ -59,7 +59,7 @@ export function SystemStats() {
         setIsLoading(false)
       }
     } catch (error) {
-      console.error('Error fetching system stats:', error)
+      console.error('Error fetching app stats:', error)
       setIsLoading(false)
     }
   }
@@ -101,7 +101,6 @@ export function SystemStats() {
     return null
   }
 
-  const memoryPercentage = stats.memory.percentage
   const cpuPercentage = stats.cpu.percentage
   const diskUsed = stats.disk?.used || 0
   const diskTotal = stats.disk?.total || 0
@@ -144,11 +143,9 @@ export function SystemStats() {
           </TooltipTrigger>
           <TooltipContent>
             <div className="text-xs space-y-1">
-              <div className="font-semibold">Memory Usage</div>
+              <div className="font-semibold">App Memory Usage</div>
               <div>Used: {formatBytes(stats.memory.used)}</div>
-              <div>Free: {formatBytes(stats.memory.free)}</div>
-              <div>Total: {formatBytes(stats.memory.total)}</div>
-              <div>Usage: {memoryPercentage.toFixed(1)}%</div>
+              <div>Includes: Main process + Renderer + Database instances</div>
             </div>
           </TooltipContent>
         </Tooltip>
@@ -165,9 +162,9 @@ export function SystemStats() {
           </TooltipTrigger>
           <TooltipContent>
             <div className="text-xs space-y-1">
-              <div className="font-semibold">CPU Usage</div>
+              <div className="font-semibold">App CPU Usage</div>
               <div>Current: {cpuPercentage.toFixed(1)}%</div>
-              <div>Load (1m): {loadAvg.toFixed(2)}</div>
+              <div>Includes: Main process + Renderer + Database instances</div>
             </div>
           </TooltipContent>
         </Tooltip>
@@ -186,10 +183,9 @@ export function SystemStats() {
               </TooltipTrigger>
               <TooltipContent>
                 <div className="text-xs space-y-1">
-                  <div className="font-semibold">System Load Average</div>
+                  <div className="font-semibold">App Load</div>
+                  <div>Based on active processes</div>
                   <div>1min: {stats.loadAverage[0]?.toFixed(2) || '0.00'}</div>
-                  <div>5min: {stats.loadAverage[1]?.toFixed(2) || '0.00'}</div>
-                  <div>15min: {stats.loadAverage[2]?.toFixed(2) || '0.00'}</div>
                 </div>
               </TooltipContent>
             </Tooltip>
@@ -234,7 +230,7 @@ export function SystemStats() {
             </TooltipTrigger>
             <TooltipContent>
               <div className="text-xs space-y-1">
-                <div className="font-semibold">System Uptime</div>
+                <div className="font-semibold">App Uptime</div>
                 <div>Total: {formatUptime(stats.uptime)}</div>
                 <div>Seconds: {stats.uptime.toLocaleString()}</div>
               </div>

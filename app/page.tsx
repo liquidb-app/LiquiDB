@@ -486,15 +486,12 @@ export default function DatabaseManager() {
                     isDatabaseProcess && 
                     currentDb?.pid && 
                     externalConflict.pid === currentDb.pid.toString()) {
-                  // This is this database's own process - not a conflict, but need multiple confirmations to clear
-                  freeConfirmationsRef.current++
-                  if (freeConfirmationsRef.current >= 2) {
-                    hasWarningRef.current = false
-                    setConflictInfo(null)
-                    // Update cache - clear after stable confirmations
-                    updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
-                  }
-                  // Otherwise keep existing warning - don't clear on single check
+                  // This is this database's own process - not a conflict, clear immediately
+                  hasWarningRef.current = false
+                  setConflictInfo(null)
+                  freeConfirmationsRef.current = 0
+                  // Update cache - clear immediately since PID match confirms it's our own process
+                  updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
                 } else {
                   // Real conflict detected (different process or stopped database with conflict)
                   // Always set/keep the warning when conflict is confirmed - no flickering
@@ -616,9 +613,15 @@ export default function DatabaseManager() {
 
   // Helper function to check if a process is a database-related process
   const isDatabaseRelatedProcess = (processName: string): boolean => {
-    const databaseProcesses = ['postgres', 'mysqld', 'mongod', 'redis-server', 'postmaster']
+    const databaseProcesses = ['postgres', 'mysqld', 'mongod', 'redis-server', 'redis-ser', 'postmaster']
     const lowerProcessName = processName.toLowerCase()
-    return databaseProcesses.some(dp => lowerProcessName.includes(dp.toLowerCase()))
+    // Check if process name matches any database process (handles truncated names from lsof)
+    return databaseProcesses.some(dp => {
+      const lowerDbProcess = dp.toLowerCase()
+      // Check if the process name includes the database process name OR if the database process name includes the process name
+      // This handles cases where lsof truncates names (e.g., "redis-ser" vs "redis-server")
+      return lowerProcessName.includes(lowerDbProcess) || lowerDbProcess.includes(lowerProcessName)
+    })
   }
 
   // Function to check if a database name already exists

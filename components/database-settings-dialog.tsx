@@ -24,8 +24,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
 import { DownloadIcon, type DownloadIconHandle } from "@/components/ui/download"
+import { CopyIcon, type CopyIconHandle } from "@/components/ui/copy"
 import { toast } from "sonner"
 import { IconPickerDialog } from "@/components/icon-picker-dialog"
 import { BoxesIcon } from "@/components/ui/boxes"
@@ -150,7 +151,9 @@ export function DatabaseSettingsDialog({
   const [iconPickerOpen, setIconPickerOpen] = useState(false)
   const [autoStartConflict, setAutoStartConflict] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const [showDBeaverInstructions, setShowDBeaverInstructions] = useState(false)
   const downloadIconRef = useRef<DownloadIconHandle>(null)
+  const copyConnectionStringRef = useRef<CopyIconHandle>(null)
 
   // Function to validate name length
   const validateName = (nameValue: string) => {
@@ -801,11 +804,165 @@ export function DatabaseSettingsDialog({
                     disabled={autoStartConflict !== null}
                   />
                 </div>
-                <div className="rounded-lg bg-muted p-3">
-                  <p className="text-xs font-medium mb-1.5">Connection String</p>
-                  <code className="text-xs break-all">
-                    {database.type}://{database.username}:****@localhost:{port}
+                <div className="rounded-lg bg-muted p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium">Connection String</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const connectionString = database.type === "mysql" 
+                          ? `${database.type}://${database.username}:****@localhost:${port}?allowPublicKeyRetrieval=true`
+                          : `${database.type}://${database.username}:****@localhost:${port}`
+                        navigator.clipboard.writeText(connectionString).then(() => {
+                          toast.success("Connection string copied to clipboard")
+                          copyConnectionStringRef.current?.startAnimation()
+                          setTimeout(() => copyConnectionStringRef.current?.stopAnimation(), 1000)
+                        }).catch(() => {
+                          toast.error("Failed to copy connection string")
+                        })
+                      }}
+                      className="p-1 hover:bg-accent rounded transition-colors"
+                      onMouseEnter={() => copyConnectionStringRef.current?.startAnimation()}
+                      onMouseLeave={() => copyConnectionStringRef.current?.stopAnimation()}
+                      aria-label="Copy connection string"
+                    >
+                      <CopyIcon ref={copyConnectionStringRef} className="text-muted-foreground" size={14} />
+                    </button>
+                  </div>
+                  <code className="text-xs break-all block">
+                    {database.type === "mysql" 
+                      ? `${database.type}://${database.username}:****@localhost:${port}?allowPublicKeyRetrieval=true`
+                      : `${database.type}://${database.username}:****@localhost:${port}`
+                    }
                   </code>
+                  {database.type === "mysql" && (
+                    <div className="text-[10px] text-muted-foreground mt-1.5 space-y-1">
+                      <p>
+                        <span className="font-medium text-foreground">Why?</span> MySQL 8.0+ uses <code className="text-xs bg-background/50 px-1 rounded">caching_sha2_password</code> which requires the server's RSA public key to encrypt passwords. The <code className="text-xs bg-background/50 px-1 rounded">allowPublicKeyRetrieval=true</code> parameter allows clients to request this key during connection.
+                      </p>
+                      <p>
+                        This parameter is <span className="text-green-600 dark:text-green-400">safe for localhost</span> and is already included in the connection string above.
+                      </p>
+                    </div>
+                  )}
+                  <div className="mt-3 pt-3 border-t border-border/50">
+                    <button
+                      type="button"
+                      onClick={() => setShowDBeaverInstructions(!showDBeaverInstructions)}
+                      className="flex items-center justify-between w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <ExternalLink className="h-3 w-3" />
+                        DBeaver Connection Instructions
+                      </span>
+                      {showDBeaverInstructions ? (
+                        <ChevronUp className="h-3 w-3" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3" />
+                      )}
+                    </button>
+                    {showDBeaverInstructions && (
+                      <div className="mt-3 space-y-2 text-[10px] text-muted-foreground">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium text-foreground">Connection Parameters:</p>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                // @ts-ignore
+                                const actualPassword = await window.electron?.getPassword?.(database.id) || password || ""
+                                const dbName = database.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)
+                                let paramsText = `Host: localhost\nPort: ${port}\n`
+                                
+                                if (database.type === "mysql" || database.type === "postgresql") {
+                                  paramsText += `Database: ${dbName}\n`
+                                  paramsText += `Username: ${database.username}\n`
+                                  paramsText += `Password: ${actualPassword || "[Enter your password]"}\n`
+                                } else if (database.type === "mongodb") {
+                                  paramsText += `Database: ${dbName}\n`
+                                  if (database.username) {
+                                    paramsText += `Username: ${database.username}\n`
+                                    paramsText += `Password: ${actualPassword || "[Enter your password]"}\n`
+                                  }
+                                }
+                                
+                                if (database.type === "mysql") {
+                                  paramsText += `\nDriver Property:\nallowPublicKeyRetrieval=true`
+                                }
+                                
+                                navigator.clipboard.writeText(paramsText).then(() => {
+                                  toast.success("DBeaver connection parameters copied")
+                                }).catch(() => {
+                                  toast.error("Failed to copy parameters")
+                                })
+                              }}
+                              className="text-[10px] text-primary hover:underline"
+                            >
+                              Copy all
+                            </button>
+                          </div>
+                          <div className="bg-background/50 rounded p-2 space-y-1 font-mono text-xs">
+                            <div><span className="text-muted-foreground">Host:</span> localhost</div>
+                            <div><span className="text-muted-foreground">Port:</span> {port}</div>
+                            {database.type === "mysql" && (
+                              <>
+                                <div><span className="text-muted-foreground">Database:</span> {database.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)}</div>
+                                <div><span className="text-muted-foreground">Username:</span> {database.username}</div>
+                                <div><span className="text-muted-foreground">Password:</span> [Check password field above]</div>
+                              </>
+                            )}
+                            {database.type === "postgresql" && (
+                              <>
+                                <div><span className="text-muted-foreground">Database:</span> {database.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)}</div>
+                                <div><span className="text-muted-foreground">Username:</span> {database.username}</div>
+                                <div><span className="text-muted-foreground">Password:</span> [Check password field above]</div>
+                              </>
+                            )}
+                            {database.type === "mongodb" && (
+                              <>
+                                <div><span className="text-muted-foreground">Database:</span> {database.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)}</div>
+                                {database.username && (
+                                  <>
+                                    <div><span className="text-muted-foreground">Username:</span> {database.username}</div>
+                                    <div><span className="text-muted-foreground">Password:</span> [Check password field above]</div>
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {database.type === "mysql" && (
+                          <div className="space-y-1.5">
+                            <div className="space-y-1">
+                              <p className="font-medium text-foreground">Why is this needed?</p>
+                              <p className="text-[10px] leading-relaxed">
+                                MySQL 8.0+ uses <span className="font-mono bg-background/50 px-1 rounded">caching_sha2_password</span> authentication by default. This plugin uses RSA public key encryption to securely transmit passwords. The client needs the server's public key to encrypt your password. <span className="font-mono bg-background/50 px-1 rounded">allowPublicKeyRetrieval=true</span> allows the client to request this key during connection. This is <span className="text-green-600 dark:text-green-400">safe for localhost connections</span> (like your LiquiDB instances).
+                              </p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="font-medium text-foreground">MySQL 8.0+ Connection Fix:</p>
+                              <ol className="list-decimal list-inside space-y-1 ml-2">
+                                <li>In DBeaver, open the connection settings</li>
+                                <li>Go to <span className="font-mono bg-background/50 px-1 rounded">Driver properties</span> tab</li>
+                                <li>Add property: <span className="font-mono bg-background/50 px-1 rounded">allowPublicKeyRetrieval</span> = <span className="font-mono bg-background/50 px-1 rounded">true</span></li>
+                                <li>Or use the <span className="font-mono bg-background/50 px-1 rounded">Main</span> tab and check <span className="font-mono bg-background/50 px-1 rounded">Allow public key retrieval</span> if available</li>
+                              </ol>
+                            </div>
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          <p className="font-medium text-foreground">Steps:</p>
+                          <ol className="list-decimal list-inside space-y-1 ml-2">
+                            <li>Open DBeaver and click <span className="font-mono bg-background/50 px-1 rounded">New Database Connection</span></li>
+                            <li>Select <span className="font-mono bg-background/50 px-1 rounded">{database.type === "mysql" ? "MySQL" : database.type === "postgresql" ? "PostgreSQL" : database.type === "mongodb" ? "MongoDB" : "Redis"}</span> from the list</li>
+                            <li>Enter the connection parameters above</li>
+                            {database.type === "mysql" && <li>Enable <span className="font-mono bg-background/50 px-1 rounded">allowPublicKeyRetrieval</span> as described above</li>}
+                            <li>Click <span className="font-mono bg-background/50 px-1 rounded">Test Connection</span> to verify</li>
+                          </ol>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </TabsContent>
 
