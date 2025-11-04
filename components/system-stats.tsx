@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Cpu, MemoryStick, HardDrive, Clock, Database, Activity } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Cpu, MemoryStick, HardDrive, Clock, Database, Activity, Terminal as TerminalIcon } from "lucide-react"
 
 interface SystemStats {
   success: boolean
@@ -131,7 +132,8 @@ export function SystemStats() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border/50 px-6 py-1.5">
-      <div className="flex items-center justify-start gap-4 text-xs text-muted-foreground">
+      <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+        <div className="flex items-center justify-start gap-4">
         {/* Running Databases */}
         {stats.runningDatabases !== undefined && (
           <>
@@ -272,6 +274,26 @@ export function SystemStats() {
             </TooltipContent>
           </Tooltip>
         )}
+        </div>
+        
+        {/* Terminal Icon */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-muted-foreground hover:text-foreground"
+              disabled
+            >
+              <TerminalIcon className="h-3 w-3" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <div className="text-xs">
+              Terminal
+            </div>
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   )
