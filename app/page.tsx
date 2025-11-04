@@ -295,6 +295,27 @@ export default function DatabaseManager() {
     initializeApp()
   }, [])
 
+  // Notify main process when dashboard is ready (loaded and onboarding complete)
+  useEffect(() => {
+    // Dashboard is ready when loading is complete and onboarding is not showing
+    if (!isLoading && !showOnboarding && typeof window !== 'undefined' && window.electron?.notifyDashboardReady) {
+      const notifyReady = async () => {
+        try {
+          console.log("[Dashboard] Dashboard is ready, notifying main process...")
+          await window.electron?.notifyDashboardReady?.()
+          console.log("[Dashboard] Main process notified of dashboard readiness")
+        } catch (error) {
+          console.error("[Dashboard] Error notifying main process:", error)
+        }
+      }
+      
+      // Small delay to ensure everything is fully initialized
+      const timeoutId = setTimeout(notifyReady, 100)
+      
+      return () => clearTimeout(timeoutId)
+    }
+  }, [isLoading, showOnboarding])
+
   // Allow profile menu to open settings via event
   useEffect(() => {
     const handler = () => setAppSettingsOpen(true)

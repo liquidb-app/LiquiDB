@@ -37,6 +37,7 @@ let mainWindow
 const runningDatabases = new Map() // id -> { process, config }
 let helperService = null
 let permissionsManager = null
+let autoStartTriggered = false // Track if auto-start has been triggered
 
 // Auto-launch configuration
 let autoLauncher
@@ -2210,6 +2211,56 @@ ipcMain.handle("open-external-link", async (event, url) => {
     return { success: true }
   } catch (error) {
     console.error("[External Link] Error opening URL:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+// Dashboard ready handler - trigger auto-start immediately when dashboard is loaded
+ipcMain.handle("dashboard-ready", async () => {
+  try {
+    if (autoStartTriggered) {
+      console.log("[Auto-start] Auto-start already triggered, ignoring dashboard-ready signal")
+      return { success: true, alreadyTriggered: true }
+    }
+    
+    console.log("[Auto-start] Dashboard is ready, checking if auto-start should be triggered...")
+    
+    // Check if onboarding is complete
+    const isOnboardingComplete = await mainWindow?.webContents?.executeJavaScript(
+      '(function() { try { const liquidbKey = localStorage.getItem(\'liquidb-onboarding-complete\'); const legacyKey = localStorage.getItem(\'onboarding-complete\'); const result = liquidbKey === \'true\' || legacyKey === \'true\'; console.log("[Auto-start] Onboarding check - liquidb-onboarding-complete:", liquidbKey, "onboarding-complete:", legacyKey, "result:", result); return result; } catch(e) { console.error("[Auto-start] Error checking onboarding:", e); return false; } })()'
+    )
+    
+    console.log("[Auto-start] Onboarding complete check result:", isOnboardingComplete)
+    
+    if (isOnboardingComplete) {
+      console.log("[Auto-start] Onboarding complete, triggering auto-start immediately...")
+      
+      // Start helper service if needed
+      if (!helperService) {
+        helperService = new HelperServiceManager(app)
+        try {
+          const isRunning = await helperService.isServiceRunning()
+          if (!isRunning) {
+            console.log("[Helper] Starting helper service...")
+            await helperService.start()
+            console.log("[Helper] Helper service started successfully")
+          }
+        } catch (error) {
+          console.log("[Helper] Error starting helper service:", error.message)
+        }
+      }
+      
+      // Trigger auto-start immediately
+      autoStartTriggered = true
+      autoStartDatabases()
+      
+      return { success: true, triggered: true }
+    } else {
+      console.log("[Auto-start] Onboarding not complete yet, will wait for completion...")
+      return { success: true, triggered: false, reason: "onboarding_not_complete" }
+    }
+  } catch (error) {
+    console.error("[Auto-start] Error handling dashboard-ready:", error)
     return { success: false, error: error.message }
   }
 })

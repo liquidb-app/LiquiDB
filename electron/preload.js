@@ -57,11 +57,17 @@ contextBridge.exposeInMainWorld("electron", {
   // Onboarding status check
   isOnboardingComplete: () => {
     try {
-      return localStorage.getItem('onboarding-complete') === 'true'
+      // Check for both keys for backward compatibility
+      const liquidbKey = localStorage.getItem('liquidb-onboarding-complete')
+      const legacyKey = localStorage.getItem('onboarding-complete')
+      return liquidbKey === 'true' || legacyKey === 'true'
     } catch (error) {
       return false
     }
   },
+  
+  // Dashboard ready signal - notify main process that dashboard is loaded
+  notifyDashboardReady: () => ipcRenderer.invoke("dashboard-ready"),
   
   // Helper service methods
   getHelperStatus: () => ipcRenderer.invoke("helper:status"),
