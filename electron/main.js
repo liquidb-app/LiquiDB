@@ -4020,6 +4020,24 @@ ipcMain.handle("check-port-conflict", async (event, port) => {
   }
 })
 
+// Helper function to fetch with timeout
+async function fetchWithTimeout(url, timeoutMs = 3000) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    clearTimeout(timeoutId)
+    return response
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeoutMs}ms`)
+    }
+    throw error
+  }
+}
+
 // Function to fetch stable version information from official sources
 async function getStableVersionsFromOfficialSources(databaseType) {
   try {
@@ -4035,7 +4053,7 @@ async function getStableVersionsFromOfficialSources(databaseType) {
     // Fetch PostgreSQL stable versions
     if (databaseType === 'postgresql') {
       try {
-        const response = await fetch('https://www.postgresql.org/support/versioning/')
+        const response = await fetchWithTimeout('https://www.postgresql.org/support/versioning/', 3000)
         const html = await response.text()
         // Parse HTML to extract supported versions (this is a simplified approach)
         // In a real implementation, you'd want to use a proper HTML parser
@@ -4058,7 +4076,7 @@ async function getStableVersionsFromOfficialSources(databaseType) {
     // Fetch MySQL stable versions
     if (databaseType === 'mysql') {
       try {
-        const response = await fetch('https://dev.mysql.com/doc/relnotes/mysql/8.4/en/')
+        const response = await fetchWithTimeout('https://dev.mysql.com/doc/relnotes/mysql/8.4/en/', 3000)
         const html = await response.text()
         // Check if 8.4 is available and stable
         if (html.includes('8.4')) {
@@ -4075,7 +4093,7 @@ async function getStableVersionsFromOfficialSources(databaseType) {
     // Fetch MongoDB stable versions
     if (databaseType === 'mongodb') {
       try {
-        const response = await fetch('https://www.mongodb.com/docs/manual/release-notes/')
+        const response = await fetchWithTimeout('https://www.mongodb.com/docs/manual/release-notes/', 3000)
         const html = await response.text()
         // Extract version numbers from release notes
         const versionMatches = html.match(/MongoDB (\d+\.\d+)/g)
@@ -4097,7 +4115,7 @@ async function getStableVersionsFromOfficialSources(databaseType) {
     // Fetch Redis stable versions
     if (databaseType === 'redis') {
       try {
-        const response = await fetch('https://redis.io/docs/about/releases/')
+        const response = await fetchWithTimeout('https://redis.io/docs/about/releases/', 3000)
         const html = await response.text()
         // Extract version numbers from releases page
         const versionMatches = html.match(/Redis (\d+\.\d+)/g)
