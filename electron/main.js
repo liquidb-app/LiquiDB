@@ -1665,17 +1665,58 @@ async function startDatabaseProcessAsync(config) {
       // Directory might already exist
     }
     
+    // Verify MongoDB binary exists and is executable
+    const fsSync = require("fs")
+    try {
+      if (!fsSync.existsSync(mongodPath)) {
+        throw new Error(`MongoDB binary not found at ${mongodPath}`)
+      }
+      // Check if file is executable (stat mode)
+      const stats = fsSync.statSync(mongodPath)
+      if (!stats.isFile()) {
+        throw new Error(`MongoDB path exists but is not a file: ${mongodPath}`)
+      }
+      console.log(`[MongoDB] Verified MongoDB binary exists: ${mongodPath}`)
+    } catch (error) {
+      console.error(`[MongoDB] ${id} Error verifying MongoDB binary:`, error.message)
+      throw new Error(`MongoDB binary verification failed: ${error.message}`)
+    }
+    
+    // Verify data directory is writable
+    try {
+      const testFile = path.join(dataDir, '.write-test')
+      fsSync.writeFileSync(testFile, 'test')
+      fsSync.unlinkSync(testFile)
+      console.log(`[MongoDB] Verified data directory is writable: ${dataDir}`)
+    } catch (error) {
+      console.error(`[MongoDB] ${id} Data directory may not be writable:`, error.message)
+      throw new Error(`MongoDB data directory is not writable: ${error.message}`)
+    }
+    
+    // Check for and remove MongoDB lock file that might prevent startup
+    // An unclean shutdown can leave a mongod.lock file preventing MongoDB from starting
+    const lockFilePath = path.join(dataDir, 'mongod.lock')
+    if (fsSync.existsSync(lockFilePath)) {
+      console.log(`[MongoDB] ${id} Found mongod.lock file, removing to allow startup`)
+      try {
+        fsSync.unlinkSync(lockFilePath)
+        console.log(`[MongoDB] ${id} Removed mongod.lock file`)
+      } catch (error) {
+        console.warn(`[MongoDB] ${id} Could not remove mongod.lock file:`, error.message)
+        // Continue anyway - MongoDB might handle it or we'll see the error
+      }
+    }
+    
     cmd = mongodPath
     args = [
       "--port", port.toString(), 
-      "--dbpath", dataDir, 
+      "--dbpath", dataDir,  // Store data files in database folder
       "--bind_ip", "127.0.0.1",
       "--logpath", path.join(dataDir, "mongod.log"),  // Store logs in data directory
       "--logappend",  // Append to log file instead of overwriting
-      "--logRotate", "rename",  // Rotate logs by renaming
-      "--setParameter", "logLevel=1",  // Reduce log verbosity (0=off, 1=low, 2=higher)
-      "--smallfiles",  // Use smaller data files to reduce disk usage
-      "--noprealloc"  // Don't preallocate data files
+      "--setParameter", "logLevel=1"  // Reduce log verbosity (0=off, 1=low, 2=higher)
+      // Note: --smallfiles and --noprealloc were removed in MongoDB 4.0+
+      // Note: --logRotate is not a valid flag, log rotation is handled automatically
     ]
   } else if (type === "redis") {
     // Get Redis binary path from database record or find it
