@@ -207,7 +207,32 @@ async function cleanupOrphanedProcesses() {
   
   let cleanedCount = 0
   
+  // Get app data directory to verify processes belong to our app
+  const appDataDir = CONFIG.APP_DATA_DIR // ~/Library/Application Support/LiquiDB
+  const databasesDir = path.join(appDataDir, 'databases')
+  
   for (const process of runningProcesses) {
+    // First verify this process belongs to our app by checking its command line
+    let belongsToApp = false
+    try {
+      const { stdout: psOutput } = await execAsync(`ps -p ${process.pid} -o command=`)
+      const command = psOutput.trim()
+      
+      // Check if command line contains our app's data directory
+      // This ensures we only kill processes that belong to our app
+      belongsToApp = command.includes(appDataDir) || command.includes(databasesDir)
+      
+      if (!belongsToApp) {
+        log(`Process ${process.pid} (${process.type}) doesn't belong to our app, skipping`)
+        continue // Skip processes that don't belong to our app
+      }
+    } catch (error) {
+      // Could not verify process - skip it to be safe
+      log(`Could not verify process ${process.pid} belongs to app, skipping: ${error.message}`, 'WARN')
+      continue
+    }
+    
+    // Only proceed if process belongs to our app
     const isLegitimate = await isLegitimateProcess(process, databaseConfigs, mainAppRunning)
     
     if (!isLegitimate) {
