@@ -2662,26 +2662,221 @@ async function cleanupOrphanedDatabases(app) {
   }
 }
 
-// Cleanup on app termination
-app.on("before-quit", async () => {
-  log.info("Stopping all databases...")
+// Helper function to kill a process by PID
+async function killProcessByPid(pid, signal = "SIGTERM") {
+  return new Promise((resolve) => {
+    try {
+      process.kill(pid, signal)
+      console.log(`[Kill] Sent ${signal} to PID ${pid}`)
+      resolve(true)
+    } catch (error) {
+      if (error.code === 'ESRCH') {
+        // Process doesn't exist
+        console.log(`[Kill] Process ${pid} doesn't exist`)
+        resolve(false)
+      } else {
+        console.error(`[Kill] Error killing process ${pid}:`, error)
+        resolve(false)
+      }
+    }
+  })
+}
+
+// Kill all database processes - both in memory, storage, and any orphaned processes
+async function killAllDatabaseProcesses() {
+  const killedPids = new Set()
+  
+  // First, kill processes in runningDatabases map
   for (const [id, db] of runningDatabases) {
     try {
-      log.debug(`Stopping database ${id}`)
-      db.process.kill("SIGTERM")
-      // Clean up temporary files
+      const pid = db.process.pid
+      if (!killedPids.has(pid)) {
+        console.log(`[Kill] Killing database ${id} (PID: ${pid}) from runningDatabases`)
+        db.process.kill("SIGTERM")
+        killedPids.add(pid)
+      }
+    } catch (error) {
+      console.error(`[Kill] Error killing database ${id}:`, error)
+    }
+  }
+  
+  // Also check storage for PIDs that might not be in runningDatabases (orphaned processes)
+  try {
+    const databases = storage.loadDatabases(app)
+    for (const db of databases) {
+      if (db.pid !== null && !killedPids.has(db.pid)) {
+        console.log(`[Kill] Killing orphaned database ${db.id} (PID: ${db.pid}) from storage`)
+        await killProcessByPid(db.pid, "SIGTERM")
+        killedPids.add(db.pid)
+      }
+    }
+  } catch (error) {
+    console.error(`[Kill] Error killing processes from storage:`, error)
+  }
+  
+  // Scan for ALL database processes that might be orphaned (not tracked anywhere)
+  // Only kill processes that belong to our app (verify by checking command line contains our data directory)
+  try {
+    const appDataDir = app.getPath("userData") // e.g., ~/Library/Application Support/LiquiDB
+    const databasesDir = path.join(appDataDir, "databases")
+    
+    const databaseProcessNames = ['mysqld', 'postgres', 'mongod', 'redis-server']
+    for (const processName of databaseProcessNames) {
+      try {
+        const { execSync } = require('child_process')
+        const output = execSync(`pgrep -f "${processName}"`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+        const pids = output.trim().split('\n').filter(pid => pid.length > 0)
+        
+        for (const pidStr of pids) {
+          const pid = parseInt(pidStr)
+          if (!isNaN(pid) && !killedPids.has(pid)) {
+            // Check if this PID matches any known database
+            const databases = storage.loadDatabases(app)
+            const isKnownProcess = databases.some(db => db.pid === pid) || 
+                                  Array.from(runningDatabases.values()).some(db => db.process.pid === pid)
+            
+            if (!isKnownProcess) {
+              // Verify this process belongs to our app by checking its command line
+              try {
+                const { execSync: execSyncCheck } = require('child_process')
+                const psOutput = execSyncCheck(`ps -p ${pid} -o command=`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+                const command = psOutput.trim()
+                
+                // Check if command line contains our app's data directory
+                // This ensures we only kill processes that belong to our app
+                const belongsToApp = command.includes(appDataDir) || command.includes(databasesDir)
+                
+                if (belongsToApp) {
+                  // This is a truly orphaned process that belongs to our app - kill it
+                  console.log(`[Kill] Found orphaned ${processName} process (PID: ${pid}) belonging to app, killing it`)
+                  console.log(`[Kill] Command: ${command.substring(0, 200)}`)
+                  await killProcessByPid(pid, "SIGTERM")
+                  killedPids.add(pid)
+                } else {
+                  // This process doesn't belong to our app - leave it alone
+                  console.log(`[Kill] Found ${processName} process (PID: ${pid}) but it doesn't belong to our app, skipping`)
+                }
+              } catch (psError) {
+                // Process might have died between pgrep and ps, or we can't read it - skip
+                console.log(`[Kill] Could not verify process ${pid} belongs to app, skipping:`, psError.message)
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // No processes found for this type, or pgrep failed - continue
+      }
+    }
+  } catch (error) {
+    console.error(`[Kill] Error scanning for orphaned processes:`, error)
+  }
+  
+  // Wait a moment for processes to terminate gracefully
+  await new Promise(resolve => setTimeout(resolve, 2000))
+  
+  // Force kill any processes that are still running
+  const stillRunning = []
+  for (const pid of killedPids) {
+    try {
+      // Check if process is still running using Promise
+      await new Promise((resolve) => {
+        exec(`ps -p ${pid}`, (error) => {
+          if (!error) {
+            // Process still running
+            stillRunning.push(pid)
+          }
+          resolve()
+        })
+      })
+    } catch (error) {
+      // Process already dead, ignore
+    }
+  }
+  
+  // Force kill processes that are still running
+  for (const pid of stillRunning) {
+    console.log(`[Kill] Process ${pid} still running after SIGTERM, force killing with SIGKILL`)
+    await killProcessByPid(pid, "SIGKILL")
+  }
+  
+  // Final scan to ensure no database processes belonging to our app are left running
+  try {
+    const appDataDir = app.getPath("userData") // e.g., ~/Library/Application Support/LiquiDB
+    const databasesDir = path.join(appDataDir, "databases")
+    
+    const databaseProcessNames = ['mysqld', 'postgres', 'mongod', 'redis-server']
+    for (const processName of databaseProcessNames) {
+      try {
+        const { execSync } = require('child_process')
+        const output = execSync(`pgrep -f "${processName}"`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+        const pids = output.trim().split('\n').filter(pid => pid.length > 0)
+        
+        for (const pidStr of pids) {
+          const pid = parseInt(pidStr)
+          if (!isNaN(pid) && !killedPids.has(pid)) {
+            // Check if this PID matches any known database
+            const databases = storage.loadDatabases(app)
+            const isKnownProcess = databases.some(db => db.pid === pid) || 
+                                  Array.from(runningDatabases.values()).some(db => db.process.pid === pid)
+            
+            if (!isKnownProcess) {
+              // Verify this process belongs to our app by checking its command line
+              try {
+                const { execSync: execSyncCheck } = require('child_process')
+                const psOutput = execSyncCheck(`ps -p ${pid} -o command=`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+                const command = psOutput.trim()
+                
+                // Check if command line contains our app's data directory
+                const belongsToApp = command.includes(appDataDir) || command.includes(databasesDir)
+                
+                if (belongsToApp) {
+                  // Still orphaned and belongs to our app - force kill
+                  console.log(`[Kill] Found still-running orphaned ${processName} process (PID: ${pid}) belonging to app, force killing`)
+                  console.log(`[Kill] Command: ${command.substring(0, 200)}`)
+                  await killProcessByPid(pid, "SIGKILL")
+                }
+              } catch (psError) {
+                // Process might have died between pgrep and ps, or we can't read it - skip
+                // Don't kill processes we can't verify belong to our app
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // No processes found for this type - good
+      }
+    }
+  } catch (error) {
+    console.error(`[Kill] Error in final orphan scan:`, error)
+  }
+}
+
+// Cleanup on app termination
+app.on("before-quit", async (event) => {
+  // Prevent default quit behavior until cleanup is done
+  event.preventDefault()
+  
+  log.info("Stopping all databases...")
+  
+  // Kill all database processes (from memory and storage)
+  await killAllDatabaseProcesses()
+  
+  // Clean up temporary files
+  for (const [id, db] of runningDatabases) {
+    try {
       const databases = storage.loadDatabases(app)
       const dbRecord = databases.find(d => d.id === id)
       if (dbRecord?.containerId) {
         await cleanupDatabaseTempFiles(app, dbRecord.containerId, dbRecord.type)
       }
     } catch (error) {
-      console.error(`[App Quit] Error stopping database ${id}:`, error)
+      console.error(`[App Quit] Error cleaning temp files for database ${id}:`, error)
     }
   }
+  
   runningDatabases.clear()
   
-  // Start helper service when main app closes
+  // Start helper service when main app closes (helper must continue running)
   if (helperService) {
     try {
       console.log("[App Quit] Starting helper service for background monitoring...")
