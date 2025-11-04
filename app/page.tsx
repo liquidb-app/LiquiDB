@@ -13,6 +13,7 @@ import { ActivityIcon } from "@/components/ui/activity"
 import { SettingsIcon } from "@/components/ui/settings"
 import { RefreshCCWIcon } from "@/components/ui/refresh-ccw"
 import { BoxesIcon } from "@/components/ui/boxes"
+import { FileTextIcon } from "@/components/ui/file-text"
 import { useAnimatedIconHover } from "@/hooks/use-animated-icon-hover"
 import { useDatabaseIconHover } from "@/hooks/use-database-icon-hover"
 import { Button } from "@/components/ui/button"
@@ -185,6 +186,7 @@ export default function DatabaseManager() {
   const playIconHover = useAnimatedIconHover()
   const plusIconHover = useAnimatedIconHover()
   const gripIconHover = useAnimatedIconHover()
+  const fileTextIconHover = useAnimatedIconHover()
   
   // Database-specific icon hover hook
   const { createHoverHandlers } = useDatabaseIconHover()
@@ -266,6 +268,23 @@ export default function DatabaseManager() {
   
   // Store initial card positions and dimensions when animation starts
   const [cardInitialPositions, setCardInitialPositions] = useState<Map<string, { x: number; y: number; left: number; top: number; width: number; height: number }>>(new Map())
+  
+  // Handle opening external links
+  const handleOpenExternalLink = async (url: string) => {
+    try {
+      // @ts-expect-error - Electron IPC types not available
+      const result = await window.electron?.openExternalLink?.(url)
+      if (!result?.success) {
+        notifyError("Failed to open link", {
+          description: result?.error || "Could not open the link in your default browser.",
+        })
+      }
+    } catch {
+      notifyError("Failed to open link", {
+        description: "Could not open the link in your default browser.",
+      })
+    }
+  }
   
   // Capture card positions and center position when animation starts
   useEffect(() => {
@@ -2994,34 +3013,46 @@ export default function DatabaseManager() {
         className="container mx-auto py-3 px-4 pb-12 transition-all duration-300 tour-mode:ml-80"
         style={{ opacity: dashboardOpacity }}>
         {databases.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-12">
+          <Card className="border-dashed dotted-grid min-h-[320px] items-center justify-center !gap-0">
+            <CardContent className="flex flex-col items-center justify-center w-full py-8">
               <BoxesIcon size={48} className="text-muted-foreground mb-3" />
               <h3 className="text-base font-semibold mb-1">No databases yet</h3>
               <p className="text-sm text-muted-foreground mb-4 text-center max-w-md text-pretty">
                 Get started by adding your first database container.
               </p>
-              <Button 
-                onClick={() => {
-                  // Check if we're in tour mode, but allow when tour explicitly enables UI
-                  const inTour = document.body.hasAttribute('data-tour-mode')
-                  const tourAllowsUI = document.body.hasAttribute('data-tour-allow-ui')
-                  if (inTour && !tourAllowsUI) {
-                    notifyInfo("Tour Mode", {
-                      description: "Database creation is disabled during the tour. Complete the tour to create databases."
-                    })
-                    return
-                  }
-                  setAddDialogOpen(true)
-                }} 
-                size="sm"
-                data-testid="add-first-database-button"
-                onMouseEnter={plusIconHover.onMouseEnter}
-                onMouseLeave={plusIconHover.onMouseLeave}
-              >
-                <PlusIcon ref={plusIconHover.iconRef as React.RefObject<import("@/components/ui/plus").PlusIconHandle>} size={16} />
-                Add Your First Database
-              </Button>
+              <div className="flex items-center gap-3">
+                <Button 
+                  onClick={() => {
+                    // Check if we're in tour mode, but allow when tour explicitly enables UI
+                    const inTour = document.body.hasAttribute('data-tour-mode')
+                    const tourAllowsUI = document.body.hasAttribute('data-tour-allow-ui')
+                    if (inTour && !tourAllowsUI) {
+                      notifyInfo("Tour Mode", {
+                        description: "Database creation is disabled during the tour. Complete the tour to create databases."
+                      })
+                      return
+                    }
+                    setAddDialogOpen(true)
+                  }} 
+                  size="sm"
+                  data-testid="add-first-database-button"
+                  onMouseEnter={plusIconHover.onMouseEnter}
+                  onMouseLeave={plusIconHover.onMouseLeave}
+                >
+                  <PlusIcon ref={plusIconHover.iconRef as React.RefObject<import("@/components/ui/plus").PlusIconHandle>} size={16} />
+                  Add Your First Database
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleOpenExternalLink("https://liquidb.app/help")}
+                  onMouseEnter={fileTextIconHover.onMouseEnter}
+                  onMouseLeave={fileTextIconHover.onMouseLeave}
+                >
+                  <FileTextIcon ref={fileTextIconHover.iconRef as React.RefObject<import("@/components/ui/file-text").FileTextIconHandle>} size={16} />
+                  Docs
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : (

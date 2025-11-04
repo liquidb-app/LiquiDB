@@ -488,3 +488,16 @@ body[data-tour-mode="true"] .tour-mode\:ml-80 {
     overflow-x: auto;
   }
 }
+
+/* Dotted grid pattern for empty state */
+.dotted-grid {
+  background-image: radial-gradient(circle, oklch(0.556 0 0) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+}
+
+.dark .dotted-grid {
+  background-image: radial-gradient(circle, oklch(0.985 0 0 / 0.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+}
