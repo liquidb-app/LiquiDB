@@ -95,7 +95,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
     
     try {
       console.log("Loading helper status...")
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.getHelperStatus?.()
       console.log("Helper status result:", result)
       
@@ -142,7 +141,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
   // Background status checking without UI updates
   const checkHelperStatusBackground = useCallback(async () => {
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.getHelperStatus?.()
       
       if (result?.success && result.data) {
@@ -225,7 +223,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
 
   const checkAutoLaunchStatus = async () => {
     try {
-      // @ts-expect-error - Electron IPC types not available
       const enabled = await window.electron?.isAutoLaunchEnabled?.()
       setAutoLaunchEnabled(enabled || false)
     } catch (error) {
@@ -237,7 +234,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
     setAutoLaunchLoading(true)
     try {
       if (enabled) {
-        // @ts-expect-error - Electron IPC types not available
         const result = await window.electron?.enableAutoLaunch?.()
         if (result?.success) {
           setAutoLaunchEnabled(true)
@@ -250,7 +246,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
           })
         }
       } else {
-        // @ts-expect-error - Electron IPC types not available
         const result = await window.electron?.disableAutoLaunch?.()
         if (result?.success) {
           setAutoLaunchEnabled(false)
