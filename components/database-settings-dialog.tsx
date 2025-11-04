@@ -786,23 +786,6 @@ export function DatabaseSettingsDialog({
                     className="h-8 text-sm"
                   />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs">Auto-start on boot</Label>
-                    <p className="text-xs text-muted-foreground">Start this database when LiquiDB launches</p>
-                    {autoStartConflict && (
-                      <p className="text-xs text-destructive flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" />
-                        Port conflict with &quot;{autoStartConflict}&quot; - change port first
-                      </p>
-                    )}
-                  </div>
-                  <Switch 
-                    checked={autoStart} 
-                    onCheckedChange={handleAutoStartToggle}
-                    disabled={autoStartConflict !== null}
-                  />
-                </div>
                 <div className="rounded-lg bg-muted p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-medium">Connection String</p>
