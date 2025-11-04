@@ -2277,6 +2277,78 @@ app.whenReady().then(async () => {
   // Clean up orphaned database directories on startup
   await cleanupOrphanedDatabases(app)
   
+  // Clean up orphaned database processes on startup
+  try {
+    console.log("[App Start] Checking for orphaned database processes...")
+    const databases = storage.loadDatabases(app)
+    const orphanedPids = []
+    
+    for (const db of databases) {
+      if (db.pid !== null) {
+        // Check if process is actually running
+        try {
+          await new Promise((resolve, reject) => {
+            exec(`ps -p ${db.pid}`, (error) => {
+              if (error) {
+                // Process doesn't exist, mark as orphaned in storage
+                console.log(`[App Start] Process ${db.pid} for database ${db.id} doesn't exist, clearing from storage`)
+                db.status = 'stopped'
+                db.pid = null
+              } else {
+                // Process exists but app isn't tracking it - it's orphaned
+                console.log(`[App Start] Found orphaned database process ${db.pid} for database ${db.id}, will kill it`)
+                orphanedPids.push({ pid: db.pid, id: db.id })
+              }
+              resolve()
+            })
+          })
+        } catch (error) {
+          // Assume process doesn't exist if check fails
+          db.status = 'stopped'
+          db.pid = null
+        }
+      }
+    }
+    
+    // Kill orphaned processes
+    if (orphanedPids.length > 0) {
+      console.log(`[App Start] Killing ${orphanedPids.length} orphaned database processes...`)
+      for (const { pid, id } of orphanedPids) {
+        console.log(`[App Start] Killing orphaned process ${pid} for database ${id}`)
+        await killProcessByPid(pid, "SIGTERM")
+        await new Promise(resolve => setTimeout(resolve, 500))
+        // Check if still running and force kill
+        try {
+          await new Promise((resolve) => {
+            exec(`ps -p ${pid}`, (error) => {
+              if (!error) {
+                // Still running, force kill
+                console.log(`[App Start] Process ${pid} still running, force killing with SIGKILL`)
+                killProcessByPid(pid, "SIGKILL")
+              }
+              resolve()
+            })
+          })
+        } catch (error) {
+          // Process already dead
+        }
+        
+        // Update storage
+        const dbIndex = databases.findIndex(d => d.id === id)
+        if (dbIndex >= 0) {
+          databases[dbIndex].status = 'stopped'
+          databases[dbIndex].pid = null
+        }
+      }
+      
+      // Save updated database statuses
+      storage.saveDatabases(app, databases)
+      console.log(`[App Start] Cleaned up ${orphanedPids.length} orphaned processes`)
+    }
+  } catch (error) {
+    console.error("[App Start] Error cleaning up orphaned processes:", error)
+  }
+  
   createWindow()
   
   // Check if onboarding is complete before starting background processes
@@ -2308,24 +2380,14 @@ app.whenReady().then(async () => {
           console.log("[Helper] Error starting helper service after onboarding:", error.message)
         }
         
-        // Auto-start databases after a short delay to ensure mainWindow is ready
-        setTimeout(() => {
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            console.log("[Auto-start] MainWindow is ready, starting auto-start process")
-            autoStartDatabases()
-          } else {
-            console.warn("[Auto-start] MainWindow not ready, delaying auto-start")
-            // Retry after another 2 seconds
-            setTimeout(() => {
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                console.log("[Auto-start] MainWindow ready on retry, starting auto-start process")
-                autoStartDatabases()
-              } else {
-                console.error("[Auto-start] MainWindow still not ready, skipping auto-start")
-              }
-            }, 2000)
-          }
-        }, 2000)
+        // Auto-start databases if not already triggered by dashboard-ready signal
+        if (!autoStartTriggered) {
+          console.log("[Auto-start] Triggering auto-start from onboarding check (fallback)")
+          autoStartTriggered = true
+          autoStartDatabases()
+        } else {
+          console.log("[Auto-start] Auto-start already triggered by dashboard-ready, skipping")
+        }
       } else if (onboardingCheckCount < maxOnboardingChecks) {
         // Only log every 5th check to reduce spam
         if (onboardingCheckCount % 5 === 0) {
@@ -2337,11 +2399,11 @@ app.whenReady().then(async () => {
         log.warn("Onboarding check timeout reached, starting background processes anyway...")
         // Note: Helper service will be started by user interaction, not automatically
         
-        setTimeout(() => {
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            autoStartDatabases()
-          }
-        }, 2000)
+        // Auto-start databases if not already triggered
+        if (!autoStartTriggered && mainWindow && !mainWindow.isDestroyed()) {
+          autoStartTriggered = true
+          autoStartDatabases()
+        }
       }
     } catch (error) {
       log.error("Error checking onboarding status:", error.message)
@@ -2351,11 +2413,12 @@ app.whenReady().then(async () => {
       } else {
         log.info("Starting background processes after error timeout...")
         // Note: Helper service will be started by user interaction, not automatically
-        setTimeout(() => {
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            autoStartDatabases()
-          }
-        }, 2000)
+        
+        // Auto-start databases if not already triggered
+        if (!autoStartTriggered && mainWindow && !mainWindow.isDestroyed()) {
+          autoStartTriggered = true
+          autoStartDatabases()
+        }
       }
     }
   }
