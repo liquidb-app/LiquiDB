@@ -699,9 +699,14 @@ export function MaybeStartSidebarTour() {
           }
           throw new Error(result.error || 'Failed to fetch quotes')
         } catch (ipcError) {
-          // If IPC fails (e.g., handler not registered), fall through to fallback
+          // If IPC fails (e.g., handler not registered, API error, or invalid response), fall through to fallback
+          // Only log in development to avoid console noise
           if (process.env.NODE_ENV === 'development') {
-            console.warn('IPC fetch failed, using fallback quotes:', ipcError instanceof Error ? ipcError.message : ipcError)
+            const errorMessage = ipcError instanceof Error ? ipcError.message : String(ipcError)
+            // Only log if it's not a known API error (HTML response, timeout, etc.)
+            if (!errorMessage.includes('HTML') && !errorMessage.includes('timeout') && !errorMessage.includes('status code')) {
+              console.warn('IPC fetch failed, using fallback quotes:', errorMessage)
+            }
           }
           // Fall through to fallback quotes
         }
