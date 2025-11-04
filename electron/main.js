@@ -1213,7 +1213,7 @@ async function startDatabaseProcessAsync(config) {
     // Declare mysqldPath at function scope so it's accessible throughout
     let mysqldPath
 
-  if (type === "postgresql") {
+    if (type === "postgresql") {
     // Get PostgreSQL binary paths from database record or find them
     const databases = storage.loadDatabases(app)
     const dbRecord = databases.find(d => d.id === id)
@@ -1313,6 +1313,54 @@ async function startDatabaseProcessAsync(config) {
     
     if (!fsSync.existsSync(pgVersionPath) || !fsSync.existsSync(pgConfigPath)) {
       try {
+        // If directory exists but is not properly initialized, always clean it up
+        // initdb requires an empty directory, so we must remove it if initialization files are missing
+        if (fsSync.existsSync(dataDir)) {
+          try {
+            const dirContents = fsSync.readdirSync(dataDir)
+            // If directory has any contents (including hidden files), clean it up
+            if (dirContents.length > 0) {
+              console.log(`[PostgreSQL] Directory exists but is not properly initialized (missing PG_VERSION or postgresql.conf), cleaning up...`)
+              await fs.rm(dataDir, { recursive: true, force: true })
+              // Wait a bit to ensure filesystem operations complete
+              await new Promise(resolve => setTimeout(resolve, 200))
+              await fs.mkdir(dataDir, { recursive: true })
+            }
+          } catch (cleanupError) {
+            // If readdir fails, try to remove directory anyway (might be permission issue or directory in use)
+            // This can happen if there are hidden files or permission issues
+            console.log(`[PostgreSQL] Could not read directory contents, attempting to remove directory anyway:`, cleanupError.message)
+            try {
+              await fs.rm(dataDir, { recursive: true, force: true })
+              await new Promise(resolve => setTimeout(resolve, 200))
+              await fs.mkdir(dataDir, { recursive: true })
+            } catch (rmError) {
+              console.error(`[PostgreSQL] Failed to clean up directory:`, rmError.message)
+              throw new Error(`Failed to clean up PostgreSQL data directory: ${rmError.message}`)
+            }
+          }
+        }
+        
+        // Final verification: ensure directory is empty before initializing
+        // This catches edge cases where files might still exist after cleanup
+        if (fsSync.existsSync(dataDir)) {
+          try {
+            const finalCheck = fsSync.readdirSync(dataDir)
+            if (finalCheck.length > 0) {
+              console.log(`[PostgreSQL] Warning: Directory still has ${finalCheck.length} items after cleanup, removing again...`)
+              await fs.rm(dataDir, { recursive: true, force: true })
+              await new Promise(resolve => setTimeout(resolve, 200))
+              await fs.mkdir(dataDir, { recursive: true })
+            }
+          } catch (finalCheckError) {
+            // If we can't verify, try to remove anyway to be safe
+            console.log(`[PostgreSQL] Could not verify directory is empty, attempting final cleanup:`, finalCheckError.message)
+            await fs.rm(dataDir, { recursive: true, force: true })
+            await new Promise(resolve => setTimeout(resolve, 200))
+            await fs.mkdir(dataDir, { recursive: true })
+          }
+        }
+        
         console.log(`[PostgreSQL] Initializing database with ${initdbPath}`)
         // Use spawn instead of execSync to prevent blocking
         const { spawn } = require("child_process")
