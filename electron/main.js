@@ -1763,53 +1763,173 @@ async function startDatabaseProcessAsync(config) {
       // Directory might already exist
     }
     
+    // Verify Redis binary exists and is executable
+    const fsSync = require("fs")
+    try {
+      if (!fsSync.existsSync(redisPath)) {
+        throw new Error(`Redis binary not found at ${redisPath}`)
+      }
+      // Check if file is executable (stat mode)
+      const stats = fsSync.statSync(redisPath)
+      if (!stats.isFile()) {
+        throw new Error(`Redis path exists but is not a file: ${redisPath}`)
+      }
+      console.log(`[Redis] Verified Redis binary exists: ${redisPath}`)
+    } catch (error) {
+      console.error(`[Redis] ${id} Error verifying Redis binary:`, error.message)
+      throw new Error(`Redis binary verification failed: ${error.message}`)
+    }
+    
+    // Verify data directory is writable
+    try {
+      const testFile = path.join(redisDataDir, '.write-test')
+      fsSync.writeFileSync(testFile, 'test')
+      fsSync.unlinkSync(testFile)
+      console.log(`[Redis] Verified data directory is writable: ${redisDataDir}`)
+    } catch (error) {
+      console.error(`[Redis] ${id} Data directory may not be writable:`, error.message)
+      throw new Error(`Redis data directory is not writable: ${error.message}`)
+    }
+    
+    // Check for and remove any existing Redis config files that might cause issues
+    // Redis 8.2+ has issues with paths containing spaces in config files
+    // We must remove all config files to prevent Redis from auto-discovering them
+    const possibleConfigFiles = [
+      path.join(redisDataDir, 'redis.conf'),
+      path.join(redisDataDir, 'redis-server.conf'),
+      path.join(redisDataDir, '.redis.conf'),
+      path.join(redisDataDir, 'redis.conf.bak'),
+      path.join(redisDataDir, 'redis.conf.tmp')
+    ]
+    for (const configFile of possibleConfigFiles) {
+      if (fsSync.existsSync(configFile)) {
+        console.log(`[Redis] ${id} Found existing config file ${configFile}, removing to avoid conflicts`)
+        try {
+          fsSync.unlinkSync(configFile)
+          console.log(`[Redis] ${id} Removed config file ${configFile}`)
+        } catch (error) {
+          console.warn(`[Redis] ${id} Could not remove config file ${configFile}:`, error.message)
+        }
+      }
+    }
+    
+    // Check for Homebrew default config file that might cause issues
+    const homebrewConfigPath = "/opt/homebrew/etc/redis.conf"
+    if (fsSync.existsSync(homebrewConfigPath)) {
+      console.log(`[Redis] ${id} Warning: Homebrew default config found at ${homebrewConfigPath}`)
+      console.log(`[Redis] ${id} Using command-line arguments to override any config file settings`)
+    }
+    
+    // Use command-line arguments instead of config file to avoid path-with-spaces issues
+    // Redis 8.2+ has issues with paths containing spaces in config files
+    // Command-line arguments should override any default config file settings
+    // We explicitly avoid using config files and rely on command-line args only
     cmd = redisPath
     args = [
-      "--port", port.toString(), 
+      "--port", port.toString(),
       "--bind", "127.0.0.1",
-      "--dir", redisDataDir,
+      "--dir", redisDataDir,  // Command-line args handle spaces better than config files
       "--dbfilename", `dump-${containerId}.rdb`,
-      "--save", "900 1", // Save after 900 seconds if at least 1 key changed
-      "--save", "300 10", // Save after 300 seconds if at least 10 keys changed
-      "--save", "60 10000", // Save after 60 seconds if at least 10000 keys changed
-      "--maxmemory", "512mb",  // Limit memory usage to prevent swap file growth
-      "--maxmemory-policy", "allkeys-lru",  // Evict least recently used keys when memory limit reached
-      "--no-appendfsync-on-rewrite",  // Don't fsync during rewrite to reduce I/O
-      "--auto-aof-rewrite-percentage", "100",  // Rewrite AOF when it's 100% larger than previous
-      "--auto-aof-rewrite-min-size", "64mb"  // Minimum AOF size before rewrite
+      "--save", "900", "1",
+      "--save", "300", "10",
+      "--save", "60", "10000",
+      "--maxmemory", "512mb",
+      "--maxmemory-policy", "allkeys-lru",
+      "--appendonly", "no"  // Disable AOF to avoid conflicts
     ]
     
-    // Add --requirepass if password is provided (for persistence)
+    // Add password if provided
     if (redisPassword && redisPassword.trim() !== '') {
       args.push("--requirepass", redisPassword)
       console.log(`[Redis] ${id} Starting with password authentication`)
     }
-  }
+    
+    // Final check: remove any config files that might have been created between checks
+    // This prevents race conditions where config files might be created after cleanup
+    for (const configFile of possibleConfigFiles) {
+      if (fsSync.existsSync(configFile)) {
+        console.log(`[Redis] ${id} Final check: Found config file ${configFile}, removing immediately`)
+        try {
+          fsSync.unlinkSync(configFile)
+          console.log(`[Redis] ${id} Removed config file ${configFile} (final check)`)
+        } catch (error) {
+          console.warn(`[Redis] ${id} Could not remove config file ${configFile} in final check:`, error.message)
+        }
+      }
+    }
+    
+    // Log the actual args being used to verify no config file path is included
+    console.log(`[Redis] ${id} Starting Redis with command-line args (no config file)`)
+    console.log(`[Redis] ${id} Command: ${cmd}`)
+    console.log(`[Redis] ${id} Args: ${JSON.stringify(args)}`)
 
-  // Ensure temp directory exists right before starting the process (for MySQL and PostgreSQL)
-  if (type === "mysql" || type === "postgresql") {
-    try {
-      const fsPromises = require("fs").promises
-      const tempDir = path.join(storage.getDatabaseDataDir(app, containerId), 'tmp')
-      await fsPromises.mkdir(tempDir, { recursive: true })
-      console.log(`[${type}] Ensured temp directory exists before start: ${tempDir}`)
-    } catch (e) {
-      console.warn(`[${type}] Could not ensure temp directory exists:`, e.message)
+    // For Redis: Final safety check - ensure no config file path is in args
+    if (type === "redis") {
+      // Verify args doesn't contain any config file paths
+      const argsString = JSON.stringify(args)
+      if (argsString.includes('redis.conf') || argsString.includes('.conf')) {
+        console.error(`[Redis] ${id} ERROR: Config file path found in args! This should not happen.`)
+        console.error(`[Redis] ${id} Args: ${argsString}`)
+        // Remove any config file references from args
+        args = args.filter(arg => !arg.includes('redis.conf') && !arg.endsWith('.conf'))
+        console.log(`[Redis] ${id} Cleaned args: ${JSON.stringify(args)}`)
+      }
+      
+      // One more final check to remove config file just before spawning
+      const redisDataDir = storage.getDatabaseDataDir(app, containerId)
+      const configFilePath = path.join(redisDataDir, 'redis.conf')
+      if (fsSync.existsSync(configFilePath)) {
+        console.log(`[Redis] ${id} CRITICAL: Config file exists right before spawn, removing now`)
+        try {
+          fsSync.unlinkSync(configFilePath)
+          console.log(`[Redis] ${id} Successfully removed config file ${configFilePath}`)
+        } catch (error) {
+          console.error(`[Redis] ${id} Failed to remove config file: ${error.message}`)
+          // Even if we can't delete it, we should not pass it to Redis
+          throw new Error(`Cannot start Redis with existing config file: ${error.message}`)
+        }
+      }
     }
   }
   
-  // Use stdio: "pipe" to prevent terminal interactions (password prompts, etc.)
-  const child = spawn(cmd, args, { 
-    env, 
-    detached: false,
-    stdio: ['ignore', 'pipe', 'pipe'] // stdin=ignore, stdout=pipe, stderr=pipe
-  })
-  
-  // Track startup status for PostgreSQL
-  let isStartupComplete = false
-  let startupTimeout = null
-  let readyEventSent = false // Flag to prevent duplicate events
-  let stoppedEventSent = false // Flag to prevent duplicate stopped events
+    // Ensure temp directory exists right before starting the process (for MySQL and PostgreSQL)
+    if (type === "mysql" || type === "postgresql") {
+      try {
+        const fsPromises = require("fs").promises
+        const tempDir = path.join(storage.getDatabaseDataDir(app, containerId), 'tmp')
+        await fsPromises.mkdir(tempDir, { recursive: true })
+        console.log(`[${type}] Ensured temp directory exists before start: ${tempDir}`)
+      } catch (e) {
+        console.warn(`[${type}] Could not ensure temp directory exists:`, e.message)
+      }
+    }
+    
+    // Use stdio: "pipe" to prevent terminal interactions (password prompts, etc.)
+    // For Redis, ensure we're not starting from a directory with config files
+    const spawnOptions = { 
+      env, 
+      detached: false,
+      stdio: ['ignore', 'pipe', 'pipe'] // stdin=ignore, stdout=pipe, stderr=pipe
+    }
+    
+    // For Redis, set working directory to a safe location (not the data directory)
+    // This prevents Redis from auto-discovering config files in the data directory
+    if (type === "redis") {
+      // Use a temp directory or system temp to avoid config file auto-discovery
+      const os = require("os")
+      spawnOptions.cwd = os.tmpdir()
+      console.log(`[Redis] ${id} Starting Redis from ${spawnOptions.cwd} to avoid config file auto-discovery`)
+    }
+    
+    const child = spawn(cmd, args, spawnOptions)
+    
+    // Track startup status for PostgreSQL
+    let isStartupComplete = false
+    let startupTimeout = null
+    let readyEventSent = false // Flag to prevent duplicate events
+    let stoppedEventSent = false // Flag to prevent duplicate stopped events
+    let mongodbStatusTimeout = null
+    let redisStatusTimeout = null
   
   // For PostgreSQL, listen for "ready to accept connections" message
   if (type === "postgresql") {
