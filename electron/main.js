@@ -2747,9 +2747,33 @@ ipcMain.handle("app:quit", async () => {
   }
 })
 
-app.on("window-all-closed", () => {
+app.on("window-all-closed", async () => {
   if (process.platform !== "darwin") {
     app.quit()
+  } else {
+    // On macOS, when all windows are closed, still kill all database processes
+    // This ensures processes are cleaned up even if the app stays running
+    console.log("[Window All Closed] All windows closed, killing all database processes...")
+    try {
+      await killAllDatabaseProcesses()
+      
+      // Clear all PIDs from storage
+      const databases = storage.loadDatabases(app)
+      let updated = false
+      for (const db of databases) {
+        if (db.pid !== null) {
+          db.status = 'stopped'
+          db.pid = null
+          updated = true
+        }
+      }
+      if (updated) {
+        storage.saveDatabases(app, databases)
+        console.log("[Window All Closed] Cleared all PIDs from storage")
+      }
+    } catch (error) {
+      console.error("[Window All Closed] Error killing processes:", error)
+    }
   }
 })
 
@@ -3216,18 +3240,17 @@ app.on("before-quit", async (event) => {
   } catch (error) {
     console.error("[App Quit] Failed to clear PIDs from storage:", error)
   }
+  
+  // Now allow the app to quit
+  app.exit(0)
 })
 
 // Handle app termination
-process.on("SIGINT", () => {
+process.on("SIGINT", async () => {
   console.log("[App Quit] Received SIGINT, stopping all databases...")
-  for (const [id, db] of runningDatabases) {
-    try {
-      db.process.kill("SIGTERM")
-    } catch (error) {
-      console.error(`[App Quit] Error stopping database ${id}:`, error)
-    }
-  }
+  
+  // Kill all database processes (from memory and storage)
+  await killAllDatabaseProcesses()
   
   // Clear all PIDs from storage
   try {
@@ -3251,15 +3274,11 @@ process.on("SIGINT", () => {
   process.exit(0)
 })
 
-process.on("SIGTERM", () => {
+process.on("SIGTERM", async () => {
   console.log("[App Quit] Received SIGTERM, stopping all databases...")
-  for (const [id, db] of runningDatabases) {
-    try {
-      db.process.kill("SIGTERM")
-    } catch (error) {
-      console.error(`[App Quit] Error stopping database ${id}:`, error)
-    }
-  }
+  
+  // Kill all database processes (from memory and storage)
+  await killAllDatabaseProcesses()
   
   // Clear all PIDs from storage
   try {
@@ -3281,6 +3300,73 @@ process.on("SIGTERM", () => {
   }
   
   process.exit(0)
+})
+
+// Handle uncaught exceptions (app crashes)
+process.on("uncaughtException", async (error) => {
+  console.error("[App Crash] Uncaught exception:", error)
+  
+  // Kill all database processes before crashing
+  try {
+    console.log("[App Crash] Killing all database processes before exit...")
+    await killAllDatabaseProcesses()
+  } catch (killError) {
+    console.error("[App Crash] Error killing processes:", killError)
+  }
+  
+  // Clear all PIDs from storage
+  try {
+    const databases = storage.loadDatabases(app)
+    let updated = false
+    for (const db of databases) {
+      if (db.pid !== null) {
+        db.status = 'stopped'
+        db.pid = null
+        updated = true
+      }
+    }
+    if (updated) {
+      storage.saveDatabases(app, databases)
+      console.log("[App Crash] Cleared all PIDs from storage")
+    }
+  } catch (storageError) {
+    console.error("[App Crash] Failed to clear PIDs from storage:", storageError)
+  }
+  
+  // Re-throw to allow default crash behavior
+  throw error
+})
+
+// Handle unhandled promise rejections (app crashes)
+process.on("unhandledRejection", async (reason, promise) => {
+  console.error("[App Crash] Unhandled rejection:", reason)
+  
+  // Kill all database processes before crashing
+  try {
+    console.log("[App Crash] Killing all database processes before exit (unhandled rejection)...")
+    await killAllDatabaseProcesses()
+  } catch (killError) {
+    console.error("[App Crash] Error killing processes:", killError)
+  }
+  
+  // Clear all PIDs from storage
+  try {
+    const databases = storage.loadDatabases(app)
+    let updated = false
+    for (const db of databases) {
+      if (db.pid !== null) {
+        db.status = 'stopped'
+        db.pid = null
+        updated = true
+      }
+    }
+    if (updated) {
+      storage.saveDatabases(app, databases)
+      console.log("[App Crash] Cleared all PIDs from storage (unhandled rejection)")
+    }
+  } catch (storageError) {
+    console.error("[App Crash] Failed to clear PIDs from storage:", storageError)
+  }
 })
 
 // IPC handlers for database operations
