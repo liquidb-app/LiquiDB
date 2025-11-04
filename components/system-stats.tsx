@@ -131,18 +131,20 @@ export function SystemStats() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border/50 px-6 py-1.5">
-      <div className="container mx-auto flex items-center justify-start gap-4 text-xs text-muted-foreground">
+      <div className="flex items-center justify-start gap-4 text-xs text-muted-foreground">
         {/* Running Databases */}
         {stats.runningDatabases !== undefined && (
           <>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-1.5 cursor-default min-w-[85px]">
+                <div className="flex items-center gap-1.5 cursor-default">
                   {stats.runningDatabases > 0 && (
                     <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
                   )}
                   <Database className="h-3 w-3 opacity-60 flex-shrink-0" />
-                  <span className="font-mono tabular-nums">{stats.runningDatabases} running</span>
+                  {showText && (
+                    <span className="font-mono tabular-nums">{stats.runningDatabases} running</span>
+                  )}
                 </div>
               </TooltipTrigger>
               <TooltipContent>
@@ -152,16 +154,18 @@ export function SystemStats() {
                 </div>
               </TooltipContent>
             </Tooltip>
-            <span className="text-muted-foreground/30 flex-shrink-0">|</span>
+            {showText && <span className="text-muted-foreground/30 flex-shrink-0">|</span>}
           </>
         )}
 
         {/* RAM Stats */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center gap-1.5 cursor-default min-w-[100px]">
+            <div className="flex items-center gap-1.5 cursor-default">
               <MemoryStick className="h-3 w-3 opacity-60 flex-shrink-0" />
-              <span className="font-mono tabular-nums whitespace-nowrap">RAM {formatBytes(stats.memory.used)}</span>
+              {showText && (
+                <span className="font-mono tabular-nums whitespace-nowrap">RAM {formatBytes(stats.memory.used)}</span>
+              )}
             </div>
           </TooltipTrigger>
           <TooltipContent>
@@ -173,14 +177,16 @@ export function SystemStats() {
           </TooltipContent>
         </Tooltip>
 
-        <span className="text-muted-foreground/30 flex-shrink-0">|</span>
+        {showText && <span className="text-muted-foreground/30 flex-shrink-0">|</span>}
 
         {/* CPU Stats */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center gap-1.5 cursor-default min-w-[75px]">
+            <div className="flex items-center gap-1.5 cursor-default">
               <Cpu className="h-3 w-3 opacity-60 flex-shrink-0" />
-              <span className="font-mono tabular-nums whitespace-nowrap">CPU {cpuPercentage.toFixed(2)}%</span>
+              {showText && (
+                <span className="font-mono tabular-nums whitespace-nowrap">CPU {cpuPercentage.toFixed(2)}%</span>
+              )}
             </div>
           </TooltipTrigger>
           <TooltipContent>
@@ -192,16 +198,18 @@ export function SystemStats() {
           </TooltipContent>
         </Tooltip>
 
-        <span className="text-muted-foreground/30 flex-shrink-0">|</span>
+        {showText && <span className="text-muted-foreground/30 flex-shrink-0">|</span>}
 
         {/* Load Average */}
         {stats.loadAverage && stats.loadAverage.length > 0 && (
           <>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-1.5 cursor-default min-w-[70px]">
+                <div className="flex items-center gap-1.5 cursor-default">
                   <Activity className="h-3 w-3 opacity-60 flex-shrink-0" />
-                  <span className="font-mono tabular-nums whitespace-nowrap">Load {loadAvg.toFixed(2)}</span>
+                  {showText && (
+                    <span className="font-mono tabular-nums whitespace-nowrap">Load {loadAvg.toFixed(2)}</span>
+                  )}
                 </div>
               </TooltipTrigger>
               <TooltipContent>
@@ -212,7 +220,7 @@ export function SystemStats() {
                 </div>
               </TooltipContent>
             </Tooltip>
-            <span className="text-muted-foreground/30 flex-shrink-0">|</span>
+            {showText && <span className="text-muted-foreground/30 flex-shrink-0">|</span>}
           </>
         )}
 
@@ -221,11 +229,13 @@ export function SystemStats() {
           <>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-1.5 cursor-default min-w-[200px]">
+                <div className="flex items-center gap-1.5 cursor-default">
                   <HardDrive className="h-3 w-3 opacity-60 flex-shrink-0" />
-                  <span className="font-mono tabular-nums whitespace-nowrap">
-                    Disk: {formatBytes(diskUsed)} used (limit {formatBytes(diskTotal)})
-                  </span>
+                  {showText && (
+                    <span className="font-mono tabular-nums whitespace-nowrap">
+                      Disk: {formatBytes(diskUsed)} used (limit {formatBytes(diskTotal)})
+                    </span>
+                  )}
                 </div>
               </TooltipTrigger>
               <TooltipContent>
@@ -238,7 +248,7 @@ export function SystemStats() {
                 </div>
               </TooltipContent>
             </Tooltip>
-            <span className="text-muted-foreground/30 flex-shrink-0">|</span>
+            {showText && <span className="text-muted-foreground/30 flex-shrink-0">|</span>}
           </>
         )}
 
@@ -246,9 +256,11 @@ export function SystemStats() {
         {stats.uptime !== undefined && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex items-center gap-1.5 cursor-default min-w-[90px]">
+              <div className="flex items-center gap-1.5 cursor-default">
                 <Clock className="h-3 w-3 opacity-60 flex-shrink-0" />
-                <span className="font-mono tabular-nums whitespace-nowrap">Uptime {formatUptime(stats.uptime)}</span>
+                {showText && (
+                  <span className="font-mono tabular-nums whitespace-nowrap">Uptime {formatUptime(stats.uptime)}</span>
+                )}
               </div>
             </TooltipTrigger>
             <TooltipContent>
