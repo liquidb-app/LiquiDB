@@ -35,6 +35,8 @@ declare global {
         error?: string
       }>
       fetchQuotes?: () => Promise<{ success: boolean; data?: Array<{ quote: string; author: string }>; error?: string }>
+      isOnboardingComplete?: () => boolean
+      notifyDashboardReady?: () => Promise<{ success: boolean; triggered?: boolean; alreadyTriggered?: boolean; reason?: string; error?: string }>
     }
   }
 }
