@@ -48,6 +48,7 @@ const formatUptime = (seconds: number) => {
 export function SystemStats() {
   const [stats, setStats] = useState<SystemStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1024)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const fetchStats = async () => {
@@ -96,6 +97,28 @@ export function SystemStats() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
+
+  // Track window width for responsive text display
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth)
+    }
+
+    // Set initial width
+    if (typeof window !== 'undefined') {
+      setWindowWidth(window.innerWidth)
+      window.addEventListener('resize', handleResize)
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', handleResize)
+      }
+    }
+  }, [])
+
+  // Show text when window is wide enough (adjust breakpoint as needed)
+  const showText = windowWidth > 768
 
   if (isLoading || !stats?.success || !stats.memory || !stats.cpu) {
     return null
