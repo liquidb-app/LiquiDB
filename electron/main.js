@@ -22,7 +22,7 @@ const path = require("path")
 const { spawn } = require("child_process")
 const fs = require("fs")
 const net = require("net")
-// const os = require("os")
+const os = require("os")
 const { exec } = require("child_process")
 const brew = require("./brew")
 const storage = require("./storage")
@@ -2401,7 +2401,7 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 600,
     titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 20, y: 20 },
+    trafficLightPosition: { x: 8, y: 8 },
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
