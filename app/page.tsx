@@ -428,6 +428,7 @@ export default function DatabaseManager() {
     const [, setIsChecking] = useState(false)
     const freeConfirmationsRef = React.useRef(0) // Track consecutive "free" confirmations
     const hasWarningRef = React.useRef(false) // Track if we currently have a warning displayed
+    const currentIntervalRef = React.useRef(10000) // Track current interval value (default 10 seconds)
     const cachedState = portWarningCache[port]
 
     // Sync ref with state changes
@@ -499,13 +500,26 @@ export default function DatabaseManager() {
                   // Update cache - clear immediately since PID match confirms it's our own process
                   updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
                 } else {
-                  // Real conflict detected (different process or stopped database with conflict)
-                  // Always set/keep the warning when conflict is confirmed - no flickering
-                  hasWarningRef.current = true
-                  freeConfirmationsRef.current = 0 // Reset counter when conflict is confirmed
-                  setConflictInfo(externalConflict)
-                  // Update cache
-                  updatePortWarningCache(port, { show: true, info: externalConflict, freeStreak: 0 })
+                  // Check if PID changed - if so, this might be a different process or the old one was killed
+                  const previousPid = conflictInfo?.pid || cachedState?.info?.pid
+                  const currentPid = externalConflict.pid
+                  
+                  if (previousPid && previousPid !== currentPid && previousPid !== 'N/A' && currentPid !== 'Unknown') {
+                    // PID changed - the old process was likely killed, clear immediately
+                    console.log(`[Port Warning] PID changed from ${previousPid} to ${currentPid}, clearing old warning`)
+                    hasWarningRef.current = false
+                    setConflictInfo(null)
+                    freeConfirmationsRef.current = 0
+                    updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
+                  } else {
+                    // Real conflict detected (same PID or first detection)
+                    // Always set/keep the warning when conflict is confirmed - no flickering
+                    hasWarningRef.current = true
+                    freeConfirmationsRef.current = 0 // Reset counter when conflict is confirmed
+                    setConflictInfo(externalConflict)
+                    // Update cache
+                    updatePortWarningCache(port, { show: true, info: externalConflict, freeStreak: 0 })
+                  }
                 }
               } else {
                 // False positive detected - don't clear existing warning if we have one
@@ -518,20 +532,30 @@ export default function DatabaseManager() {
             } else {
               // Port conflict check returned no conflict - port might be free
               // Need 2 consecutive "free" confirmations before removing warning (prevents flickering)
-              if (hasWarningRef.current) {
+              if (hasWarningRef.current || cachedState?.show) {
                 freeConfirmationsRef.current++
                 if (freeConfirmationsRef.current >= 2) {
                   // Only clear after 2 consecutive confirmations that port is free
                   hasWarningRef.current = false
                   setConflictInfo(null)
                   freeConfirmationsRef.current = 0 // Reset counter after clearing
-                  // Update cache - clear after stable confirmations
+                  // Update cache - clear after stable confirmations (force clear)
                   updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
                 } else {
                   // Update cache with current free streak to persist between renders
-                  updatePortWarningCache(port, { show: true, info: portWarningCache[port]?.info || conflictInfo, freeStreak: freeConfirmationsRef.current })
+                  // But keep show as true until we have 2 confirmations
+                  updatePortWarningCache(port, { 
+                    show: true, 
+                    info: portWarningCache[port]?.info || conflictInfo, 
+                    freeStreak: freeConfirmationsRef.current 
+                  })
                 }
                 // Otherwise keep existing warning state - don't clear on single "free" check
+              } else {
+                // No warning was showing, but make sure cache is cleared
+                if (cachedState?.show) {
+                  updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
+                }
               }
             }
           }
@@ -549,12 +573,35 @@ export default function DatabaseManager() {
       // Immediate check to show warning right away if port is taken
       checkConflict()
       
-      // Re-check every 10 seconds until port is confirmed free
-      const interval = setInterval(() => {
+      // Re-check more frequently when a warning is active (every 2 seconds) to clear faster
+      // Otherwise check every 10 seconds
+      const getInterval = () => {
+        // If we have a warning, check more frequently
+        if (hasWarningRef.current || cachedState?.show) {
+          return 2000 // 2 seconds when warning is active
+        }
+        return 10000 // 10 seconds when no warning
+      }
+      
+      // Initialize interval ref with current value
+      currentIntervalRef.current = getInterval()
+      
+      let interval = setInterval(() => {
         if (isMounted) {
           checkConflict()
+          // Update interval dynamically based on warning state
+          const newInterval = getInterval()
+          if (newInterval !== currentIntervalRef.current) {
+            clearInterval(interval)
+            currentIntervalRef.current = newInterval
+            interval = setInterval(() => {
+              if (isMounted) {
+                checkConflict()
+              }
+            }, newInterval)
+          }
         }
-      }, 10000)
+      }, currentIntervalRef.current)
       
       return () => {
         isMounted = false
@@ -581,7 +628,11 @@ export default function DatabaseManager() {
     })()
 
     // Only show warning if there's an actual conflict (live or cached)
-    const shouldShow = hasWarningRef.current || cachedState?.show
+    // Don't show if we've confirmed the port is free (2+ consecutive free checks)
+    const hasConfirmedFree = freeConfirmationsRef.current >= 2
+    const shouldShow = (hasWarningRef.current || cachedState?.show) && 
+                       !hasConfirmedFree && 
+                       (conflictInfo !== null || cachedState?.info)
     if (!shouldShow || !displayInfo || !warningMessage) {
       return null
     }
@@ -1127,14 +1178,19 @@ export default function DatabaseManager() {
               console.log(`[Auto-start] Completed:`, data)
               
               // Show summary notification
-              if (data.conflicts && data.conflicts.length > 0) {
+              if (data.portConflicts && data.portConflicts > 0) {
                 notifyInfo("Auto-start Completed with Port Conflicts", {
-                  description: `${data.started} databases started, ${data.conflicts.length} port conflicts resolved`,
+                  description: `${data.successful} databases started, ${data.failed} failed, ${data.portConflicts} port conflicts resolved`,
                   duration: 6000,
                 })
-              } else {
+              } else if (data.failed > 0) {
+                notifyWarning("Auto-start Completed with Issues", {
+                  description: `${data.successful} databases started, ${data.failed} failed`,
+                  duration: 6000,
+                })
+              } else if (data.successful > 0) {
                 notifySuccess("Auto-start Completed", {
-                  description: `${data.started} databases started successfully`,
+                  description: `${data.successful} ${data.successful === 1 ? 'database' : 'databases'} started successfully`,
                   duration: 4000,
                 })
               }

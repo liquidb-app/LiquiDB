@@ -101,15 +101,57 @@ export function PortConflictWarning({
               }
             }
           } else {
-            if (hasWarningRef.current) {
+            // Port conflict check returned no conflict - port might be free
+            // Check if we had a stored PID that no longer exists
+            const storedPid = conflictInfo?.pid || cachedState?.info?.pid
+            if (storedPid && storedPid !== 'N/A' && storedPid !== 'Unknown') {
+              // Verify the stored PID is no longer running
+              try {
+                // @ts-expect-error - Electron IPC types not available
+                if (window.electron?.checkPortConflict) {
+                  // @ts-expect-error - Electron IPC types not available
+                  const pidCheck = await window.electron.checkPortConflict(port)
+                  const currentPid = pidCheck?.processInfo?.pid
+                  
+                  // If PID changed or no longer detected, clear immediately
+                  if (!pidCheck?.inUse || (currentPid && currentPid !== storedPid)) {
+                    hasWarningRef.current = false
+                    setConflictInfo(null)
+                    freeConfirmationsRef.current = 0
+                    updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
+                    setIsChecking(false)
+                    return
+                  }
+                }
+              } catch (error) {
+                // If check fails, continue with normal flow
+              }
+            }
+            
+            // Need 2 consecutive "free" confirmations before removing warning (prevents flickering)
+            if (hasWarningRef.current || cachedState?.show) {
               freeConfirmationsRef.current++
               if (freeConfirmationsRef.current >= 2) {
+                // Only clear after 2 consecutive confirmations that port is free
                 hasWarningRef.current = false
                 setConflictInfo(null)
-                freeConfirmationsRef.current = 0
+                freeConfirmationsRef.current = 0 // Reset counter after clearing
+                // Update cache - clear after stable confirmations (force clear)
                 updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
               } else {
-                updatePortWarningCache(port, { show: true, info: portWarningCache[port]?.info || conflictInfo, freeStreak: freeConfirmationsRef.current })
+                // Update cache with current free streak to persist between renders
+                // But keep show as true until we have 2 confirmations
+                updatePortWarningCache(port, { 
+                  show: true, 
+                  info: portWarningCache[port]?.info || conflictInfo, 
+                  freeStreak: freeConfirmationsRef.current 
+                })
+              }
+              // Otherwise keep existing warning state - don't clear on single "free" check
+            } else {
+              // No warning was showing, but make sure cache is cleared
+              if (cachedState?.show) {
+                updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
               }
             }
           }
@@ -124,11 +166,35 @@ export function PortConflictWarning({
     
     checkConflict()
     
-    const interval = setInterval(() => {
+    // Re-check more frequently when a warning is active (every 2 seconds) to clear faster
+    // Otherwise check every 10 seconds
+    const getInterval = () => {
+      // If we have a warning, check more frequently
+      if (hasWarningRef.current || cachedState?.show) {
+        return 2000 // 2 seconds when warning is active
+      }
+      return 10000 // 10 seconds when no warning
+    }
+    
+    // Use a ref to track the current interval value
+    const currentIntervalRef = useRef(getInterval())
+    
+    let interval = setInterval(() => {
       if (isMounted) {
         checkConflict()
+        // Update interval dynamically based on warning state
+        const newInterval = getInterval()
+        if (newInterval !== currentIntervalRef.current) {
+          clearInterval(interval)
+          currentIntervalRef.current = newInterval
+          interval = setInterval(() => {
+            if (isMounted) {
+              checkConflict()
+            }
+          }, newInterval)
+        }
       }
-    }, 10000)
+    }, currentIntervalRef.current)
     
     return () => {
       isMounted = false
@@ -154,7 +220,12 @@ export function PortConflictWarning({
         : `Port ${port} is in use by external process: ${displayInfo.processName} (PID: ${displayInfo.pid})`
   })()
 
-  const shouldShow = hasWarningRef.current || cachedState?.show
+  // Only show warning if there's an actual conflict (live or cached)
+  // Don't show if we've confirmed the port is free (2+ consecutive free checks)
+  const hasConfirmedFree = freeConfirmationsRef.current >= 2
+  const shouldShow = (hasWarningRef.current || cachedState?.show) && 
+                     !hasConfirmedFree && 
+                     (conflictInfo !== null || cachedState?.info)
   if (!shouldShow || !displayInfo || !warningMessage) {
     return null
   }
