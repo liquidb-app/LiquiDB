@@ -2900,7 +2900,7 @@ export default function DatabaseManager() {
           WebkitAppRegion: 'drag',
           opacity: dashboardOpacity 
         } as React.CSSProperties}>
-        <div className="container mx-auto px-6 py-2 flex items-center justify-between transition-all duration-300 tour-mode:ml-80">
+        <div className="container mx-auto pl-20 pr-6 py-1 flex items-center justify-between transition-all duration-300 tour-mode:ml-80">
           <div className="flex items-center gap-2">
             {selectedDatabases.size > 0 && (() => {
               const { showStart, showStop } = getBulkActionButtons()
