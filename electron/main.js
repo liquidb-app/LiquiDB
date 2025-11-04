@@ -950,18 +950,10 @@ async function configureRedis(config) {
         console.log(`[Redis Config] ${id} Set Redis password`)
         redisAuth = actualPassword // Now we need auth for subsequent commands
         
-        // Save the configuration to make it persistent
-        try {
-          execSync(`${redisCliCmd} -h localhost -p ${port} ${redisAuth ? `-a "${redisAuth.replace(/"/g, '\\"')}"` : ''} CONFIG REWRITE`, {
-            env,
-            stdio: 'pipe',
-            timeout: 5000
-          })
-          console.log(`[Redis Config] ${id} Saved Redis configuration`)
-        } catch (saveError) {
-          // Config REWRITE might fail if Redis wasn't started with config file
-          console.log(`[Redis Config] ${id} Could not save config to file (this is normal if no config file exists)`)
-        }
+        // Don't call CONFIG REWRITE as it creates config files with potentially unquoted paths
+        // Redis started with command-line args doesn't need config files
+        // Password persistence is handled via command-line args on restart
+        console.log(`[Redis Config] ${id} Skipping CONFIG REWRITE to avoid creating config files with unquoted paths`)
       } catch (passError) {
         // If that fails, Redis might already have a password set
         // In that case, password updates should be done via settings which will restart Redis
