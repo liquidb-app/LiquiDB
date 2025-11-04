@@ -1504,7 +1504,7 @@ async function startDatabaseProcessAsync(config) {
         
         // Ensure data directory is empty and has proper permissions
         try {
-          await fs.rmdir(dataDir, { recursive: true })
+          await fs.rm(dataDir, { recursive: true, force: true })
         } catch (e) {
           // Directory might not exist, that's fine
         }
@@ -2109,8 +2109,53 @@ async function startDatabaseProcessAsync(config) {
       }
     }, 30000)
   } else if (type === "mongodb") {
+    // Log MongoDB output for debugging
+    child.stdout.on('data', (data) => {
+      try {
+        const output = data.toString()
+        console.log(`[MongoDB] ${id} output:`, output.trim())
+      } catch (error) {
+        console.error(`[MongoDB] ${id} Error in stdout handler:`, error)
+      }
+    })
+    
+    child.stderr.on('data', (data) => {
+      try {
+        const output = data.toString()
+        const trimmedOutput = output.trim()
+        
+        // Check if it's an actual error (contains ERROR, FATAL, or critical messages)
+        const isError = /ERROR|FATAL|error|fatal|exception|Assertion/i.test(trimmedOutput)
+        if (isError) {
+          console.error(`[MongoDB] ${id} error output:`, trimmedOutput)
+        } else {
+          console.log(`[MongoDB] ${id} output:`, trimmedOutput)
+        }
+      } catch (error) {
+        console.error(`[MongoDB] ${id} Error in stderr handler:`, error)
+      }
+    })
+    
     // For MongoDB, mark as running after a short delay and configure
-    setTimeout(async () => {
+    mongodbStatusTimeout = setTimeout(async () => {
+      // Check if process is still running before setting status to running
+      if (child.killed || child.exitCode !== null) {
+        console.log(`[Database] ${id} process already exited, not setting status to running (MongoDB)`)
+        console.error(`[MongoDB] ${id} MongoDB failed to start. Common causes:`)
+        console.error(`[MongoDB] ${id} - Port ${port} may already be in use`)
+        console.error(`[MongoDB] ${id} - Data directory may have permission issues`)
+        console.error(`[MongoDB] ${id} - Invalid configuration arguments`)
+        console.error(`[MongoDB] ${id} - Check for mongod.lock file in data directory`)
+        console.error(`[MongoDB] ${id} Check the error output above for details.`)
+        return
+      }
+      
+      // Check if still in runningDatabases map
+      if (!runningDatabases.has(id)) {
+        console.log(`[Database] ${id} not in running databases map, not setting status to running (MongoDB)`)
+        return
+      }
+      
       try {
         const databases = storage.loadDatabases(app)
         const dbIndex = databases.findIndex(db => db.id === id)
@@ -2139,7 +2184,19 @@ async function startDatabaseProcessAsync(config) {
     }, 2000)
   } else if (type === "redis") {
     // For Redis, mark as running after a short delay and configure
-    setTimeout(async () => {
+    redisStatusTimeout = setTimeout(async () => {
+      // Check if process is still running before setting status to running
+      if (child.killed || child.exitCode !== null) {
+        console.log(`[Database] ${id} process already exited, not setting status to running (Redis)`)
+        return
+      }
+      
+      // Check if still in runningDatabases map
+      if (!runningDatabases.has(id)) {
+        console.log(`[Database] ${id} not in running databases map, not setting status to running (Redis)`)
+        return
+      }
+      
       try {
         const databases = storage.loadDatabases(app)
         const dbIndex = databases.findIndex(db => db.id === id)
@@ -2166,6 +2223,25 @@ async function startDatabaseProcessAsync(config) {
         console.error(`[Database] ${id} failed to update status to running in storage:`, error)
       }
     }, 1000)
+    
+    // Log Redis output for debugging
+    child.stdout.on('data', (data) => {
+      try {
+        const output = data.toString()
+        console.log(`[Redis] ${id} output:`, output.trim())
+      } catch (error) {
+        console.error(`[Redis] ${id} Error in stdout handler:`, error)
+      }
+    })
+    
+    child.stderr.on('data', (data) => {
+      try {
+        const output = data.toString()
+        console.error(`[Redis] ${id} error output:`, output.trim())
+      } catch (error) {
+        console.error(`[Redis] ${id} Error in stderr handler:`, error)
+      }
+    })
   } else {
     // For other databases, mark as running immediately
     try {
@@ -2189,6 +2265,14 @@ async function startDatabaseProcessAsync(config) {
       if (startupTimeout) {
         clearTimeout(startupTimeout)
         startupTimeout = null
+      }
+      if (mongodbStatusTimeout) {
+        clearTimeout(mongodbStatusTimeout)
+        mongodbStatusTimeout = null
+      }
+      if (redisStatusTimeout) {
+        clearTimeout(redisStatusTimeout)
+        redisStatusTimeout = null
       }
       
       // Update database in storage to clear PID and update status
@@ -2218,10 +2302,38 @@ async function startDatabaseProcessAsync(config) {
 
   child.on("exit", (code) => {
     console.log(`[Database] ${id} exited with code ${code}`)
+    
+    // Log additional error information for non-zero exit codes
+    if (code !== 0 && code !== null) {
+      console.error(`[Database] ${id} exited with non-zero code ${code}. This usually indicates an error.`)
+      if (type === "mongodb") {
+        console.error(`[MongoDB] ${id} MongoDB failed to start. Common causes:`)
+        console.error(`[MongoDB] ${id} - Port ${port} may already be in use`)
+        console.error(`[MongoDB] ${id} - Data directory may have permission issues`)
+        console.error(`[MongoDB] ${id} - Invalid configuration arguments`)
+        console.error(`[MongoDB] ${id} - Check for mongod.lock file in data directory (may need repair)`)
+        console.error(`[MongoDB] ${id} Check the error output above for details.`)
+      } else if (type === "redis") {
+        console.error(`[Redis] ${id} Redis failed to start. Common causes:`)
+        console.error(`[Redis] ${id} - Port ${port} may already be in use`)
+        console.error(`[Redis] ${id} - Data directory may have permission issues`)
+        console.error(`[Redis] ${id} - Invalid configuration arguments`)
+        console.error(`[Redis] ${id} Check the error output above for details.`)
+      }
+    }
+    
     runningDatabases.delete(id)
     if (startupTimeout) {
       clearTimeout(startupTimeout)
       startupTimeout = null
+    }
+    if (mongodbStatusTimeout) {
+      clearTimeout(mongodbStatusTimeout)
+      mongodbStatusTimeout = null
+    }
+    if (redisStatusTimeout) {
+      clearTimeout(redisStatusTimeout)
+      redisStatusTimeout = null
     }
     
     // Update database in storage to clear PID and update status
@@ -2245,38 +2357,37 @@ async function startDatabaseProcessAsync(config) {
     }
   })
 
-  // Add to running map immediately - we'll let the process events handle cleanup
-  runningDatabases.set(id, { process: child, config, isStartupComplete: () => isStartupComplete })
-  console.log(`[Database] ${type} database process started (PID: ${child.pid})`)
-  
-  // Save PID and starting status to storage
-  try {
-    const databases = storage.loadDatabases(app)
-    const dbIndex = databases.findIndex(db => db.id === id)
-    if (dbIndex >= 0) {
-      databases[dbIndex].status = 'starting'
-      databases[dbIndex].pid = child.pid
-      databases[dbIndex].lastStarted = Date.now() // Set start timestamp
-      storage.saveDatabases(app, databases)
-      console.log(`[Database] ${id} PID ${child.pid}, starting status, and start time saved to storage`)
+    // Add to running map immediately - we'll let the process events handle cleanup
+    runningDatabases.set(id, { process: child, config, isStartupComplete: () => isStartupComplete })
+    console.log(`[Database] ${type} database process started (PID: ${child.pid})`)
+    
+    // Save PID and starting status to storage
+    try {
+      const databases = storage.loadDatabases(app)
+      const dbIndex = databases.findIndex(db => db.id === id)
+      if (dbIndex >= 0) {
+        databases[dbIndex].status = 'starting'
+        databases[dbIndex].pid = child.pid
+        databases[dbIndex].lastStarted = Date.now() // Set start timestamp
+        storage.saveDatabases(app, databases)
+        console.log(`[Database] ${id} PID ${child.pid}, starting status, and start time saved to storage`)
+      }
+    } catch (error) {
+      console.error(`[Database] ${id} failed to save PID to storage:`, error)
     }
-  } catch (error) {
-    console.error(`[Database] ${id} failed to save PID to storage:`, error)
-  }
+    
+    // Notify the renderer process that the database is starting
+    if (mainWindow) {
+      mainWindow.webContents.send('database-status-changed', { 
+        id, 
+        status: 'starting', 
+        pid: child.pid 
+      })
+      console.log(`[Database] ${id} starting status sent to frontend`)
+    }
   
-  // Notify the renderer process that the database is starting
-  if (mainWindow) {
-    mainWindow.webContents.send('database-status-changed', { 
-      id, 
-      status: 'starting', 
-      pid: child.pid 
-    })
-    console.log(`[Database] ${id} starting status sent to frontend`)
-  }
-  
-  // Return success result for auto-start functionality
-  return { success: true }
-  
+    // Return success result for auto-start functionality
+    return { success: true }
   } catch (error) {
     console.error(`[Database] ${id} failed to start:`, error)
     return { success: false, error: error.message }
