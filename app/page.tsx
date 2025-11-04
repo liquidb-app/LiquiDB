@@ -2963,31 +2963,33 @@ export default function DatabaseManager() {
                 <GripIcon ref={gripIconHover.iconRef as React.RefObject<import("@/components/ui/grip").GripIconHandle>} size={16} className={`transition-transform duration-200 ${showBulkActions ? 'rotate-12' : ''}`} />
               </Button>
             )}
-            <Button
-              onClick={() => {
-                // Check if we're in tour mode, but allow when tour explicitly enables UI
-                const inTour = document.body.hasAttribute('data-tour-mode')
-                const tourAllowsUI = document.body.hasAttribute('data-tour-allow-ui')
-                if (inTour && !tourAllowsUI) {
-                  notifyInfo("Tour Mode", {
-                    description: "Database creation is disabled during the tour. Complete the tour to create databases."
-                  })
-                  return
-                }
-                setAddDialogOpen(true)
-              }}
-              size="sm"
-              id="btn-add-database"
-              data-testid="add-database-button"
-              data-tour="add-database-button"
-              className="cursor-pointer"
-              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-              onMouseEnter={plusIconHover.onMouseEnter}
-              onMouseLeave={plusIconHover.onMouseLeave}
-            >
-              <PlusIcon ref={plusIconHover.iconRef as React.RefObject<import("@/components/ui/plus").PlusIconHandle>} size={16} />
-              Add Database
-            </Button>
+            {databases.length > 0 && (
+              <Button
+                onClick={() => {
+                  // Check if we're in tour mode, but allow when tour explicitly enables UI
+                  const inTour = document.body.hasAttribute('data-tour-mode')
+                  const tourAllowsUI = document.body.hasAttribute('data-tour-allow-ui')
+                  if (inTour && !tourAllowsUI) {
+                    notifyInfo("Tour Mode", {
+                      description: "Database creation is disabled during the tour. Complete the tour to create databases."
+                    })
+                    return
+                  }
+                  setAddDialogOpen(true)
+                }}
+                size="sm"
+                id="btn-add-database"
+                data-testid="add-database-button"
+                data-tour="add-database-button"
+                className="cursor-pointer"
+                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                onMouseEnter={plusIconHover.onMouseEnter}
+                onMouseLeave={plusIconHover.onMouseLeave}
+              >
+                <PlusIcon ref={plusIconHover.iconRef as React.RefObject<import("@/components/ui/plus").PlusIconHandle>} size={16} />
+                Add Database
+              </Button>
+            )}
             {/* User/profile menu replacing gear */}
             <div className="relative flex items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties} data-testid="profile-menu" data-tour="settings-button">
               <ProfileMenuTrigger />
