@@ -14,6 +14,7 @@ import { saveProfile, loadProfile, getInitials, loadPreferences, savePreferences
 import { useTheme } from "next-themes"
 import { notifyError, notifySuccess, updateNotificationSetting } from "@/lib/notifications"
 import { usePermissions } from "@/lib/use-permissions"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SunIcon } from "@/components/ui/sun"
 import { MoonIcon } from "@/components/ui/moon"
 import { Monitor } from "lucide-react"
@@ -341,7 +342,20 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // permissions hook for step 3
-  const { permissions, isLoading: permLoading, requestCriticalPermissions, openPermissionPage } = usePermissions()
+  const { permissions, isLoading: permLoading, requestCriticalPermissions, openPermissionPage, requestPermission, checkPermissions } = usePermissions()
+  
+  // State for individual permission prompt
+  const [permissionPromptOpen, setPermissionPromptOpen] = useState(false)
+  const [selectedPermission, setSelectedPermission] = useState<{
+    name: string
+    description: string
+    why: string
+    icon: string
+    critical: boolean
+    granted: boolean
+    error?: string
+  } | null>(null)
+  const [permissionRequesting, setPermissionRequesting] = useState(false)
 
   // helper service state for step 4
   const [helperStatus, setHelperStatus] = useState<{ installed: boolean; running: boolean } | null>(null)
@@ -1409,21 +1423,11 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
                           <Button 
                             size="sm" 
                             onClick={() => {
-                              const permissionMap: { [key: string]: string } = {
-                                'Accessibility': 'accessibility',
-                                'Full Disk Access': 'fullDiskAccess',
-                                'Network Access': 'networkAccess',
-                                'File Access': 'fileAccess',
-                                'Launch Agent': 'launchAgent',
-                                'Keychain Access': 'keychainAccess'
-                              }
-                              const permissionType = permissionMap[p.name]
-                              if (permissionType) {
-                                openPermissionPage(permissionType)
-                              }
+                              setSelectedPermission(p)
+                              setPermissionPromptOpen(true)
                             }}
                           >
-                            Open
+                            Request
                           </Button>
                         )}
                         <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
@@ -1808,6 +1812,78 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
           </CardContent>
         </Card>
       </div>
+
+      {/* Individual Permission Prompt Dialog */}
+      <Dialog open={permissionPromptOpen} onOpenChange={setPermissionPromptOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{selectedPermission?.name} Permission</DialogTitle>
+            <DialogDescription>
+              {selectedPermission?.why || selectedPermission?.description}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="text-sm text-muted-foreground">
+              <p>{selectedPermission?.description}</p>
+              {selectedPermission?.critical && (
+                <p className="mt-2 text-orange-600 dark:text-orange-400 font-medium">
+                  This is a required permission for LiquiDB to function properly.
+                </p>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setPermissionPromptOpen(false)
+                  setSelectedPermission(null)
+                }}
+                disabled={permissionRequesting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!selectedPermission) return
+                  
+                  setPermissionRequesting(true)
+                  try {
+                    const permissionMap: { [key: string]: string } = {
+                      'Accessibility': 'accessibility',
+                      'Full Disk Access': 'fullDiskAccess',
+                      'Network Access': 'networkAccess',
+                      'File Access': 'fileAccess',
+                      'Launch Agent': 'launchAgent',
+                      'Keychain Access': 'keychainAccess'
+                    }
+                    
+                    const permissionType = permissionMap[selectedPermission.name]
+                    if (permissionType) {
+                      // Request the permission
+                      await requestPermission(permissionType)
+                      // Refresh permissions to check if it was granted
+                      await checkPermissions()
+                    }
+                    
+                    setPermissionPromptOpen(false)
+                    setSelectedPermission(null)
+                  } catch (error) {
+                    console.error('[Permission] Error requesting permission:', error)
+                    notifyError('Failed to request permission', {
+                      description: error instanceof Error ? error.message : 'Unknown error'
+                    })
+                  } finally {
+                    setPermissionRequesting(false)
+                  }
+                }}
+                disabled={permissionRequesting}
+              >
+                {permissionRequesting ? 'Requesting...' : 'Allow'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
