@@ -268,12 +268,30 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
     try {
       const brewPackage = DATABASE_CONFIGS[databaseType].brewPackage
       
+      // Helper function to add timeout to a promise
+      const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+        return Promise.race([
+          promise,
+          new Promise<T>((resolve) => {
+            setTimeout(() => {
+              console.warn(`[Versions] Timeout after ${timeoutMs}ms, using fallback`)
+              resolve(fallback)
+            }, timeoutMs)
+          })
+        ])
+      }
+      
       // Fetch both versions and stable versions in parallel
+      // Add timeout to stable versions fetch to prevent hanging
       const [versionDetails, stableVersionsData] = await Promise.all([
         // @ts-expect-error - Electron IPC types not available
         window.electron?.getBrewVersions?.(brewPackage) || Promise.resolve([]),
         // @ts-expect-error - Electron IPC types not available
-        window.electron?.getStableVersions?.(databaseType) || Promise.resolve([])
+        withTimeout(
+          window.electron?.getStableVersions?.(databaseType) || Promise.resolve([]),
+          5000, // 5 second timeout
+          [] // Fallback to empty array if timeout
+        )
       ])
       
       // Set stable versions
