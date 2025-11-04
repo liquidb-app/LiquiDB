@@ -2,23 +2,24 @@
 
 import { useRef, useCallback } from "react"
 
-export function useAnimatedIconHover() {
-  const iconRef = useRef<{ startAnimation?: () => void; stopAnimation?: () => void } | null>(null)
+export interface AnimatedIconHandle {
+  startAnimation: () => void
+  stopAnimation: () => void
+}
+
+export function useAnimatedIconHover<T extends AnimatedIconHandle = AnimatedIconHandle>() {
+  const iconRef = useRef<T | null>(null)
 
   const handleMouseEnter = useCallback(() => {
-    if (iconRef.current?.startAnimation) {
-      iconRef.current.startAnimation()
-    }
+    iconRef.current?.startAnimation()
   }, [])
 
   const handleMouseLeave = useCallback(() => {
-    if (iconRef.current?.stopAnimation) {
-      iconRef.current.stopAnimation()
-    }
+    iconRef.current?.stopAnimation()
   }, [])
 
   return {
-    iconRef,
+    iconRef: iconRef as React.MutableRefObject<T | null>,
     onMouseEnter: handleMouseEnter,
     onMouseLeave: handleMouseLeave
   }
