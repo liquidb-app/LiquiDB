@@ -5401,6 +5401,21 @@ ipcMain.handle("fetch-quotes", async () => {
     const url = 'https://programming-quotesapi.vercel.app/api/bulk'
     
     const request = https.get(url, (res) => {
+      // Check status code
+      if (res.statusCode !== 200) {
+        console.error(`[Quotes] API returned status code ${res.statusCode}`)
+        resolve({ success: false, error: `API returned status code ${res.statusCode}` })
+        return
+      }
+      
+      // Check content-type header
+      const contentType = res.headers['content-type'] || ''
+      if (!contentType.includes('application/json')) {
+        console.error(`[Quotes] API returned non-JSON content type: ${contentType}`)
+        resolve({ success: false, error: `API returned non-JSON content type: ${contentType}` })
+        return
+      }
+      
       let data = ''
       
       res.on('data', (chunk) => {
@@ -5409,6 +5424,13 @@ ipcMain.handle("fetch-quotes", async () => {
       
       res.on('end', () => {
         try {
+          // Check if response looks like HTML (common error page indicator)
+          if (data.trim().startsWith('<!DOCTYPE') || data.trim().startsWith('<html')) {
+            console.error('[Quotes] API returned HTML instead of JSON (likely an error page)')
+            resolve({ success: false, error: 'API returned HTML instead of JSON' })
+            return
+          }
+          
           const quotes = JSON.parse(data)
           if (Array.isArray(quotes) && quotes.length > 0) {
             const validQuotes = quotes.filter(q => q && q.quote && q.author)
@@ -5421,17 +5443,23 @@ ipcMain.handle("fetch-quotes", async () => {
             resolve({ success: false, error: 'Invalid quotes data structure' })
           }
         } catch (error) {
-          resolve({ success: false, error: error.message })
+          // Provide more specific error message
+          const errorMessage = error.message || 'Unknown parsing error'
+          console.error(`[Quotes] JSON parse error: ${errorMessage}`)
+          console.error(`[Quotes] Response data preview: ${data.substring(0, 200)}`)
+          resolve({ success: false, error: `Failed to parse JSON: ${errorMessage}` })
         }
       })
     })
     
     request.on('error', (error) => {
+      console.error(`[Quotes] Request error: ${error.message}`)
       resolve({ success: false, error: error.message })
     })
     
     request.setTimeout(5000, () => {
       request.destroy()
+      console.error('[Quotes] Request timeout')
       resolve({ success: false, error: 'Request timeout' })
     })
   })
