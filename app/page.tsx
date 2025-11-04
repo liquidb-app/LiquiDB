@@ -258,6 +258,121 @@ export default function DatabaseManager() {
   // No port conflict caching - all checks are dynamic
   const startDatabaseWithErrorHandlingRef = useRef<(id: string) => Promise<void>>(async () => {})
   
+  // Delete animation state
+  const [isDeletingAll, setIsDeletingAll] = useState(false)
+  const [deleteAnimationPhase, setDeleteAnimationPhase] = useState<'idle' | 'moving' | 'particles' | 'exploding' | 'complete'>('idle')
+  const centerPosition = useRef<{ x: number; y: number } | null>(null)
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  
+  // Store initial card positions and dimensions when animation starts
+  const [cardInitialPositions, setCardInitialPositions] = useState<Map<string, { x: number; y: number; left: number; top: number; width: number; height: number }>>(new Map())
+  
+  // Capture card positions and center position when animation starts
+  useEffect(() => {
+    if (deleteAnimationPhase === 'moving' && cardInitialPositions.size === 0) {
+      // Set center position (viewport center)
+      centerPosition.current = {
+        x: window.innerWidth / 2,
+        y: window.innerHeight / 2,
+      }
+      
+      // Use requestAnimationFrame to ensure layout is complete
+      requestAnimationFrame(() => {
+        const positions = new Map<string, { x: number; y: number; left: number; top: number; width: number; height: number }>()
+        cardRefs.current.forEach((cardElement, dbId) => {
+          const rect = cardElement.getBoundingClientRect()
+          positions.set(dbId, {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height,
+          })
+        })
+        setCardInitialPositions(positions)
+      })
+    } else if (deleteAnimationPhase === 'idle') {
+      setCardInitialPositions(new Map())
+      centerPosition.current = null
+    }
+  }, [deleteAnimationPhase, cardInitialPositions.size])
+  
+  // Helper to get card animation props using Motion.dev
+  const getCardAnimationProps = (dbId: string, index: number) => {
+    if (deleteAnimationPhase === 'idle' || !isDeletingAll || !centerPosition.current) {
+      return {}
+    }
+    
+    const initialPos = cardInitialPositions.get(dbId)
+    if (!initialPos) {
+      return {}
+    }
+    
+    // Calculate delta from initial position to center
+    const deltaX = centerPosition.current.x - initialPos.x
+    const deltaY = centerPosition.current.y - initialPos.y
+    
+    if (deleteAnimationPhase === 'moving') {
+      // Move from original position to center with stagger
+      const staggerDelay = index * 0.08 // 80ms per card
+      const randomRotation = (Math.random() - 0.5) * 45 // -22.5 to +22.5 degrees
+      return {
+        x: [0, deltaX], // Start from 0 (original position), move to center
+        y: [0, deltaY],
+        rotate: [0, randomRotation],
+        opacity: [1, 1], // Keep opacity during movement
+        transition: {
+          type: "spring" as const,
+          stiffness: 500,
+          damping: 40,
+          mass: 0.7,
+          delay: staggerDelay,
+        }
+      }
+    } else if (deleteAnimationPhase === 'particles') {
+      // At center: fade in and make smaller
+      const particleDelay = index * 0.04 // 40ms stagger
+      return {
+        x: deltaX, // Already at center
+        y: deltaY,
+        scale: [1, 0.15], // Shrink to small particle
+        opacity: [0.3, 1], // Fade in from 0.3 to 1
+        rotate: 0, // Reset rotation
+        transition: {
+          type: "spring" as const,
+          stiffness: 600,
+          damping: 35,
+          mass: 0.5,
+          delay: particleDelay,
+        }
+      }
+    } else if (deleteAnimationPhase === 'exploding') {
+      // Explode outward then fade out completely
+      const explodeDelay = index * 0.015 // 15ms stagger
+      const angle = (index / databases.length) * Math.PI * 2 // Distribute in circle
+      const distance = 250 + Math.random() * 150 // Random distance
+      const randomAngle = angle + (Math.random() - 0.5) * 0.6
+      
+      return {
+        x: [deltaX, deltaX + Math.cos(randomAngle) * distance], // Start at center, explode outward
+        y: [deltaY, deltaY + Math.sin(randomAngle) * distance],
+        scale: [0.15, 0], // Shrink from particle size to nothing
+        opacity: [1, 0], // Fade out completely
+        rotate: [0, randomAngle * (180 / Math.PI) + Math.random() * 360], // Spin during explosion
+        transition: {
+          type: "spring" as const,
+          stiffness: 300,
+          damping: 25,
+          mass: 0.3,
+          delay: explodeDelay,
+        }
+      }
+    }
+    
+    return {}
+  }
+  
   // Permissions
   const {
     permissions,
@@ -2502,6 +2617,78 @@ export default function DatabaseManager() {
     }
   }
 
+  // Handle delete all with animation
+  const handleDeleteAllWithAnimation = useCallback(async () => {
+    if (databases.length === 0) return
+    
+    setIsDeletingAll(true)
+    
+    // Set center position immediately
+    centerPosition.current = {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    }
+    
+    // Start moving cards toward center
+    setDeleteAnimationPhase('moving')
+    
+    // Wait for cards to reach center
+    const cardCount = databases.length
+    const staggerDelay = 80 // 80ms stagger per card
+    const moveDuration = 1000 // ms for cards to move (adjusted for better spring)
+    await new Promise(resolve => setTimeout(resolve, (cardCount - 1) * staggerDelay + moveDuration))
+    
+    // Transform cards into small particles
+    setDeleteAnimationPhase('particles')
+    
+    // Wait for particle transformation
+    await new Promise(resolve => setTimeout(resolve, 400))
+    
+    // Explode particles outward
+    setDeleteAnimationPhase('exploding')
+    
+    // Wait for explosion animation
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // Actually delete all databases
+    try {
+      // @ts-expect-error - Electron IPC types not available
+      const result = await window.electron?.deleteAllDatabases?.()
+      if (result?.success) {
+        // Wait a bit more to ensure all animations complete
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        setDeleteAnimationPhase('complete')
+        notifySuccess("All databases deleted", {
+          description: "All databases and their data have been permanently removed.",
+        })
+        
+        // Clear databases and reset state - this removes elements from DOM
+        setDatabases([])
+        setIsDeletingAll(false)
+        setDeleteAnimationPhase('idle')
+        centerPosition.current = null
+        setCardInitialPositions(new Map())
+      } else {
+        notifyError("Failed to delete databases", {
+          description: result?.error || "Unknown error occurred",
+        })
+        setIsDeletingAll(false)
+        setDeleteAnimationPhase('idle')
+        centerPosition.current = null
+        setCardInitialPositions(new Map())
+      }
+    } catch {
+      notifyError("Failed to delete databases", {
+        description: "Could not connect to database service",
+      })
+      setIsDeletingAll(false)
+      setDeleteAnimationPhase('idle')
+      centerPosition.current = null
+      setCardInitialPositions(new Map())
+    }
+  }, [databases])
+
   const handleSettings = (database: DatabaseContainer) => {
     setSelectedDatabase(database)
     setSettingsDialogOpen(true)
@@ -2912,20 +3099,55 @@ export default function DatabaseManager() {
                             .map((db) => (
                   <motion.div
                     key={db.id}
-                    layoutId={activeTab === "all" ? `database-${db.id}` : undefined}
-                    layout={activeTab === "all" ? true : false}
-                    initial={false}
-                    animate={activeTab === "all" ? { opacity: 1 } : undefined}
+                    ref={(el) => {
+                      if (el) cardRefs.current.set(db.id, el)
+                      else cardRefs.current.delete(db.id)
+                    }}
+                    layoutId={activeTab === "all" && !isDeletingAll ? `database-${db.id}` : undefined}
+                    layout={activeTab === "all" && !isDeletingAll ? true : false}
+                    initial={isDeletingAll && deleteAnimationPhase === 'moving' ? { x: 0, y: 0, opacity: 1, scale: 1 } : false}
+                    animate={(() => {
+                      if (isDeletingAll) {
+                        const deleteProps = getCardAnimationProps(db.id, databases.findIndex(d => d.id === db.id))
+                        return deleteProps
+                      }
+                      return activeTab === "all" ? { opacity: 1 } : undefined
+                    })()}
                     exit={activeTab === "all" ? { opacity: 0 } : undefined}
-                    transition={{
-                      type: "spring",
-                      stiffness: 400,
-                      damping: 35,
-                      layout: {
+                    transition={(() => {
+                      if (isDeletingAll) {
+                        return {} // Transition is handled in getCardAnimationProps
+                      }
+                      return {
                         type: "spring",
                         stiffness: 400,
-                        damping: 35
+                        damping: 35,
+                        layout: {
+                          type: "spring",
+                          stiffness: 400,
+                          damping: 35
+                        }
                       }
+                    })()}
+                    style={{
+                      ...(isDeletingAll && deleteAnimationPhase !== 'idle' 
+                        ? (() => {
+                            const initialPos = cardInitialPositions.get(db.id)
+                            return {
+                              position: 'fixed' as const, // Fixed positioning to go above containers
+                              zIndex: 9999 + (databases.findIndex(d => d.id === db.id) || 0), // Very high z-index to ensure above everything
+                              transformOrigin: 'center center',
+                              left: initialPos?.left ?? 0,
+                              top: initialPos?.top ?? 0,
+                              width: initialPos?.width ?? 'auto',
+                              height: initialPos?.height ?? 'auto',
+                            }
+                          })()
+                        : {
+                            position: 'relative' as const,
+                            zIndex: 'auto',
+                          }
+                      ),
                     }}
                   >
                   <Card 
@@ -3224,20 +3446,55 @@ export default function DatabaseManager() {
                             .map((db) => (
                             <motion.div
                               key={db.id}
-                              layoutId={activeTab === "all" ? `database-${db.id}` : undefined}
-                              layout={activeTab === "all" ? true : false}
-                              initial={false}
-                              animate={activeTab === "all" ? { opacity: 1 } : undefined}
+                              ref={(el) => {
+                                if (el) cardRefs.current.set(db.id, el)
+                                else cardRefs.current.delete(db.id)
+                              }}
+                              layoutId={activeTab === "all" && !isDeletingAll ? `database-${db.id}` : undefined}
+                              layout={activeTab === "all" && !isDeletingAll ? true : false}
+                              initial={isDeletingAll && deleteAnimationPhase === 'moving' ? { x: 0, y: 0, opacity: 1, scale: 1 } : false}
+                              animate={(() => {
+                                if (isDeletingAll) {
+                                  const deleteProps = getCardAnimationProps(db.id, databases.findIndex(d => d.id === db.id))
+                                  return deleteProps
+                                }
+                                return activeTab === "all" ? { opacity: 1 } : undefined
+                              })()}
                               exit={activeTab === "all" ? { opacity: 0 } : undefined}
-                              transition={{
-                                type: "spring",
-                                stiffness: 400,
-                                damping: 35,
-                                layout: {
+                              transition={(() => {
+                                if (isDeletingAll) {
+                                  return {} // Transition is handled in getCardAnimationProps
+                                }
+                                return {
                                   type: "spring",
                                   stiffness: 400,
-                                  damping: 35
+                                  damping: 35,
+                                  layout: {
+                                    type: "spring",
+                                    stiffness: 400,
+                                    damping: 35
+                                  }
                                 }
+                              })()}
+                              style={{
+                                ...(isDeletingAll && deleteAnimationPhase !== 'idle' 
+                                  ? (() => {
+                                      const initialPos = cardInitialPositions.get(db.id)
+                                      return {
+                                        position: 'fixed' as const, // Fixed positioning to go above containers
+                                        zIndex: 9999 + (databases.findIndex(d => d.id === db.id) || 0), // Very high z-index to ensure above everything
+                                        transformOrigin: 'center center',
+                                        left: initialPos?.left ?? 0,
+                                        top: initialPos?.top ?? 0,
+                                        width: initialPos?.width ?? 'auto',
+                                        height: initialPos?.height ?? 'auto',
+                                      }
+                                    })()
+                                  : {
+                                      position: 'relative' as const,
+                                      zIndex: 'auto',
+                                    }
+                                ),
                               }}
                             >
                             <Card 
@@ -3434,8 +3691,48 @@ export default function DatabaseManager() {
                 {databases
                   .filter(db => db.status === "running" || db.status === "starting")
                   .map((db) => (
+              <motion.div
+                key={db.id}
+                ref={(el) => {
+                  if (el) cardRefs.current.set(db.id, el)
+                  else cardRefs.current.delete(db.id)
+                }}
+                initial={isDeletingAll && deleteAnimationPhase === 'moving' ? { x: 0, y: 0, opacity: 1, scale: 1 } : false}
+                animate={(() => {
+                  if (isDeletingAll) {
+                    const deleteProps = getCardAnimationProps(db.id, databases.findIndex(d => d.id === db.id))
+                    return deleteProps
+                  }
+                  return {}
+                })()}
+                transition={(() => {
+                  if (isDeletingAll) {
+                    return {} // Transition is handled in getCardAnimationProps
+                  }
+                  return {}
+                })()}
+                style={{
+                  ...(isDeletingAll && deleteAnimationPhase !== 'idle' 
+                    ? (() => {
+                        const initialPos = cardInitialPositions.get(db.id)
+                        return {
+                          position: 'fixed' as const, // Fixed positioning to go above containers
+                          zIndex: 9999 + (databases.findIndex(d => d.id === db.id) || 0), // Very high z-index to ensure above everything
+                          transformOrigin: 'center center',
+                          left: initialPos?.left ?? 0,
+                          top: initialPos?.top ?? 0,
+                          width: initialPos?.width ?? 'auto',
+                          height: initialPos?.height ?? 'auto',
+                        }
+                      })()
+                    : {
+                        position: 'relative' as const,
+                        zIndex: 'auto',
+                      }
+                  ),
+                }}
+              >
               <Card 
-                key={db.id} 
                 className={`relative overflow-hidden border-dashed ${selectedDatabases.has(db.id) ? 'ring-2 ring-primary' : ''} ${
                   showBulkActions ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''
                 } ${showBulkActions && !selectedDatabases.has(db.id) ? 'opacity-60' : ''}`}
@@ -3704,6 +4001,7 @@ export default function DatabaseManager() {
                   )}
                 </CardContent>
               </Card>
+              </motion.div>
                   ))}
               </div>
                 </motion.div>
@@ -3915,7 +4213,11 @@ export default function DatabaseManager() {
         />
       )}
 
-      <AppSettingsDialog open={appSettingsOpen} onOpenChange={setAppSettingsOpen} />
+      <AppSettingsDialog 
+        open={appSettingsOpen} 
+        onOpenChange={setAppSettingsOpen}
+        onDeleteAll={handleDeleteAllWithAnimation}
+      />
 
       <PermissionsDialog
         open={permissionsDialogOpen}
@@ -4003,6 +4305,7 @@ export default function DatabaseManager() {
       <SystemStats />
       </div>
       )}
+      
     </React.Fragment>
   )
 }

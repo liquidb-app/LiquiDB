@@ -12,8 +12,8 @@ import { DeleteIcon } from "@/components/ui/delete"
 import { RotateCCWIcon } from "@/components/ui/rotate-ccw"
 import { GithubIcon } from "@/components/ui/github"
 import { PlayIcon } from "@/components/ui/play"
-import { SunIcon } from "@/components/ui/sun"
-import { MoonIcon } from "@/components/ui/moon"
+import { SunIcon, type SunIconHandle } from "@/components/ui/sun"
+import { MoonIcon, type MoonIconHandle } from "@/components/ui/moon"
 import { useAnimatedIconHover } from "@/hooks/use-animated-icon-hover"
 import { Button } from "@/components/ui/button"
 import { BannedPortsDialog } from "./banned-ports-dialog"
@@ -23,6 +23,7 @@ import { notifications as notificationManager, notifySuccess, notifyError, updat
 interface AppSettingsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onDeleteAll?: () => Promise<void>
 }
 
 const colorSchemes = [
@@ -58,7 +59,7 @@ const colorSchemes = [
   },
 ]
 
-export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps) {
+export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettingsDialogProps) {
   const { theme, setTheme, resolvedTheme } = useTheme()
   const [notifications, setNotifications] = useState(true)
   const [colorScheme, setColorScheme] = useState("mono")
@@ -73,8 +74,8 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
   const rotateIconHover = useAnimatedIconHover()
   const githubIconHover = useAnimatedIconHover()
   const playIconHover = useAnimatedIconHover()
-  const sunIconHover = useAnimatedIconHover()
-  const moonIconHover = useAnimatedIconHover()
+  const sunIconHover = useAnimatedIconHover<SunIconHandle>()
+  const moonIconHover = useAnimatedIconHover<MoonIconHandle>()
   const [autoLaunchLoading, setAutoLaunchLoading] = useState(false)
   
   // Helper service state
@@ -323,21 +324,27 @@ export function AppSettingsDialog({ open, onOpenChange }: AppSettingsDialogProps
 
   const handleDeleteAllDatabases = async () => {
     setDeleting(true)
+    setDeleteConfirmOpen(false)
+    onOpenChange(false)
+    
     try {
-      // @ts-expect-error - Electron IPC types not available
-      const result = await window.electron?.deleteAllDatabases?.()
-      if (result?.success) {
-        notifySuccess("All databases deleted", {
-          description: "All databases and their data have been permanently removed.",
-        })
-        setDeleteConfirmOpen(false)
-        onOpenChange(false)
-        // Reload the page to refresh the database list
-        window.location.reload()
+      // Use the animation callback if provided, otherwise use the old method
+      if (onDeleteAll) {
+        await onDeleteAll()
       } else {
-        notifyError("Failed to delete databases", {
-          description: result?.error || "Unknown error occurred",
-        })
+        // @ts-expect-error - Electron IPC types not available
+        const result = await window.electron?.deleteAllDatabases?.()
+        if (result?.success) {
+          notifySuccess("All databases deleted", {
+            description: "All databases and their data have been permanently removed.",
+          })
+          // Reload the page to refresh the database list
+          window.location.reload()
+        } else {
+          notifyError("Failed to delete databases", {
+            description: result?.error || "Unknown error occurred",
+          })
+        }
       }
     } catch {
       notifyError("Failed to delete databases", {
