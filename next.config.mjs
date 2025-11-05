@@ -5,18 +5,12 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  output: 'export',
+  distDir: 'out',
+  assetPrefix: './',
   images: {
     unoptimized: true,
   },
-  output: 'standalone',
-  distDir: '.next',
-  outputFileTracingRoot: path.resolve(__dirname),
-}
+};
 
-export default nextConfig
+export default nextConfig;
