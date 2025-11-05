@@ -48,6 +48,7 @@ export function SystemStats() {
   const [stats, setStats] = useState<SystemStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1024)
+  const [mcpStatus, setMcpStatus] = useState<{ running: boolean; name: string } | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const fetchStats = async () => {
@@ -63,8 +64,20 @@ export function SystemStats() {
     }
   }
 
+  const fetchMCPStatus = async () => {
+    try {
+      const data = await window.electron?.getMCPStatus?.()
+      if (data?.success && data.data) {
+        setMcpStatus(data.data)
+      }
+    } catch (error) {
+      console.error('Error fetching MCP status:', error)
+    }
+  }
+
   useEffect(() => {
     fetchStats()
+    fetchMCPStatus()
 
     let isVisible = !document.hidden
     
@@ -72,6 +85,7 @@ export function SystemStats() {
       isVisible = !document.hidden
       if (isVisible) {
         fetchStats()
+        fetchMCPStatus()
       }
     }
     
@@ -80,6 +94,7 @@ export function SystemStats() {
     intervalRef.current = setInterval(() => {
       if (isVisible) {
       fetchStats()
+      fetchMCPStatus()
       }
     }, 8000)
 
@@ -123,6 +138,41 @@ export function SystemStats() {
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border/50 px-6 py-1.5">
       <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
         <div className="flex items-center justify-start gap-4">
+        {/* MCP Icon - Very Left */}
+        {mcpStatus !== null && (
+          <>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1.5 cursor-default">
+                  {mcpStatus.running && (
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
+                  )}
+                  <svg
+                    fill="currentColor"
+                    fillRule="evenodd"
+                    height="12"
+                    width="12"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="opacity-60 flex-shrink-0"
+                    aria-label="MCP"
+                  >
+                    <title>ModelContextProtocol</title>
+                    <path d="M15.688 2.343a2.588 2.588 0 00-3.61 0l-9.626 9.44a.863.863 0 01-1.203 0 .823.823 0 010-1.18l9.626-9.44a4.313 4.313 0 016.016 0 4.116 4.116 0 011.204 3.54 4.3 4.3 0 013.609 1.18l.05.05a4.115 4.115 0 010 5.9l-8.706 8.537a.274.274 0 000 .393l1.788 1.754a.823.823 0 010 1.18.863.863 0 01-1.203 0l-1.788-1.753a1.92 1.92 0 010-2.754l8.706-8.538a2.47 2.47 0 000-3.54l-.05-.049a2.588 2.588 0 00-3.607-.003l-7.172 7.034-.002.002-.098.097a.863.863 0 01-1.204 0 .823.823 0 010-1.18l7.273-7.133a2.47 2.47 0 00-.003-3.537z"></path>
+                    <path d="M14.485 4.703a.823.823 0 000-1.18.863.863 0 00-1.204 0l-7.119 6.982a4.115 4.115 0 000 5.9 4.314 4.314 0 006.016 0l7.12-6.982a.823.823 0 000-1.18.863.863 0 00-1.204 0l-7.119 6.982a2.588 2.588 0 01-3.61 0 2.47 2.47 0 010-3.54l7.12-6.982z"></path>
+                  </svg>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="text-xs space-y-1">
+                  <div className="font-semibold">{mcpStatus.name}</div>
+                  <div>Status: {mcpStatus.running ? "Running" : "Stopped"}</div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+            {showText && <span className="text-muted-foreground/30 flex-shrink-0">|</span>}
+          </>
+        )}
         {/* Running Databases */}
         {stats.runningDatabases !== undefined && (
           <>
