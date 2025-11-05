@@ -9,7 +9,6 @@ import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StarsBackground } from "@/components/ui/stars-background"
 import { Kbd } from "@/components/ui/kbd"
-// import { GlowingEffect } from "@/components/ui/glowing-effect" // Using local implementation
 import { saveProfile, loadProfile, getInitials, loadPreferences, savePreferences, getBannedPorts, setBannedPorts, markOnboardingComplete, setTourRequested, isOnboardingComplete } from "@/lib/preferences"
 import { useTheme } from "next-themes"
 import { notifyError, notifySuccess, updateNotificationSetting } from "@/lib/notifications"
@@ -20,12 +19,10 @@ import { MoonIcon } from "@/components/ui/moon"
 import { Monitor } from "lucide-react"
 import { Logo } from "@/components/ui/logo"
 
-// Utility function
 function cn(...inputs: unknown[]) {
   return inputs.filter(Boolean).join(" ");
 }
 
-// Enhanced GlowingEffect Component
 interface GlowingEffectProps {
   blur?: number;
   inactiveZone?: number;
@@ -161,17 +158,12 @@ const GlowingEffect = React.memo(
                   var(--black),
                   var(--black) calc(25% / var(--repeating-conic-gradient-times))
                 )`
-                  : `radial-gradient(circle, #dd7bbb 10%, #dd7bbb00 20%),
-                radial-gradient(circle at 40% 40%, #d79f1e 5%, #d79f1e00 15%),
-                radial-gradient(circle at 60% 60%, #5a922c 10%, #5a922c00 20%), 
-                radial-gradient(circle at 40% 60%, #4c7894 10%, #4c789400 20%),
+                  : `radial-gradient(circle,
+                radial-gradient(circle at 40% 40%,
+                radial-gradient(circle at 60% 60%,
+                radial-gradient(circle at 40% 60%,
                 repeating-conic-gradient(
                   from 236.84deg at 50% 50%,
-                  #dd7bbb 0%,
-                  #d79f1e calc(25% / var(--repeating-conic-gradient-times)),
-                  #5a922c calc(50% / var(--repeating-conic-gradient-times)), 
-                  #4c7894 calc(75% / var(--repeating-conic-gradient-times)),
-                  #dd7bbb calc(100% / var(--repeating-conic-gradient-times))
                 )`,
             } as React.CSSProperties
           }
@@ -204,7 +196,6 @@ const GlowingEffect = React.memo(
 
 GlowingEffect.displayName = "GlowingEffect";
 
-// BentoCard Component
 interface BentoCardProps {
   icon: React.ReactNode;
   title: string;
@@ -306,7 +297,6 @@ const colorSchemes = [
 ]
 
 export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { onFinished: () => void; onStartTour: () => void }) {
-  // Add flicker animation styles
   React.useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
@@ -341,10 +331,8 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
   const { setTheme, resolvedTheme } = useTheme()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  // permissions hook for step 3
-  const { permissions, isLoading: permLoading, requestCriticalPermissions, openPermissionPage, requestPermission, checkPermissions } = usePermissions()
+  const { permissions, isLoading: permLoading, requestCriticalPermissions, openPermissionPage: _openPermissionPage, requestPermission, checkPermissions } = usePermissions()
   
-  // State for individual permission prompt
   const [permissionPromptOpen, setPermissionPromptOpen] = useState(false)
   const [selectedPermission, setSelectedPermission] = useState<{
     name: string
@@ -357,19 +345,16 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
   } | null>(null)
   const [permissionRequesting, setPermissionRequesting] = useState(false)
 
-  // helper service state for step 4
   const [helperStatus, setHelperStatus] = useState<{ installed: boolean; running: boolean } | null>(null)
   const [helperLoading, setHelperLoading] = useState(false)
   const [helperTimeout, setHelperTimeout] = useState(false)
   
-  // Track if user is manually toggling auto-launch to prevent periodic check interference
   const isTogglingAutoLaunchRef = useRef(false)
 
   useEffect(() => {
     const existing = loadProfile()
     if (existing) {
       setUsername(existing.username)
-      // Only set avatar if it's a valid data URL (custom image), not initials
       if (existing.avatar && existing.avatar.startsWith('data:')) {
         setAvatar(existing.avatar)
       } else {
@@ -377,14 +362,12 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       }
     }
     
-    // Check actual macOS auto-launch status and sync with toggle
     const checkAutoLaunchStatus = async () => {
       try {
         // @ts-expect-error - Electron IPC types not available
         const api = window?.electron
         if (!api?.isAutoLaunchEnabled) {
           console.warn("[Onboarding] Auto-launch status check not available")
-          // Fallback to preferences if available
           if (isOnboardingComplete()) {
             const prefs = loadPreferences()
             setAutoStartPref(prefs.autoStartOnBoot)
@@ -398,7 +381,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
           console.log(`[Onboarding] Auto-launch status: ${isEnabled ? 'enabled' : 'disabled'}`)
         } else {
           console.warn("[Onboarding] Invalid auto-launch status response:", isEnabled)
-          // Fallback to preferences if available
           if (isOnboardingComplete()) {
             const prefs = loadPreferences()
             setAutoStartPref(prefs.autoStartOnBoot)
@@ -406,7 +388,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
         }
       } catch (error) {
         console.warn("[Onboarding] Could not check auto-launch status:", error)
-        // Fallback to preferences if available
         if (isOnboardingComplete()) {
           const prefs = loadPreferences()
           setAutoStartPref(prefs.autoStartOnBoot)
@@ -416,9 +397,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
     
     checkAutoLaunchStatus()
     
-    // Set up periodic auto-launch status check to stay in sync
     const autoLaunchCheckInterval = setInterval(async () => {
-      // Skip periodic check if user is manually toggling
       if (isTogglingAutoLaunchRef.current) {
         return
       }
@@ -434,15 +413,12 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
           }
         }
       } catch (error) {
-        // Silently handle errors in periodic checks
         console.debug("[Onboarding] Periodic auto-launch check failed:", error)
       }
-    }, 5000) // Check every 5 seconds
+    }, 5000)
     
-    // Clean up interval on unmount
     return () => clearInterval(autoLaunchCheckInterval)
     
-    // Only load other prefs if onboarding was already completed, otherwise use defaults
     if (isOnboardingComplete()) {
       const prefs = loadPreferences()
       setNotificationsEnabled(prefs.notificationsEnabled)
@@ -456,7 +432,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       })()
     }
   }, [autoStart])
-  // Track navigation direction to drive grow/shrink effect between steps
   useEffect(() => {
     const previous = prevStepRef.current
     if (step > previous) setTransitionDir('forward')
@@ -466,14 +441,12 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
   }, [step])
 
   const checkHelperStatus = useCallback(async () => {
-    // Only set loading if we don't have status yet
     const isInitialCheck = !helperStatus
     if (isInitialCheck) {
       setHelperLoading(true)
     }
     
     try {
-      // Add timeout to prevent getting stuck
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Helper status check timeout')), 5000)
       )
@@ -486,12 +459,10 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       if (result && !(result instanceof Error) && result?.success) {
         const newStatus = result.data
         
-        // Always clear loading state after first check
         if (isInitialCheck) {
           setHelperLoading(false)
         }
         
-        // Only update if the status has actually changed
         setHelperStatus(prevStatus => {
           if (!prevStatus || 
               prevStatus.installed !== newStatus.installed || 
@@ -512,28 +483,24 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       setHelperStatus(null)
       setHelperLoading(false)
       
-      // If it's a timeout, show a more helpful message
       if (error instanceof Error && error.message?.includes('timeout')) {
         console.warn("Helper status check timed out, assuming service is not available")
       }
     }
   }, [helperStatus])
 
-  // Check helper status when reaching step 4 and set up periodic updates
   useEffect(() => {
     if (step === 4) {
       setHelperTimeout(false)
       checkHelperStatus()
       
-      // Set a timeout to show fallback options if helper check takes too long
       const timeoutId = setTimeout(() => {
         if (helperLoading) {
           setHelperTimeout(true)
           setHelperLoading(false)
         }
-      }, 10000) // 10 second timeout
+      }, 10000)
       
-      // Set up periodic status updates every 10 seconds to reduce interference
       const statusInterval = setInterval(checkHelperStatus, 10000)
       
       return () => {
@@ -541,7 +508,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
         clearTimeout(timeoutId)
       }
     } else {
-      // Clear helper status when not on step 4 to stop unnecessary checks
       setHelperStatus(null)
       setHelperLoading(false)
       setHelperTimeout(false)
@@ -550,7 +516,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
 
   const handleStartHelper = async () => {
     setHelperLoading(true)
-    setHelperTimeout(false) // Reset timeout when trying to install
+    setHelperTimeout(false)
     try {
       // @ts-expect-error - Electron IPC types not available
       const api = window?.electron
@@ -562,7 +528,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
           throw new Error(installResult?.error || "Installation failed")
         }
       }
-      // Use the on-demand helper service start
       const startResult = await api?.startHelperOnDemand?.()
       if (startResult?.success) {
         await checkHelperStatus()
@@ -572,7 +537,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       }
     } catch (error) {
       console.error("Failed to start helper:", error)
-      notifyError(`Failed to start helper service: ${error instanceof Error ? error.message : 'Unknown error'}`, undefined, true) // Critical - system service
+      notifyError(`Failed to start helper service: ${error instanceof Error ? error.message : 'Unknown error'}`, undefined, true)
     } finally {
       setHelperLoading(false)
     }
@@ -580,18 +545,15 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
 
   const initials = useMemo(() => getInitials(username), [username])
 
-  // Port validation and parsing with smart separator detection
   const validateAndParsePorts = (input: string): { ports: number[], isValid: boolean, error?: string, suggestion?: string } => {
     if (!input.trim()) {
       return { ports: [], isValid: true }
     }
 
-    // Smart separator detection - handle commas, dots, semicolons, spaces, etc.
     const separators = [',', '.', ';', '|', '\n', '\t']
     let rawPorts: string[] = []
     let detectedSeparator = ','
     
-    // Try to detect the separator being used
     for (const sep of separators) {
       if (input.includes(sep)) {
         rawPorts = input.split(sep).map(p => p.trim()).filter(Boolean)
@@ -600,7 +562,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       }
     }
     
-    // If no separator found, treat as single port
     if (rawPorts.length === 0) {
       rawPorts = [input.trim()]
     }
@@ -615,10 +576,8 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
     const invalidEntries: string[] = []
 
     for (const rawPort of rawPorts) {
-      // Clean up the port string
       const cleanPort = rawPort.trim()
       
-      // Check if it's a valid number
       const parsedPort = parseInt(cleanPort, 10)
       
       if (isNaN(parsedPort)) {
@@ -627,14 +586,12 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
         continue
       }
 
-      // Check port range (1-65535)
       if (parsedPort < 1 || parsedPort > 65535) {
         errors.push(`Port ${parsedPort} is out of range (1-65535)`)
         invalidEntries.push(cleanPort)
         continue
       }
 
-      // Check for duplicates
       if (ports.includes(parsedPort)) {
         errors.push(`Port ${parsedPort} is duplicated`)
         continue
@@ -643,14 +600,12 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       ports.push(parsedPort)
     }
 
-    // Generate smart suggestions based on detected issues
     if (errors.length > 0) {
       const validPorts = ports.join(', ')
       if (validPorts) {
         suggestions.push(`Valid ports: ${validPorts}`)
       }
       
-      // Suggest format fix if wrong separator detected
       if (detectedSeparator !== ',') {
         const correctedFormat = rawPorts.map(p => p.trim()).join(', ')
         suggestions.push(`Try: ${correctedFormat}`)
@@ -667,7 +622,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
     }
   }
 
-  // Handle banned ports input changes with validation
   const handleBannedPortsChange = (value: string) => {
     setBannedPortsInput(value)
     
@@ -680,20 +634,17 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
     }
   }
 
-  // Apply suggested fix for banned ports
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const applyBannedPortsFix = () => {
     const validation = validateAndParsePorts(bannedPortsInput)
     
     if (validation.ports.length > 0) {
-      // Use the valid ports that were parsed
       setBannedPortsInput(validation.ports.join(", "))
       setBannedPortsLocal(validation.ports)
       setBannedPortsError(null)
       setBannedPortsSuggestion(null)
       notifySuccess(`Fixed ports: ${validation.ports.join(", ")}`)
     } else {
-      // If no valid ports, try to fix the format by converting separators
       const separators = ['.', ';', '|', '\n', '\t']
       let fixedInput = bannedPortsInput
       
@@ -704,10 +655,8 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
         }
       }
       
-      // Clean up multiple spaces and commas
       fixedInput = fixedInput.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim()
       
-      // Re-validate the fixed input
       const fixedValidation = validateAndParsePorts(fixedInput)
       if (fixedValidation.isValid) {
         setBannedPortsInput(fixedInput)
@@ -721,7 +670,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
     }
   }
 
-  // Clear banned ports
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const clearBannedPorts = () => {
     setBannedPortsInput("")
@@ -730,9 +678,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
     setBannedPortsSuggestion(null)
   }
 
-  // Handle auto-launch toggle with proper error handling and edge cases
   const handleAutoLaunchToggle = async (enabled: boolean) => {
-    // Set flag to prevent periodic check from interfering
     isTogglingAutoLaunchRef.current = true
     setAutoStartLoading(true)
     
@@ -753,29 +699,25 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       if (!result?.success) {
         console.error(`[Onboarding] Failed to ${enabled ? 'enable' : 'disable'} auto-launch:`, result?.error)
         
-        // Provide more specific error messages
         const errorMessage = result?.error?.includes("Can't get login item") 
           ? "Auto-launch was already disabled"
           : `Failed to ${enabled ? 'enable' : 'disable'} auto-launch`
         
         if (result?.error?.includes("Can't get login item")) {
           notifySuccess("Auto-launch is already disabled")
-          // Don't update state if it was already disabled
         } else {
-          notifyError(errorMessage, undefined, true) // Critical - system error
+          notifyError(errorMessage, undefined, true)
         }
       } else {
-        // Only update state after successful operation
         setAutoStartPref(enabled)
         console.log(`[Onboarding] Auto-launch ${enabled ? 'enabled' : 'disabled'} successfully`)
         notifySuccess(`Auto-launch ${enabled ? 'enabled' : 'disabled'}`)
       }
     } catch (error) {
       console.error("[Onboarding] Auto-launch toggle error:", error)
-      notifyError("Failed to update auto-launch setting", undefined, true) // Critical - system error
+      notifyError("Failed to update auto-launch setting", undefined, true)
     } finally {
       setAutoStartLoading(false)
-      // Clear the flag after a short delay to allow the system to update
       setTimeout(() => {
         isTogglingAutoLaunchRef.current = false
       }, 1000)
@@ -784,9 +726,8 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
 
   const saveAndNext = useCallback(async () => {
     if (step === 1) {
-      if (!username.trim()) return notifyError("Please choose a username", undefined, true) // Critical - blocks progression
+      if (!username.trim()) return notifyError("Please choose a username", undefined, true)
 
-      // Save avatar to disk if it exists and electron API is available
       if (avatar && avatar.startsWith('data:')) {
         try {
           // @ts-expect-error - Electron IPC types not available
@@ -801,7 +742,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
             console.log('Electron API not available during onboarding, avatar will be saved to profile only')
           }
         } catch {
-          // Ignore errors saving avatar during onboarding
         }
       }
 
@@ -810,9 +750,8 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       return
     }
     if (step === 2) {
-      // Check if there are invalid ports that need to be fixed
       if (bannedPortsError) {
-        notifyError("Please fix the banned ports format before continuing", undefined, true) // Critical - blocks progression
+        notifyError("Please fix the banned ports format before continuing", undefined, true)
         return
       }
 
@@ -825,9 +764,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       })
       setTheme(theme)
       
-      // Sync notification setting with the notification system
       updateNotificationSetting(notificationsEnabled)
-      // Set banned ports in background without blocking onboarding
       setBannedPorts(bannedPortsLocal).catch(error => {
         console.warn("Banned ports setup failed, continuing with onboarding:", error)
       })
@@ -845,13 +782,12 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
         const api = window?.electron
         const status = await api?.getHelperStatus?.()
         if (!status?.data?.running) {
-          // Use on-demand helper service start
           await api?.startHelperOnDemand?.()
           notifySuccess("Helper service started")
         }
         setStep(5)
       } catch {
-        notifyError("Could not start helper service", undefined, true) // Critical - system service
+        notifyError("Could not start helper service", undefined, true)
         setStep(5)
       }
       return
@@ -861,14 +797,12 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
 
   const finish = useCallback((takeTour: boolean) => {
     markOnboardingComplete()
-    // Don't set tour request yet - wait for animation to complete
 
-    // 1) Fade out onboarding UI (keep stars visible)
     const overlay = document.querySelector('[data-onboarding-stars]') as HTMLElement | null
     if (overlay) {
       const children = Array.from(overlay.children)
       children.forEach((child, index) => {
-        if (index === 0) return // keep the first child (stars) visible
+        if (index === 0) return
         const el = child as HTMLElement
         el.style.transition = 'opacity 600ms ease, transform 600ms ease'
         el.style.opacity = '0'
@@ -877,21 +811,18 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       })
     }
 
-    // 2) Gradually slow stars from current speed to 0 and reduce opacity to 0 with shorter durations
     const start = performance.now()
     const startSpeed = bgSpeed
     const startOpacity = starsOpacity
-    const speedDuration = 4000 // 4 seconds for speed
-    const opacityDuration = 2000 // 2 seconds for opacity (faster fade)
+    const speedDuration = 4000
+    const opacityDuration = 2000
     
     const animate = (t: number) => {
       const elapsed = t - start
       
-      // Speed animation (4 seconds)
       const speedP = Math.min(1, Math.max(0, elapsed / speedDuration))
       const newSpeed = Math.max(0, Math.round(startSpeed + (0 - startSpeed) * speedP))
       
-      // Opacity animation (2 seconds - faster fade)
       const opacityP = Math.min(1, Math.max(0, elapsed / opacityDuration))
       const newOpacity = Math.max(0, startOpacity + (0 - startOpacity) * opacityP)
       
@@ -901,23 +832,19 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       if (speedP < 1 || opacityP < 1) {
         requestAnimationFrame(animate)
       } else {
-        // 3) After animation completes, proceed to dashboard with fade-in
         setTimeout(() => {
           if (takeTour) {
-            // Set tour request only after animation completes and dashboard appears
             setTourRequested(true)
           }
           onFinished()
-        }, 100) // Small delay to ensure smooth transition
+        }, 100)
       }
     }
     requestAnimationFrame(animate)
   }, [bgSpeed, starsOpacity, onFinished])
 
-  // Keyboard event handlers
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Don't handle shortcuts when typing in inputs
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
         return
       }
@@ -934,7 +861,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
           } else if (step === 4 && helperStatus?.running && !helperLoading) {
             saveAndNext()
           } else if (step === 5) {
-            finish(true) // Take the tour
+            finish(true)
           }
           break
         case 'ArrowLeft':
@@ -947,7 +874,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
         case 'Escape':
           event.preventDefault()
           if (step === 5) {
-            finish(false) // Skip tour
+            finish(false)
           }
           break
       }
@@ -1098,7 +1025,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
                           } catch (err) {
                             console.error('Failed to process selected image:', err)
                           } finally {
-                            // Reset input so selecting the same file again still triggers change
                             if (fileInputRef.current) fileInputRef.current.value = ''
                           }
                         }}
@@ -1114,8 +1040,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
                           try {
                             const input = fileInputRef.current
                             if (!input) return
-                            // Prefer showPicker in Chromium/Electron when DevTools is open
-                            // Falls back to click when not available
                             // @ts-expect-error - Electron IPC types not available
                             if (typeof input.showPicker === 'function') {
                               try {
@@ -1859,9 +1783,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
                     
                     const permissionType = permissionMap[selectedPermission.name]
                     if (permissionType) {
-                      // Request the permission
                       await requestPermission(permissionType)
-                      // Refresh permissions to check if it was granted
                       await checkPermissions()
                     }
                     

@@ -69,7 +69,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
   const [deleting, setDeleting] = useState(false)
   const [autoLaunchEnabled, setAutoLaunchEnabled] = useState(false)
 
-  // Animated icon hover hooks
   const deleteIconHover = useAnimatedIconHover()
   const rotateIconHover = useAnimatedIconHover()
   const githubIconHover = useAnimatedIconHover()
@@ -78,16 +77,13 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
   const moonIconHover = useAnimatedIconHover<MoonIconHandle>()
   const [autoLaunchLoading, setAutoLaunchLoading] = useState(false)
   
-  // Helper service state
   const [helperStatus, setHelperStatus] = useState<{
     installed: boolean
     running: boolean
   } | null>(null)
   const [helperLoading, setHelperLoading] = useState(false)
   
-  // Helper service functions - defined early for use in useEffect
   const loadHelperStatus = useCallback(async () => {
-    // Only set loading if we don't have status yet
     const isInitialLoad = !helperStatus
     if (isInitialLoad) {
       setHelperLoading(true)
@@ -102,12 +98,10 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
         const status = result.data
         console.log("Helper status data:", status)
         
-        // Always clear loading state after first check
         if (isInitialLoad) {
           setHelperLoading(false)
         }
         
-        // Only update if the status has actually changed
         setHelperStatus(prevStatus => {
           if (!prevStatus || 
               prevStatus.installed !== status.installed || 
@@ -120,7 +114,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
         })
       } else {
         console.error("Helper status API failed:", result?.error)
-        // Set a default status when API fails
         setHelperStatus({
           installed: false,
           running: false
@@ -129,7 +122,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
       }
     } catch (error) {
       console.error("Failed to load helper status:", error)
-      // Set a default status when there's an error
       setHelperStatus({
         installed: false,
         running: false
@@ -138,7 +130,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
     }
   }, [helperStatus])
 
-  // Background status checking without UI updates
   const checkHelperStatusBackground = useCallback(async () => {
     try {
       const result = await window.electron?.getHelperStatus?.()
@@ -146,7 +137,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
       if (result?.success && result.data) {
         const status = result.data
         
-        // Only update if the status has actually changed
         setHelperStatus(prevStatus => {
           if (!prevStatus || 
               prevStatus.installed !== status.installed || 
@@ -169,50 +159,40 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
     setColorScheme(saved)
     document.documentElement.setAttribute("data-color-scheme", saved)
     
-    // Load notification setting
     try {
-      // Check if we're in a browser environment
       if (typeof window !== 'undefined') {
         if (notificationManager && typeof notificationManager.areNotificationsEnabled === 'function') {
           const enabled = notificationManager.areNotificationsEnabled()
           setNotifications(enabled)
         } else {
-          // Fallback to localStorage directly
           const saved = localStorage.getItem("notifications-enabled")
           setNotifications(saved !== null ? JSON.parse(saved) : true)
         }
       } else {
-        // Server-side rendering, default to enabled
         setNotifications(true)
       }
     } catch (error) {
       console.error("Failed to load notification setting:", error)
-      setNotifications(true) // Default to enabled
+      setNotifications(true)
     }
     
-    // Check auto-launch status
     checkAutoLaunchStatus()
     
-    // Load helper service status only when dialog is open
     if (open) {
   loadHelperStatus()
     }
   }, [open, loadHelperStatus])
   
-  // Background check helper status only when dialog is open
   useEffect(() => {
     if (!open) return
     
-    // Load helper status immediately when dialog opens
     loadHelperStatus()
     
-    // Background check helper status every 15 seconds (increased from 10s to save resources)
     const statusInterval = setInterval(checkHelperStatusBackground, 15000)
   
   return () => clearInterval(statusInterval)
   }, [open, loadHelperStatus, checkHelperStatusBackground])
 
-  // Close child dialogs when parent dialog closes
   useEffect(() => {
     if (!open) {
       setBannedPortsOpen(false)
@@ -268,13 +248,12 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
   }
 
 
-  // Preview handlers that apply changes immediately
   const handleThemePreview = (newTheme: string) => {
-    setTheme(newTheme) // Apply immediately for preview
+    setTheme(newTheme)
   }
 
   const handleColorSchemePreview = (newColorScheme: string) => {
-    setColorScheme(newColorScheme) // Apply immediately for preview
+    setColorScheme(newColorScheme)
     localStorage.setItem("color-scheme", newColorScheme)
     document.documentElement.setAttribute("data-color-scheme", newColorScheme)
   }
@@ -282,16 +261,13 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
   const handleNotificationToggle = (enabled: boolean) => {
     setNotifications(enabled)
     
-    // Update notification setting using the new system
     updateNotificationSetting(enabled)
     
-    // Show a notification about the setting change (this will respect the new setting)
     if (enabled) {
       notifySuccess("Notifications enabled", {
         description: "You'll now receive toast notifications for database events.",
       })
     } else {
-      // Use direct toast for this one since we want to show it even when disabling
       toast.info("Notifications disabled", {
         description: "Toast notifications are now disabled.",
       })
@@ -323,7 +299,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
     onOpenChange(false)
     
     try {
-      // Use the animation callback if provided, otherwise use the old method
       if (onDeleteAll) {
         await onDeleteAll()
       } else {
@@ -333,7 +308,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
           notifySuccess("All databases deleted", {
             description: "All databases and their data have been permanently removed.",
           })
-          // Reload the page to refresh the database list
           window.location.reload()
         } else {
           notifyError("Failed to delete databases", {
@@ -365,9 +339,7 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
           ? 'Helper service installed successfully'
           : `Helper service ${action}ed successfully`
         notifySuccess(message)
-        // Refresh status immediately after action
         await loadHelperStatus()
-        // Also refresh again after a short delay to ensure status is accurate
         setTimeout(checkHelperStatusBackground, 1000)
       } else {
         const errorMessage = result?.error || "Unknown error occurred"
@@ -390,7 +362,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
-      // Close all child dialogs when parent closes
       setBannedPortsOpen(false)
       setDeleteConfirmOpen(false)
     }

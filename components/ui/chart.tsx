@@ -4,14 +4,12 @@ import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 import { cn } from "@/lib/utils"
 
-// Chart context
 const ChartContext = React.createContext<{
   config: Record<string, unknown>
 }>({
   config: {},
 })
 
-// Chart container
 const ChartContainer = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
@@ -41,13 +39,10 @@ const ChartContainer = React.forwardRef<
 })
 ChartContainer.displayName = "Chart"
 
-// Chart tooltip
 const ChartTooltip = RechartsPrimitive.Tooltip
 
-// Chart legend
 const ChartLegend = RechartsPrimitive.Legend
 
-// Chart tooltip content
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<typeof RechartsPrimitive.Tooltip> &

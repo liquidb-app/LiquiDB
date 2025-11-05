@@ -63,12 +63,10 @@ export function PermissionsDialog({
     })
   }
 
-  // Keyboard event handlers
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!open) return
       
-      // Don't handle shortcuts when typing in inputs
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
         return
       }

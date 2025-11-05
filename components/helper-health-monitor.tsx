@@ -18,24 +18,18 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
   const [isChecking, setIsChecking] = useState(false)
   const [isReinstalling, setIsReinstalling] = useState(false)
 
-  // Animated icon hover hook
   const rotateIconHover = useAnimatedIconHover()
 
-  // Check helper service health
   const checkHealth = async () => {
     setIsChecking(true)
     try {
       // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.getHelperHealth?.()
       if (result?.success) {
-        // Only show as unhealthy if the main app is not running
-        // When main app is running, helper service should be off
         const isMainAppRunning = window.electron?.isElectron
         if (isMainAppRunning) {
-          // Main app is running, helper should be off - this is healthy
           setIsHealthy(true)
         } else {
-          // Main app is not running, helper should be on
           setIsHealthy(result.data.isHealthy)
         }
       } else {
@@ -49,18 +43,14 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
     }
   }
 
-  // Reinstall helper service
   const handleReinstall = async () => {
     setIsReinstalling(true)
     try {
-      // First try to uninstall
       // @ts-expect-error - Electron IPC types not available
       await window.electron?.uninstallHelper?.()
       
-      // Wait a moment
       await new Promise(resolve => setTimeout(resolve, 1000))
       
-      // Then reinstall by starting
       // @ts-expect-error - Electron IPC types not available
       const installResult = await window.electron?.startHelper?.()
       
@@ -81,27 +71,22 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
     }
   }
 
-  // Check health on mount and periodically (only if onboarding is complete)
   useEffect(() => {
-    // Don't start health monitoring during onboarding
     if (!isOnboardingComplete()) {
       return
     }
     
     checkHealth()
     
-    // Check every 30 seconds
     const interval = setInterval(checkHealth, 30000)
     
     return () => clearInterval(interval)
   }, [])
 
-  // Don't show anything if we haven't checked yet, if it's healthy, or if main app is running
   if (isHealthy === null || isHealthy === true) {
     return null
   }
 
-  // Don't show the alert when the main app is running (helper should be off)
   const isMainAppRunning = typeof window !== 'undefined' && window.electron?.isElectron
   if (isMainAppRunning) {
     return null

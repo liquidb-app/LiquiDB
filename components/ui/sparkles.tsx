@@ -60,7 +60,6 @@ const SparklesIcon = forwardRef<SparklesIconHandle, SparklesIconProps>(
     const rotation = useMotionValue(0);
     const gradientTransform = useTransform(rotation, (r) => `rotate(${r} 0.5 0.5)`);
 
-    // Auto-start animation on mount - both sparkle and gradient animations
     useEffect(() => {
       controls.start('animate');
       const animation = animate(rotation, 360, {
@@ -110,7 +109,6 @@ const SparklesIcon = forwardRef<SparklesIconHandle, SparklesIconProps>(
       (e: React.MouseEvent<HTMLDivElement>) => {
         if (!isControlledRef.current) {
           controls.start('normal');
-          // Keep gradient animation running
         } else {
           onMouseLeave?.(e);
         }

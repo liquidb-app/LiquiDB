@@ -31,12 +31,10 @@ export function PortConflictDialog({ open, onOpenChange, port, onResolve }: Port
     onOpenChange(false)
   }, [newPort, onResolve, onOpenChange])
 
-  // Keyboard event handlers
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!open) return
       
-      // Don't handle shortcuts when typing in inputs
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
         return
       }

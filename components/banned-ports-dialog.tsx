@@ -25,7 +25,6 @@ export function BannedPortsDialog({ open, onOpenChange }: BannedPortsDialogProps
   const [error, setError] = useState<string>("")
   const [suggestedFix, setSuggestedFix] = useState<string>("")
 
-  // Animated icon hover hooks
   const plusIconHover = useAnimatedIconHover()
   const checkIconHover = useAnimatedIconHover()
 
@@ -42,7 +41,6 @@ export function BannedPortsDialog({ open, onOpenChange }: BannedPortsDialogProps
           if (savedPorts) setBlacklistedPorts(JSON.parse(savedPorts))
         }
       } catch {
-        // ignore
       }
     }
     if (open) load()

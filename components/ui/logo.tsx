@@ -19,10 +19,8 @@ export function Logo({ className, size, width, height }: LogoProps) {
     setMounted(true)
   }, [])
 
-  // Determine the effective theme (resolvedTheme handles system theme)
   const effectiveTheme = mounted ? (resolvedTheme || theme) : "light"
   
-  // Set color based on theme: white for dark mode, black/dark for light mode
   const colorClass = effectiveTheme === "dark" ? "text-white" : "text-black"
 
   const logoWidth = width || size || "100%"

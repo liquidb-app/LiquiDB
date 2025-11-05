@@ -5,7 +5,6 @@ import { Cpu, MemoryStick } from "lucide-react"
 import { ActivityIcon } from "@/components/ui/activity"
 import { SquareActivityIcon } from "@/components/ui/square-activity"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-// import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -62,8 +61,6 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
       const info = await window.electron?.getDatabaseSystemInfo?.(databaseId)
       setSystemInfo(info)
       
-      // Real system info is now fetched every 5 seconds and used for the static info display
-      // Chart data is streamed continuously every second for smooth animation
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch system info')
     } finally {
@@ -71,9 +68,7 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
     }
   }, [databaseId])
 
-  // Smooth data generation functions - using refs to avoid re-renders
   const generateSmoothMemoryData = useCallback(() => {
-    // Small gradual changes (±2% max change per second)
     const rssChange = (Math.random() - 0.5) * 0.04 * lastMemoryValues.current.rss
     const vszChange = (Math.random() - 0.5) * 0.04 * lastMemoryValues.current.vsz
     
@@ -85,7 +80,6 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
   }, [])
 
   const generateSmoothCpuData = useCallback(() => {
-    // Small gradual changes (±0.5% max change per second)
     const cpuChange = (Math.random() - 0.5) * 1.0
     const newCpu = Math.max(0, Math.min(8, lastCpuValue.current + cpuChange))
     
@@ -95,12 +89,10 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
 
   useEffect(() => {
     if (open && databaseId) {
-      // Initialize with some sample data to make charts visible
       const now = new Date()
       const sampleMemoryData = []
       const sampleCpuData = []
       
-      // Generate smooth initial data
       let currentRss = 120000000
       let currentVsz = 250000000
       let currentCpu = 1.5
@@ -108,12 +100,10 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
       for (let i = 0; i < 20; i++) {
         const time = new Date(now.getTime() - (19 - i) * 1000).toLocaleTimeString()
         
-        // Add small variations for initial data
         currentRss += (Math.random() - 0.5) * 2000000
         currentVsz += (Math.random() - 0.5) * 5000000
         currentCpu += (Math.random() - 0.5) * 0.5
         
-        // Keep values within reasonable bounds
         currentRss = Math.max(80000000, Math.min(200000000, currentRss))
         currentVsz = Math.max(150000000, Math.min(400000000, currentVsz))
         currentCpu = Math.max(0, Math.min(8, currentCpu))
@@ -129,7 +119,6 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
         })
       }
       
-      // Set the last values for smooth continuation
       lastMemoryValues.current = { rss: currentRss, vsz: currentVsz }
       lastCpuValue.current = currentCpu
       
@@ -138,49 +127,42 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
       
       fetchSystemInfo()
       
-      // Continuous data streaming - add new data point every 5 seconds to reduce load
       const interval = setInterval(() => {
         try {
           const now = new Date()
           const time = now.toLocaleTimeString()
           
-          // Generate smooth memory data
           const memoryData = generateSmoothMemoryData()
           
-          // Add new memory data point
           setMemoryHistory(prev => {
             const newData = [...prev, {
               time,
               rss: memoryData.rss,
               vsz: memoryData.vsz
             }]
-            return newData.slice(-15) // Keep last 15 data points (75 seconds of data)
+            return newData.slice(-15)
           })
           
-          // Generate smooth CPU data
           const cpuData = generateSmoothCpuData()
           
-          // Add new CPU data point
           setCpuHistory(prev => {
             const newData = [...prev, {
               time,
               cpu: cpuData
             }]
-            return newData.slice(-15) // Keep last 15 data points (75 seconds of data)
+            return newData.slice(-15)
           })
           
-          // Fetch real system info less frequently (every 15 seconds)
           if (Math.floor(Date.now() / 1000) % 15 === 0) {
             fetchSystemInfo()
           }
         } catch (error) {
           console.error('Error updating chart data:', error)
         }
-      }, 5000) // Update every 5 seconds instead of 2 seconds
+      }, 5000)
       
       return () => {
         clearInterval(interval)
-        // Clear historical data when dialog closes
         setMemoryHistory([])
         setCpuHistory([])
       }

@@ -3,8 +3,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
-// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-// import { Badge } from "@/components/ui/badge"
 import { Kbd } from "@/components/ui/kbd"
 import {
   Sidebar,
@@ -33,7 +31,6 @@ interface Quote {
   author: string
 }
 
-// Fallback quotes in case API fails
 const FALLBACK_QUOTES: Quote[] = [
   {
     quote: "Programs must be written for people to read, and only incidentally for machines to execute.",
@@ -228,24 +225,19 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
     setMounted(true)
   }, [])
 
-  // Get quote for current step
   const currentQuote = quotes && quotes.length > 0 ? quotes[currentStep % quotes.length] : null
 
-  // Determine the effective theme (resolvedTheme handles system theme)
   const effectiveTheme = mounted ? (resolvedTheme || theme) : "light"
   
-  // Set color based on theme: RGB(229, 229, 229) for dark mode, inverted for light mode
   const logoColor = effectiveTheme === "dark" 
     ? "rgb(229, 229, 229)" 
-    : "rgb(26, 26, 26)" // Inverted: 255 - 229 = 26
+    : "rgb(26, 26, 26)"
 
   useEffect(() => {
     if (isOpen) {
       setIsVisible(true)
-      // Set tour mode flag
       document.body.setAttribute('data-tour-mode', 'true')
       
-      // Show tour mode notification only once per tour session
       if (!notificationShownRef.current) {
         const timeoutId = setTimeout(() => {
           notifyInfo("Tour Mode Active", {
@@ -255,17 +247,14 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
           notificationShownRef.current = true
         }, 500)
         
-        // Cleanup timeout on unmount
         return () => clearTimeout(timeoutId)
       }
     } else {
       setIsVisible(false)
-      // Remove tour mode flag and ensure dashboard returns to normal
       document.body.removeAttribute('data-tour-mode')
       // Force a reflow to ensure CSS changes take effect
       requestAnimationFrame(() => {
         void document.body.offsetHeight // Force reflow
-        // Ensure all elements with tour-mode classes reset
         const tourModeElements = document.querySelectorAll('.tour-mode\\:ml-80')
         tourModeElements.forEach((el) => {
           const htmlEl = el as HTMLElement
@@ -275,24 +264,20 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
         })
       })
       setTargetElement(null)
-      // Reset notification flag when tour closes
       notificationShownRef.current = false
     }
   }, [isOpen])
 
-  // Update target element when step changes
   useEffect(() => {
     if (!isOpen) return
 
     const currentStepData = tourSteps[currentStep]
     if (currentStepData.highlight) {
-      // Wait a bit for the UI to settle
       const timer = setTimeout(() => {
         const element = document.querySelector(`[data-tour="${currentStepData.highlight}"]`) as HTMLElement
         if (element) {
           setTargetElement(element)
         } else {
-          // Fallback selectors for common elements
           let fallbackElement: HTMLElement | null = null
           
           switch (currentStepData.highlight) {
@@ -324,7 +309,6 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
   }, [currentStep, isOpen])
 
   const handleComplete = useCallback(() => {
-    // Trigger confetti with theme colors
     const end = Date.now() + 3 * 1000
     const root = document.documentElement
     const primaryColor = getComputedStyle(root).getPropertyValue('--primary').trim()
@@ -360,7 +344,6 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
       duration: 5000
     })
 
-    // Remove tour mode flag before closing
     document.body.removeAttribute('data-tour-mode')
     requestAnimationFrame(() => {
       void document.body.offsetHeight // Force reflow
@@ -387,7 +370,6 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
       description: "Tour mode disabled. You can now create databases and use all features.",
       duration: 3000
     })
-    // Remove tour mode flag before closing
     document.body.removeAttribute('data-tour-mode')
     requestAnimationFrame(() => {
       void document.body.offsetHeight // Force reflow
@@ -395,10 +377,8 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
     onClose()
   }, [onClose])
 
-  // Keyboard event handlers
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Don't handle shortcuts when typing in inputs
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
         return
       }
@@ -669,7 +649,6 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
   )
 }
 
-// Wrapper component to replace MaybeStartTour
 export function MaybeStartSidebarTour() {
   const [shouldShowTour, setShouldShowTour] = useState(false)
   const [quotes, setQuotes] = useState<Quote[]>([])
@@ -677,14 +656,12 @@ export function MaybeStartSidebarTour() {
   const [hasFetchedQuotes, setHasFetchedQuotes] = useState(false)
 
   const fetchQuotes = useCallback(async (forceRefresh = false) => {
-    // Skip if already fetched and not forcing refresh
     if (hasFetchedQuotes && !forceRefresh && quotes.length > 0) {
       return
     }
 
     setIsLoadingQuotes(true)
     try {
-      // Use Electron IPC if available (bypasses CORS), otherwise fallback to fetch
       if (typeof window !== 'undefined' && window.electron?.fetchQuotes) {
         try {
           const result = await window.electron.fetchQuotes()
@@ -699,22 +676,15 @@ export function MaybeStartSidebarTour() {
           }
           throw new Error(result.error || 'Failed to fetch quotes')
         } catch (ipcError) {
-          // If IPC fails (e.g., handler not registered, API error, or invalid response), fall through to fallback
-          // Only log in development to avoid console noise
           if (process.env.NODE_ENV === 'development') {
             const errorMessage = ipcError instanceof Error ? ipcError.message : String(ipcError)
-            // Only log if it's not a known API error (HTML response, timeout, etc.)
             if (!errorMessage.includes('HTML') && !errorMessage.includes('timeout') && !errorMessage.includes('status code')) {
               console.warn('IPC fetch failed, using fallback quotes:', errorMessage)
             }
           }
-          // Fall through to fallback quotes
         }
       }
       
-      // If IPC not available or failed, use fallback quotes immediately (no fetch attempt)
-      // This prevents CORS errors and rate limiting
-      // Shuffle fallback quotes to get different quotes each time
       const shuffledFallbacks = [...FALLBACK_QUOTES].sort(() => Math.random() - 0.5)
       const neededQuotes = tourSteps.length
       const fallbackQuotes: Quote[] = []
@@ -725,7 +695,6 @@ export function MaybeStartSidebarTour() {
       setHasFetchedQuotes(true)
       setIsLoadingQuotes(false)
     } catch (error) {
-      // Final fallback - use hardcoded quotes (shuffled for variety)
       if (process.env.NODE_ENV === 'development') {
         console.warn('All quote fetching methods failed, using fallback:', error instanceof Error ? error.message : error)
       }
@@ -742,34 +711,26 @@ export function MaybeStartSidebarTour() {
   }, [hasFetchedQuotes, quotes.length])
 
   useEffect(() => {
-    // Check for tour request on mount
     if (wasTourRequested()) {
-      // Reset quotes and fetch fresh ones for each new tour
       setQuotes([])
       setHasFetchedQuotes(false)
       setShouldShowTour(true)
-      // Fetch fresh quotes (will use fallbacks if API fails)
       fetchQuotes(true)
-      // Clear the tour request immediately
       setTourRequested(false)
     }
   }, [fetchQuotes])
 
-  // Listen for tour request changes (in case it's set after component mounts)
   useEffect(() => {
     const checkTourRequest = () => {
       if (wasTourRequested()) {
-        // Reset quotes and fetch fresh ones for each new tour
         setQuotes([])
         setHasFetchedQuotes(false)
         setShouldShowTour(true)
-        // Fetch fresh quotes (will use fallbacks if API fails)
         fetchQuotes(true)
         setTourRequested(false)
       }
     }
 
-    // Set up interval to check for tour requests
     const interval = setInterval(checkTourRequest, 100)
 
     return () => clearInterval(interval)
@@ -777,12 +738,10 @@ export function MaybeStartSidebarTour() {
 
   const handleClose = () => {
     setShouldShowTour(false)
-    // Reset quotes when tour closes so next tour fetches fresh ones
     setQuotes([])
     setHasFetchedQuotes(false)
   }
 
-  // Only render the tour if it was requested
   if (!shouldShowTour) {
     return null
   }

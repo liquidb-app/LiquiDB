@@ -13,7 +13,6 @@ type StarsBackgroundProps = React.ComponentProps<"div"> & {
   glow?: boolean
 }
 
-// Lightweight canvas starfield that avoids external deps
 export function StarsBackground({
   factor = 0.05,
   speed = 100,
@@ -60,7 +59,6 @@ export function StarsBackground({
     }
     setCanvasScale()
     
-    // Ensure minimum dimensions
     if (cssWidth === 0 || cssHeight === 0) {
       cssWidth = 800
       cssHeight = 600
@@ -123,18 +121,16 @@ export function StarsBackground({
       
       ctx.clearRect(0, 0, cssWidth, cssHeight)
       ctx.fillStyle = colorRef.current
-      const spd = Math.max(0, speedRef.current) * 0.1 // vertical drift
-      // ease parallax
+      const spd = Math.max(0, speedRef.current) * 0.1
       parallaxRef.current.x += (targetParallaxRef.current.x - parallaxRef.current.x) * 0.06
       parallaxRef.current.y += (targetParallaxRef.current.y - parallaxRef.current.y) * 0.06
       const px = parallaxRef.current.x
       const py = parallaxRef.current.y
       for (const s of stars) {
-        const r = Math.max(0.5, s.size) // Ensure minimum size
+        const r = Math.max(0.5, s.size)
         ctx.beginPath()
         ctx.arc(s.x + px * s.depth, s.y + py * s.depth, r, 0, Math.PI * 2)
         ctx.fill()
-        // move up
         s.y -= spd * 0.02
         if (s.y < -2) {
           s.y = cssHeight + 2

@@ -16,14 +16,12 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
   useEffect(() => {
     setMounted(true)
     
-    // Prevent body scrolling during loading
     document.body.style.overflow = 'hidden'
     
-    // Simple timeout to complete loading
     const timer = setTimeout(() => {
       document.body.style.overflow = '' // Restore scrolling
       onComplete?.()
-    }, 2000) // 2 seconds loading time
+    }, 2000)
 
     return () => {
       clearTimeout(timer)
@@ -31,15 +29,12 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
     }
   }, [onComplete])
 
-  // Determine the effective theme (resolvedTheme handles system theme)
   const effectiveTheme = mounted ? (resolvedTheme || theme) : "light"
   
-  // Set color based on theme: RGB(229, 229, 229) for dark mode, inverted for light mode
   const logoColor = effectiveTheme === "dark" 
     ? "rgb(229, 229, 229)" 
-    : "rgb(26, 26, 26)" // Inverted: 255 - 229 = 26
+    : "rgb(26, 26, 26)"
 
-  // Use CSS variables for theme-consistent styling
   return (
     <motion.div 
       className="fixed inset-0 flex items-center justify-center z-[99999] bg-background"

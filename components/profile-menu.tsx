@@ -28,7 +28,6 @@ export function ProfileMenuTrigger() {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { theme, setTheme } = useTheme()
 
-  // Animated icon hover hooks
   const settingsIconHover = useAnimatedIconHover()
   const helpIconHover = useAnimatedIconHover()
   const logoutIconHover = useAnimatedIconHover()
@@ -43,7 +42,6 @@ export function ProfileMenuTrigger() {
     }
   }, [])
 
-  // Handle open-app-settings event to close dropdown when settings open
   useEffect(() => {
     const handleOpenAppSettings = () => {
       setDropdownOpen(false)

@@ -16,15 +16,15 @@ interface GripIconProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const CIRCLES = [
-  { cx: 19, cy: 5 }, // Top right
-  { cx: 12, cy: 5 }, // Top middle
-  { cx: 19, cy: 12 }, // Middle right
-  { cx: 5, cy: 5 }, // Top left
-  { cx: 12, cy: 12 }, // Center
-  { cx: 19, cy: 19 }, // Bottom right
-  { cx: 5, cy: 12 }, // Middle left
-  { cx: 12, cy: 19 }, // Bottom middle
-  { cx: 5, cy: 19 }, // Bottom left
+  { cx: 19, cy: 5 },
+  { cx: 12, cy: 5 },
+  { cx: 19, cy: 12 },
+  { cx: 5, cy: 5 },
+  { cx: 12, cy: 12 },
+  { cx: 19, cy: 19 },
+  { cx: 5, cy: 12 },
+  { cx: 12, cy: 19 },
+  { cx: 5, cy: 19 },
 ];
 
 const GripIcon = forwardRef<GripIconHandle, GripIconProps>(

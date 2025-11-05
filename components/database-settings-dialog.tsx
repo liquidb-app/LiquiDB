@@ -154,7 +154,6 @@ export function DatabaseSettingsDialog({
   const downloadIconRef = useRef<DownloadIconHandle>(null)
   const copyConnectionStringRef = useRef<CopyIconHandle>(null)
 
-  // Function to validate name length
   const validateName = useCallback((nameValue: string) => {
     if (nameValue.length > MAX_NAME_LENGTH) {
       setNameError(`Name must be ${MAX_NAME_LENGTH} characters or less`)
@@ -164,9 +163,7 @@ export function DatabaseSettingsDialog({
     return true
   }, [MAX_NAME_LENGTH])
 
-  // Function to handle name change with validation
   const handleNameChange = (value: string) => {
-    // Truncate if too long
     if (value.length > MAX_NAME_LENGTH) {
       value = value.substring(0, MAX_NAME_LENGTH)
     }
@@ -177,24 +174,22 @@ export function DatabaseSettingsDialog({
   useEffect(() => {
     setName(database.name)
     setPort(database.port.toString())
-    setUsername(database.username) // Username cannot be changed - always use database username
-    setPassword("") // Don't show existing password
+    setUsername(database.username)
+    setPassword("")
     setSelectedIcon(database.icon || "")
     setAutoStart(database.autoStart || false)
     setAutoStartConflict(null)
-    setPortError("") // Clear port error when dialog opens
+    setPortError("")
     setPortStatus(null)
     setPortConflictInfo(null)
   }, [database])
   
-  // Username cannot be changed - always keep it in sync with database
   useEffect(() => {
     if (username !== database.username) {
       setUsername(database.username)
     }
   }, [username, database.username])
 
-  // Live port conflict checking as user types
   useEffect(() => {
     if (!port || !open) {
       setPortStatus(null)
@@ -209,19 +204,16 @@ export function DatabaseSettingsDialog({
       return
     }
 
-    // Don't check if port hasn't changed from original
     if (portNum === database.port) {
       setPortStatus(null)
       setPortConflictInfo(null)
       return
     }
 
-    // Debounce the check
     const timeoutId = setTimeout(async () => {
       setPortStatus("checking")
       
       try {
-        // Check for internal conflicts first
         const internalConflict = allDatabases.find(db => 
           db.id !== database.id && db.port === portNum
         )
@@ -232,7 +224,6 @@ export function DatabaseSettingsDialog({
           return
         }
         
-        // Check for external conflicts
         // @ts-expect-error - Electron IPC types not available
         if (window.electron?.checkPortConflict) {
           // @ts-expect-error - Electron IPC types not available
@@ -249,7 +240,6 @@ export function DatabaseSettingsDialog({
             setPortConflictInfo(null)
           }
         } else {
-          // Fallback check
           // @ts-expect-error - Electron IPC types not available
           if (window.electron?.checkPort) {
             // @ts-expect-error - Electron IPC types not available
@@ -268,18 +258,16 @@ export function DatabaseSettingsDialog({
         setPortStatus(null)
         setPortConflictInfo(null)
       }
-    }, 500) // Debounce for 500ms
+    }, 500)
 
     return () => clearTimeout(timeoutId)
   }, [port, database.port, database.id, allDatabases, open])
 
-  // Function to find next available port
   const findNextAvailablePort = useCallback(async (startPort: number): Promise<number> => {
     let port = startPort
     const maxAttempts = 100
     
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      // Check for internal conflicts
       const internalConflict = allDatabases.find(db => 
         db.id !== database.id && db.port === port
       )
@@ -289,7 +277,6 @@ export function DatabaseSettingsDialog({
         continue
       }
       
-      // Check for external conflicts
       try {
         // @ts-expect-error - Electron IPC types not available
         if (window.electron?.checkPortConflict) {
@@ -321,7 +308,6 @@ export function DatabaseSettingsDialog({
     return startPort
   }, [allDatabases, database.id])
 
-  // Validate port with conflict checking
   const validatePort = useCallback(async (p: string) => {
     setPortError("")
     const portNum = Number.parseInt(p)
@@ -334,7 +320,6 @@ export function DatabaseSettingsDialog({
       return false
     }
     
-    // Don't check if port hasn't changed
     if (portNum === database.port) {
       return true
     }
@@ -342,7 +327,6 @@ export function DatabaseSettingsDialog({
     try {
       setCheckingPort(true)
       
-      // Check for internal conflicts (other databases in the app)
       const internalConflict = allDatabases.find(db => 
         db.id !== database.id && db.port === portNum
       )
@@ -354,7 +338,6 @@ export function DatabaseSettingsDialog({
         return false
       }
       
-      // Check for external port conflicts
       // @ts-expect-error - Electron IPC types not available
       if (window.electron?.checkPortConflict) {
         // @ts-expect-error - Electron IPC types not available
@@ -370,7 +353,6 @@ export function DatabaseSettingsDialog({
         }
       }
       
-      // Fallback to old checkPort method
       // @ts-expect-error - Electron IPC types not available
       if (window.electron?.checkPort) {
         // @ts-expect-error - Electron IPC types not available
@@ -399,7 +381,6 @@ export function DatabaseSettingsDialog({
     return true
   }, [allDatabases, database.id, database.port, findNextAvailablePort])
 
-  // Check for port conflicts when enabling auto-start
   const checkAutoStartPortConflict = (enableAutoStart: boolean) => {
     if (!enableAutoStart) {
       setAutoStartConflict(null)
@@ -428,10 +409,9 @@ export function DatabaseSettingsDialog({
   }
 
   const handleCancel = useCallback(() => {
-    // Reset local state to original database values
     setName(database.name)
     setPort(database.port.toString())
-    setUsername(database.username) // Username cannot be changed
+    setUsername(database.username)
     setPassword("")
     setSelectedIcon(database.icon || "")
     setAutoStart(database.autoStart || false)
@@ -441,15 +421,13 @@ export function DatabaseSettingsDialog({
 
 
   const handleSave = useCallback(async () => {
-    // Validate name length
     if (!validateName(name)) {
       return
     }
 
-    // Validate port before saving
     const portValid = await validatePort(port)
     if (!portValid) {
-      return // Error message already shown in UI
+      return
     }
 
     const portNum = Number.parseInt(port)
@@ -458,8 +436,8 @@ export function DatabaseSettingsDialog({
         ...database,
         name,
         port: portNum,
-        username: database.username, // Username cannot be changed - always use existing username
-        password: password || database.password, // Keep existing password if not changed
+        username: database.username,
+        password: password || database.password,
         icon: selectedIcon,
         autoStart,
       }
@@ -469,15 +447,12 @@ export function DatabaseSettingsDialog({
         await window.electron.saveDatabase(updated)
       }
       
-      // Check if password or database name changed (username cannot be changed)
       const passwordChanged = password !== ""
       const nameChanged = name !== database.name
       const credentialsChanged = passwordChanged || nameChanged
       
-      // If credentials changed and database is running, update credentials in the database
       if (credentialsChanged && database.status === "running") {
         try {
-          // Get password from keychain if not provided in form
           let actualPassword = password
           if (!actualPassword || actualPassword === "") {
             // @ts-expect-error - Electron IPC types not available
@@ -487,25 +462,22 @@ export function DatabaseSettingsDialog({
             }
           }
           
-          // Username cannot be changed - always use the database's existing username
           // @ts-expect-error - Electron IPC types not available
           if (window.electron?.updateDatabaseCredentials) {
             // @ts-expect-error - Electron IPC types not available
             const result = await window.electron.updateDatabaseCredentials({
               id: database.id,
-              username: database.username, // Always use existing username - cannot be changed
+              username: database.username,
               password: actualPassword,
               name: name || database.name
             })
             
             if (!result?.success) {
               console.error("Failed to update database credentials:", result?.error)
-              // Don't block the save, just log the error
             }
           }
         } catch (error) {
           console.error("Error updating database credentials:", error)
-          // Don't block the save, just log the error
         }
       }
       
@@ -520,32 +492,28 @@ export function DatabaseSettingsDialog({
 
   const handleConfirmDelete = () => {
     setShowDeleteConfirm(false)
-    // Small delay to ensure AlertDialog overlay is removed before closing parent dialog
     setTimeout(() => {
       onDelete(database.id)
     }, 100)
   }
 
   const handleExport = async () => {
-    if (isExporting) return // Prevent multiple exports
+    if (isExporting) return
     
     try {
       // @ts-expect-error - Electron IPC types not available
       if (window.electron?.exportDatabase) {
         setIsExporting(true)
         
-        // Show loading toast with initial message
         let currentDescription = `Preparing export for ${database.name}...`
         const toastId = toast.loading(`Exporting ${database.name}...`, {
           description: currentDescription,
         })
 
-        // Set up progress listener
         // @ts-expect-error - Electron IPC types not available
         window.electron?.onExportProgress?.((progress: { stage: string, message: string, progress: number, total: number }) => {
           if (progress.message && progress.message !== currentDescription) {
             currentDescription = progress.message
-            // Update toast with new description
             toast.loading("Exporting database instance...", {
               id: toastId,
               description: currentDescription,
@@ -553,17 +521,14 @@ export function DatabaseSettingsDialog({
           }
         })
 
-        // Run export in background - pass the specific database
         // @ts-expect-error - Electron IPC types not available
         window.electron.exportDatabase(database)
           .then((result: { success?: boolean; canceled?: boolean; error?: string; filePath?: string; size?: number }) => {
             setIsExporting(false)
             
-            // Clean up progress listener
             // @ts-expect-error - Electron IPC types not available
             window.electron?.removeExportProgressListener?.()
             
-            // Dismiss loading toast
             toast.dismiss(toastId)
 
             if (result?.success) {
@@ -588,11 +553,9 @@ export function DatabaseSettingsDialog({
           .catch((error: unknown) => {
             setIsExporting(false)
             
-            // Clean up progress listener
             // @ts-expect-error - Electron IPC types not available
             window.electron?.removeExportProgressListener?.()
             
-            // Dismiss loading toast
             toast.dismiss(toastId)
             
             toast.error("Export error", {
@@ -614,12 +577,10 @@ export function DatabaseSettingsDialog({
     }
   }
 
-  // Keyboard event handlers
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!open) return
       
-      // Don't handle shortcuts when typing in inputs
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
         return
       }
@@ -698,7 +659,6 @@ export function DatabaseSettingsDialog({
                       value={port}
                       onChange={(e) => {
                         setPort(e.target.value)
-                        // Clear error on typing to allow free input
                         if (portError) {
                           setPortError("")
                         }

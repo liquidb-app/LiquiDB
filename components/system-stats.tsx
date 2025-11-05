@@ -29,7 +29,6 @@ interface SystemStats {
   error?: string
 }
 
-// Helper function to format bytes
 const formatBytes = (bytes: number) => {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -38,7 +37,6 @@ const formatBytes = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-// Helper function to format uptime
 const formatUptime = (seconds: number) => {
   if (seconds < 60) return `${seconds}s`
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
@@ -67,25 +65,20 @@ export function SystemStats() {
   }
 
   useEffect(() => {
-    // Initial fetch
     fetchStats()
 
-    // Use Page Visibility API to pause polling when tab is hidden
     let isVisible = !document.hidden
     
     const handleVisibilityChange = () => {
       isVisible = !document.hidden
       if (isVisible) {
-        // Refresh immediately when becoming visible
         fetchStats()
       }
     }
     
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    // Poll every 8 seconds for live updates (reduced from 2s to save CPU/memory)
     intervalRef.current = setInterval(() => {
-      // Only poll when page is visible to save resources
       if (isVisible) {
       fetchStats()
       }
@@ -99,13 +92,11 @@ export function SystemStats() {
     }
   }, [])
 
-  // Track window width for responsive text display
   useEffect(() => {
     const handleResize = () => {
       setWindowWidth(window.innerWidth)
     }
 
-    // Set initial width
     if (typeof window !== 'undefined') {
       setWindowWidth(window.innerWidth)
       window.addEventListener('resize', handleResize)
@@ -118,7 +109,6 @@ export function SystemStats() {
     }
   }, [])
 
-  // Show text when window is wide enough (adjust breakpoint as needed)
   const showText = windowWidth > 768
 
   if (isLoading || !stats?.success || !stats.memory || !stats.cpu) {
@@ -283,7 +273,6 @@ export function SystemStats() {
               variant="ghost"
               size="sm"
               className="h-6 px-2 text-muted-foreground hover:text-foreground"
-              disabled
             >
               <TerminalIcon className="h-3 w-3" />
             </Button>
