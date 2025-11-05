@@ -421,9 +421,7 @@ export function DatabaseSettingsDialog({
         icon: selectedIcon,
         autoStart,
       }
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.saveDatabase) {
-        // @ts-expect-error - Electron IPC types not available
         await window.electron.saveDatabase(updated)
       }
       
@@ -435,16 +433,12 @@ export function DatabaseSettingsDialog({
         try {
           let actualPassword = password
           if (!actualPassword || actualPassword === "") {
-            // @ts-expect-error - Electron IPC types not available
             if (window.electron?.getPassword) {
-              // @ts-expect-error - Electron IPC types not available
               actualPassword = await window.electron.getPassword(database.id)
             }
           }
           
-          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.updateDatabaseCredentials) {
-            // @ts-expect-error - Electron IPC types not available
             const result = await window.electron.updateDatabaseCredentials({
               id: database.id,
               username: database.username,
@@ -481,7 +475,6 @@ export function DatabaseSettingsDialog({
     if (isExporting) return
     
     try {
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.exportDatabase) {
         setIsExporting(true)
         
@@ -490,7 +483,6 @@ export function DatabaseSettingsDialog({
           description: currentDescription,
         })
 
-        // @ts-expect-error - Electron IPC types not available
         window.electron?.onExportProgress?.((progress: { stage: string, message: string, progress: number, total: number }) => {
           if (progress.message && progress.message !== currentDescription) {
             currentDescription = progress.message
@@ -501,12 +493,10 @@ export function DatabaseSettingsDialog({
           }
         })
 
-        // @ts-expect-error - Electron IPC types not available
         window.electron.exportDatabase(database)
           .then((result: { success?: boolean; canceled?: boolean; error?: string; filePath?: string; size?: number }) => {
             setIsExporting(false)
             
-            // @ts-expect-error - Electron IPC types not available
             window.electron?.removeExportProgressListener?.()
             
             toast.dismiss(toastId)
@@ -533,7 +523,6 @@ export function DatabaseSettingsDialog({
           .catch((error: unknown) => {
             setIsExporting(false)
             
-            // @ts-expect-error - Electron IPC types not available
             window.electron?.removeExportProgressListener?.()
             
             toast.dismiss(toastId)
@@ -802,7 +791,6 @@ export function DatabaseSettingsDialog({
                             <button
                               type="button"
                               onClick={async () => {
-                                // @ts-expect-error - Electron IPC types not available
                                 const actualPassword = await window.electron?.getPassword?.(database.id) || password || ""
                                 const dbName = database.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)
                                 let paramsText = `Host: localhost\nPort: ${port}\n`
