@@ -35,9 +35,8 @@ const SavedImageIcon = ({ src, alt, className }: { src: string, alt: string, cla
       
       if (src.startsWith('file://')) {
         try {
-          // @ts-expect-error - Electron IPC types not available
           const result = await window.electron?.convertFileToDataUrl?.(src)
-          if (result?.success) {
+          if (result?.success && result.dataUrl) {
             setImageSrc(result.dataUrl)
           } else {
             console.error('Failed to convert file to data URL:', result?.error)
@@ -150,11 +149,15 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
       if (imageUrl.startsWith("data:")) {
         setIsSaving(true)
         try {
-          const result = await window.electron?.saveCustomImage({ dataUrl: imageUrl })
-          if (result?.success) {
-            onSave(result.imagePath)
+          if (window.electron?.saveCustomImage) {
+            const result = await window.electron.saveCustomImage({ dataUrl: imageUrl })
+            if (result?.success && result.imagePath) {
+              onSave(result.imagePath)
+            } else {
+              console.error("Failed to save image:", result?.error)
+              onSave(imageUrl)
+            }
           } else {
-            console.error("Failed to save image:", result?.error)
             onSave(imageUrl)
           }
         } catch (error) {
@@ -168,11 +171,15 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
       } else {
         setIsSaving(true)
         try {
-          const result = await window.electron?.saveCustomImage({ imageUrl })
-          if (result?.success) {
-            onSave(result.imagePath)
+          if (window.electron?.saveCustomImage) {
+            const result = await window.electron.saveCustomImage({ imageUrl })
+            if (result?.success && result.imagePath) {
+              onSave(result.imagePath)
+            } else {
+              console.error("Failed to save image:", result?.error)
+              onSave(imageUrl)
+            }
           } else {
-            console.error("Failed to save image:", result?.error)
             onSave(imageUrl)
           }
         } catch (error) {

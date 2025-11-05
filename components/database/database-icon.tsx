@@ -23,9 +23,8 @@ export function DatabaseIcon({ src, alt, className }: { src: string, alt: string
       
       if (src.startsWith('file://')) {
         try {
-          // @ts-expect-error - Electron IPC types not available
           const result = await window.electron?.convertFileToDataUrl?.(src)
-          if (result?.success) {
+          if (result?.success && result.dataUrl) {
             setImageSrc(result.dataUrl)
           } else {
             console.error('Failed to convert file to data URL:', result?.error)
