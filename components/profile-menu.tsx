@@ -84,7 +84,7 @@ export function ProfileMenuTrigger() {
                 src={avatar} 
                 alt={`${username || "User"}'s avatar`}
                 className="object-cover pointer-events-none select-none"
-                draggable="false"
+                draggable={false}
                 style={{ 
                   userSelect: 'none',
                   WebkitUserSelect: 'none',
