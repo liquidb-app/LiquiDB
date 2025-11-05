@@ -68,9 +68,8 @@ const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, class
       
       if (src.startsWith('file://')) {
         try {
-          // @ts-expect-error - Electron IPC types not available
           const result = await window.electron?.convertFileToDataUrl?.(src)
-          if (result?.success) {
+          if (result?.success && result.dataUrl) {
             setImageSrc(result.dataUrl)
           } else {
             console.error('Failed to convert file to data URL:', result?.error)
@@ -217,9 +216,7 @@ export function DatabaseSettingsDialog({
           return
         }
         
-        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.checkPortConflict) {
-          // @ts-expect-error - Electron IPC types not available
           const conflictResult = await window.electron.checkPortConflict(portNum)
           if (conflictResult?.inUse) {
             const processInfo = conflictResult?.processInfo
@@ -233,9 +230,7 @@ export function DatabaseSettingsDialog({
             setPortConflictInfo(null)
           }
         } else {
-          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.checkPort) {
-            // @ts-expect-error - Electron IPC types not available
             const res = await window.electron.checkPort(portNum)
             if (res?.available) {
               setPortStatus("available")
@@ -271,9 +266,7 @@ export function DatabaseSettingsDialog({
       }
       
       try {
-        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.checkPortConflict) {
-          // @ts-expect-error - Electron IPC types not available
           const conflictResult = await window.electron.checkPortConflict(port)
           if (conflictResult?.inUse) {
             port++
@@ -281,9 +274,7 @@ export function DatabaseSettingsDialog({
           }
           return port
         }
-        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.checkPort) {
-          // @ts-expect-error - Electron IPC types not available
           const res = await window.electron.checkPort(port)
           if (res?.available) {
             return port
@@ -331,9 +322,7 @@ export function DatabaseSettingsDialog({
         return false
       }
       
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.checkPortConflict) {
-        // @ts-expect-error - Electron IPC types not available
         const conflictResult = await window.electron.checkPortConflict(portNum)
         if (conflictResult?.inUse) {
           const suggestedPort = await findNextAvailablePort(portNum + 1)
@@ -346,9 +335,7 @@ export function DatabaseSettingsDialog({
         }
       }
       
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.checkPort) {
-        // @ts-expect-error - Electron IPC types not available
         const res = await window.electron.checkPort(portNum)
         if (!res?.available) {
           if (res?.reason === "invalid_range") setPortError("Port must be between 1 and 65535")

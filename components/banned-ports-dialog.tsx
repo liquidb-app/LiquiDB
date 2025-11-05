@@ -31,11 +31,13 @@ export function BannedPortsDialog({ open, onOpenChange }: BannedPortsDialogProps
   useEffect(() => {
     const load = async () => {
       try {
-        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.getBannedPorts) {
-          // @ts-expect-error - Electron IPC types not available
-          const ports = await window.electron.getBannedPorts()
-          setBlacklistedPorts(Array.isArray(ports) ? ports : [])
+          const result = await window.electron.getBannedPorts()
+          if (result.success && result.data) {
+            setBlacklistedPorts(result.data)
+          } else {
+            setBlacklistedPorts([])
+          }
         } else {
           const savedPorts = localStorage.getItem("blacklisted-ports")
           if (savedPorts) setBlacklistedPorts(JSON.parse(savedPorts))
@@ -102,9 +104,7 @@ export function BannedPortsDialog({ open, onOpenChange }: BannedPortsDialogProps
     if (validPorts.length > 0) {
       const updated = [...blacklistedPorts, ...validPorts].sort((a, b) => a - b)
       setBlacklistedPorts(updated)
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.setBannedPorts) {
-        // @ts-expect-error - Electron IPC types not available
         window.electron.setBannedPorts(updated)
       } else {
         localStorage.setItem("blacklisted-ports", JSON.stringify(updated))
@@ -117,9 +117,7 @@ export function BannedPortsDialog({ open, onOpenChange }: BannedPortsDialogProps
   const handleDeletePort = (port: number) => {
     const updated = blacklistedPorts.filter((p) => p !== port)
     setBlacklistedPorts(updated)
-    // @ts-expect-error - Electron IPC types not available
     if (window.electron?.setBannedPorts) {
-      // @ts-expect-error - Electron IPC types not available
       window.electron.setBannedPorts(updated)
     } else {
       localStorage.setItem("blacklisted-ports", JSON.stringify(updated))
@@ -140,9 +138,7 @@ export function BannedPortsDialog({ open, onOpenChange }: BannedPortsDialogProps
         .concat(newPortValue)
         .sort((a, b) => a - b)
       setBlacklistedPorts(updated)
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.setBannedPorts) {
-        // @ts-expect-error - Electron IPC types not available
         window.electron.setBannedPorts(updated)
       } else {
         localStorage.setItem("blacklisted-ports", JSON.stringify(updated))

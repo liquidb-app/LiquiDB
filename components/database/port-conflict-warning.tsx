@@ -103,9 +103,7 @@ export function PortConflictWarning({
             const storedPid = conflictInfo?.pid || cachedState?.info?.pid
             if (storedPid && storedPid !== 'N/A' && storedPid !== 'Unknown') {
               try {
-                // @ts-expect-error - Electron IPC types not available
                 if (window.electron?.checkPortConflict) {
-                  // @ts-expect-error - Electron IPC types not available
                   const pidCheck = await window.electron.checkPortConflict(port)
                   const currentPid = pidCheck?.processInfo?.pid
                   

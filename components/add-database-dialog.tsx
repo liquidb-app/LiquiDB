@@ -60,9 +60,8 @@ const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, class
       
       if (src.startsWith('file://')) {
         try {
-          // @ts-expect-error - Electron IPC types not available
           const result = await window.electron?.convertFileToDataUrl?.(src)
-          if (result?.success) {
+          if (result?.success && result.dataUrl) {
             setImageSrc(result.dataUrl)
           } else {
             console.error('Failed to convert file to data URL:', result?.error)
@@ -381,11 +380,13 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
   useEffect(() => {
     const load = async () => {
       try {
-        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.getBannedPorts) {
-          // @ts-expect-error - Electron IPC types not available
-          const ports = await window.electron.getBannedPorts()
-          setBannedPorts(Array.isArray(ports) ? ports : [])
+          const result = await window.electron.getBannedPorts()
+          if (result.success && result.data) {
+            setBannedPorts(result.data)
+          } else {
+            setBannedPorts([])
+          }
         } else {
           const saved = localStorage.getItem("blacklisted-ports")
           if (saved) setBannedPorts(JSON.parse(saved))
@@ -413,7 +414,6 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       setPortStatus("checking")
       
       try {
-        // @ts-expect-error - Electron IPC types not available
         const allDatabases = await window.electron?.getAllDatabases?.() || []
         const internalConflict = allDatabases.find((db: DatabaseContainer) => db.port === portNum)
         
@@ -423,9 +423,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
           return
         }
         
-        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.checkPortConflict) {
-          // @ts-expect-error - Electron IPC types not available
           const conflictResult = await window.electron.checkPortConflict(portNum)
           if (conflictResult?.inUse) {
             const processInfo = conflictResult?.processInfo
@@ -439,9 +437,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
             setPortConflictInfo(null)
           }
         } else {
-          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.checkPort) {
-            // @ts-expect-error - Electron IPC types not available
             const res = await window.electron.checkPort(portNum)
             if (res?.available) {
               setPortStatus("available")
@@ -483,12 +479,10 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       }
       
       try {
-        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.checkPortConflict) {
           const conflictChecks = await Promise.all(
             portsToCheck.map(async (p) => {
               try {
-                // @ts-expect-error - Electron IPC types not available
                 const allDatabases = await window.electron?.getAllDatabases?.() || []
                 console.log(`[Port Check] Checking port ${p} against ${allDatabases.length} existing databases`)
                 const internalConflict = allDatabases.some((db: DatabaseContainer) => {
@@ -503,8 +497,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                   return { port: p, inUse: true }
                 }
                 
-                // @ts-expect-error - Electron IPC types not available
-                const result = await window.electron.checkPortConflict(p)
+                const result = await window.electron?.checkPortConflict?.(p)
                 return { port: p, inUse: result?.inUse || false }
               } catch (error) {
                 console.error(`[Port Check] Error checking port ${p}:`, error)
@@ -522,7 +515,6 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
           const portChecks = await Promise.all(
             portsToCheck.map(async (p) => {
               try {
-                // @ts-expect-error - Electron IPC types not available
                 const allDatabases = await window.electron?.getAllDatabases?.() || []
                 console.log(`[Port Check] Checking port ${p} against ${allDatabases.length} existing databases`)
                 const internalConflict = allDatabases.some((db: DatabaseContainer) => {
@@ -537,9 +529,11 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
                   return { port: p, available: false }
                 }
                 
-                // @ts-expect-error - Electron IPC types not available
-                const result = await window.electron.checkPort(p)
-                return { port: p, available: result?.available || false }
+                if (window.electron?.checkPort) {
+                  const result = await window.electron.checkPort(p)
+                  return { port: p, available: result?.available || false }
+                }
+                return { port: p, available: false }
               } catch (error) {
                 console.error(`[Port Check] Error checking port ${p}:`, error)
                 return { port: p, available: false }
@@ -578,7 +572,6 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
     try {
       setCheckingPort(true)
       
-      // @ts-expect-error - Electron IPC types not available
       const allDatabases = await window.electron?.getAllDatabases?.() || []
       const internalConflict = allDatabases.find((db: DatabaseContainer) => db.port === portNum)
       
@@ -589,9 +582,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
         return false
       }
       
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.checkPortConflict) {
-        // @ts-expect-error - Electron IPC types not available
         const conflictResult = await window.electron.checkPortConflict(portNum)
         if (conflictResult?.inUse) {
           const suggestedPort = await findNextAvailablePort(portNum + 1)
@@ -604,9 +595,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
         }
       }
       
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.checkPort) {
-        // @ts-expect-error - Electron IPC types not available
         const res = await window.electron.checkPort(portNum)
         if (!res?.available) {
           if (res?.reason === "invalid_range") setPortError("Port must be between 1 and 65535")
