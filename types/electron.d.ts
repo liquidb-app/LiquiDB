@@ -65,6 +65,8 @@ declare global {
       saveDatabase?: (db: DatabaseContainer) => Promise<{ success: boolean; error?: string }>
       deleteDatabase?: (id: string) => Promise<{ success: boolean; error?: string }>
       deleteAllDatabases?: () => Promise<{ success: boolean; error?: string }>
+      updateDatabaseCredentials?: (dbConfig: { id: string; username: string; password?: string; name: string }) => Promise<{ success: boolean; error?: string }>
+      getPassword?: (id: string) => Promise<string | null>
       checkPortConflict?: (port: number) => Promise<{ success: boolean; inUse: boolean; processInfo?: { processName: string; pid: string } | null; error?: string }>
       getDatabaseSystemInfo?: (id: string) => Promise<{ success: boolean; pid?: number | null; memory?: { rss?: number; vsz?: number; cpu?: number; pmem?: number; time?: string } | null; cpu?: number | null; systemMemory?: { total: number; free: number; active?: number; inactive?: number; wired?: number; used?: number } | null; connections?: number; uptime?: number; isRunning?: boolean; killed?: boolean; exitCode?: number | null; error?: string }>
       verifyDatabaseInstance?: (id: string) => Promise<{ isRunning: boolean; pid?: number | null; killed?: boolean; exitCode?: number | null; error?: string }>
@@ -74,6 +76,7 @@ declare global {
       brewInstall?: () => Promise<boolean>
       brewInstallDb?: (opts: { dbType: string; version: string }) => Promise<boolean | { alreadyInstalled?: boolean; stdout?: string }>
       getHelperHealth?: () => Promise<{ success: boolean; data?: { isHealthy: boolean }; error?: string }>
+      uninstallHelper?: () => Promise<{ success: boolean; error?: string }>
       exportDatabase?: (databaseConfig: DatabaseContainer) => Promise<{ success: boolean; canceled?: boolean; error?: string }>
       onDatabaseStatusChanged?: <T extends { id: string; status: DatabaseStatus | string; pid?: number | null; exitCode?: number | null; error?: string; ready?: boolean }>(callback: (data: T) => void) => void
       removeDatabaseStatusListener?: () => void
