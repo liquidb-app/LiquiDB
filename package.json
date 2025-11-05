@@ -31,10 +31,11 @@
     "start": "next start",
     "lint": "eslint .",
     "electron": "electron .",
-    "electron:build": "next build && electron-builder",
-    "electron:build:mac": "next build && electron-builder --mac",
-    "electron:build:win": "next build && electron-builder --win",
-    "electron:build:linux": "next build && electron-builder --linux",
+    "prepare:standalone": "node scripts/prepare-standalone.js",
+    "electron:build": "next build && npm run prepare:standalone && electron-builder",
+    "electron:build:mac": "next build && npm run prepare:standalone && electron-builder --mac",
+    "electron:build:win": "next build && npm run prepare:standalone && electron-builder --win",
+    "electron:build:linux": "next build && npm run prepare:standalone && electron-builder --linux",
     "postinstall": "electron-builder install-app-deps || true"
   },
   "build": {
@@ -42,8 +43,7 @@
     "productName": "LiquiDB",
     "files": [
       "electron/**/*",
-      ".next/**/*",
-      "public/**/*",
+      ".next/standalone/**/*",
       "package.json"
     ],
     "asarUnpack": [
