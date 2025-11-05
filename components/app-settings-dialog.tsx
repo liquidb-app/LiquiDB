@@ -345,7 +345,16 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
   const handleHelperAction = async (action: 'install' | 'start' | 'cleanup') => {
     setHelperLoading(true)
     try {
-      const result = await window.electron?.[`${action}Helper`]?.()
+      let result: { success: boolean; data?: { method?: string; cleanedCount?: number; timestamp?: number }; error?: string } | undefined
+      
+      if (action === 'install') {
+        result = await window.electron?.installHelper?.()
+      } else if (action === 'start') {
+        result = await window.electron?.startHelper?.()
+      } else if (action === 'cleanup') {
+        result = await window.electron?.cleanupHelper?.()
+      }
+      
       if (result?.success) {
         const method = result.data?.method === 'direct' ? ' (direct cleanup)' : ''
         const cleanedCount = result.data?.cleanedCount
