@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Monitor, ExternalLink, Globe, Ban, AlertTriangle, Settings } from "lucide-react"
+import { Monitor, ExternalLink, Globe, Ban, AlertTriangle, Settings, Copy } from "lucide-react"
 import { DeleteIcon } from "@/components/ui/delete"
 import { RotateCCWIcon } from "@/components/ui/rotate-ccw"
 import { GithubIcon } from "@/components/ui/github"
@@ -82,6 +82,13 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
     running: boolean
   } | null>(null)
   const [helperLoading, setHelperLoading] = useState(false)
+  const [mcpConnectionInfo, setMcpConnectionInfo] = useState<{
+    name: string
+    command: string
+    args: string[]
+    description: string
+    isDevelopment: boolean
+  } | null>(null)
   
   const loadHelperStatus = useCallback(async () => {
     const isInitialLoad = !helperStatus
@@ -153,6 +160,17 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
     }
   }, [])
 
+  const loadMCPConnectionInfo = useCallback(async () => {
+    try {
+      const result = await window.electron?.getMCPConnectionInfo?.()
+      if (result?.success && result.data) {
+        setMcpConnectionInfo(result.data)
+      }
+    } catch (error) {
+      console.error("Failed to load MCP connection info:", error)
+    }
+  }, [])
+
   useEffect(() => {
     setMounted(true)
     const saved = localStorage.getItem("color-scheme") || "mono"
@@ -179,9 +197,10 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
     checkAutoLaunchStatus()
     
     if (open) {
-  loadHelperStatus()
+      loadHelperStatus()
+      loadMCPConnectionInfo()
     }
-  }, [open, loadHelperStatus])
+  }, [open, loadHelperStatus, loadMCPConnectionInfo])
   
   useEffect(() => {
     if (!open) return
@@ -375,10 +394,11 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
           </DialogHeader>
 
           <Tabs defaultValue="appearance" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="appearance">Appearance</TabsTrigger>
               <TabsTrigger value="general">General</TabsTrigger>
-              <TabsTrigger value="helper">Helper Service</TabsTrigger>
+              <TabsTrigger value="helper">Helper</TabsTrigger>
+              <TabsTrigger value="mcp">MCP</TabsTrigger>
               <TabsTrigger value="about">About</TabsTrigger>
             </TabsList>
 
@@ -618,6 +638,130 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="mcp" className="space-y-4 pt-4 mt-0">
+                <div className="space-y-4 min-w-0">
+                  <div>
+                    <Label>MCP Server</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Connect to Cursor, Claude Desktop, and other MCP-compatible tools.
+                    </p>
+                  </div>
+
+                  {mcpConnectionInfo && (
+                    <>
+                      <div className="space-y-2 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="flex-shrink-0">Command</Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs flex-shrink-0"
+                            onClick={() => {
+                              const command = `${mcpConnectionInfo.command} ${mcpConnectionInfo.args.join(' ')}`
+                              navigator.clipboard.writeText(command)
+                              notifySuccess("Command copied")
+                            }}
+                          >
+                            <Copy className="h-3 w-3 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
+                        <div className="p-3 border rounded-md bg-muted/50 min-w-0 overflow-hidden">
+                          <code className="text-xs font-mono block break-all">
+                            {mcpConnectionInfo.command} {mcpConnectionInfo.args.join(' ')}
+                          </code>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Copy this command to configure MCP in your preferred tool
+                        </p>
+                      </div>
+
+                      <div className="space-y-2 min-w-0">
+                        <Label>Setup Guide</Label>
+                        
+                        <div className="border rounded-md overflow-hidden min-w-0">
+                          <div className="px-3 py-3 space-y-3 min-w-0">
+                            <div className="text-xs text-muted-foreground space-y-3 min-w-0">
+                              <div className="space-y-3 min-w-0">
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <span className="font-medium text-foreground flex-shrink-0">1.</span>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="block">Locate your MCP configuration. This varies by tool:</span>
+                                    <ul className="mt-1.5 ml-4 space-y-1.5 list-disc min-w-0">
+                                      <li className="min-w-0">
+                                        <span className="block"><strong>Claude Desktop:</strong> Edit </span>
+                                        <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono break-all inline-block max-w-full mt-0.5">{`~/Library/Application Support/Claude/claude_desktop_config.json`}</code>
+                                      </li>
+                                      <li className="min-w-0">
+                                        <strong>Cursor:</strong> Go to <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono break-all">Settings → Features → MCP</code>
+                                      </li>
+                                      <li className="min-w-0">
+                                        <strong>Other tools:</strong> Check your tool's MCP settings or configuration file
+                                      </li>
+                                    </ul>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <span className="font-medium text-foreground flex-shrink-0">2.</span>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="block">Add the LiquiDB MCP server configuration:</span>
+                                    <div className="mt-2 space-y-3 min-w-0">
+                                      <div className="min-w-0">
+                                        <span className="text-[11px] font-medium block mb-1.5">For JSON configuration files (e.g., Claude Desktop):</span>
+                                        <pre className="bg-muted px-3 py-2.5 rounded-md text-[11px] font-mono border border-border/50 break-all whitespace-pre-wrap max-w-full min-w-0">
+{`"mcpServers": {
+  "LiquiDB": {
+    "command": "${mcpConnectionInfo.command}",
+    "args": ${JSON.stringify(mcpConnectionInfo.args)}
+  }
+}`}
+                                        </pre>
+                                      </div>
+                                      <div className="min-w-0">
+                                        <span className="text-[11px] font-medium block mb-1.5">For UI-based configuration (e.g., Cursor):</span>
+                                        <div className="space-y-1.5 min-w-0">
+                                          <div className="flex items-start gap-2 min-w-0">
+                                            <span className="text-[11px] flex-shrink-0 mt-0.5">Name:</span>
+                                            <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono break-all min-w-0 flex-1">LiquiDB</code>
+                                          </div>
+                                          <div className="flex items-start gap-2 min-w-0">
+                                            <span className="text-[11px] mt-0.5 flex-shrink-0">Command:</span>
+                                            <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono break-all min-w-0 flex-1">{mcpConnectionInfo.command}</code>
+                                          </div>
+                                          <div className="flex items-start gap-2 min-w-0">
+                                            <span className="text-[11px] mt-0.5 flex-shrink-0">Args:</span>
+                                            <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono break-all min-w-0 flex-1">{mcpConnectionInfo.args.join(' ')}</code>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <span className="font-medium text-foreground flex-shrink-0">3.</span>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="block">Restart your application to apply the changes</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {!mcpConnectionInfo && (
+                    <div className="text-center py-8">
+                      <Settings className="h-6 w-6 mx-auto text-muted-foreground mb-2 animate-spin" />
+                      <p className="text-xs text-muted-foreground">Loading MCP connection info...</p>
                     </div>
                   )}
                 </div>
