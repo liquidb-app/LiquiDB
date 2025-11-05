@@ -4,6 +4,56 @@ const archiver = require("archiver")
 // Import logging system
 const { log } = require('./logger')
 
+// Set up file logging for production
+const fs = require("fs")
+const path = require("path")
+const logFilePath = path.join(app.getPath("userData"), "app.log")
+
+// Create a log file stream
+let logStream
+try {
+  logStream = fs.createWriteStream(logFilePath, { flags: 'a' })
+  console.log = (...args) => {
+    const message = args.join(' ')
+    process.stdout.write(message + '\n')
+    if (logStream) {
+      logStream.write(`[LOG] ${new Date().toISOString()} ${message}\n`)
+    }
+  }
+  console.error = (...args) => {
+    const message = args.join(' ')
+    process.stderr.write(message + '\n')
+    if (logStream) {
+      logStream.write(`[ERROR] ${new Date().toISOString()} ${message}\n`)
+    }
+  }
+  console.info = (...args) => {
+    const message = args.join(' ')
+    process.stdout.write(message + '\n')
+    if (logStream) {
+      logStream.write(`[INFO] ${new Date().toISOString()} ${message}\n`)
+    }
+  }
+  console.warn = (...args) => {
+    const message = args.join(' ')
+    process.stderr.write(message + '\n')
+    if (logStream) {
+      logStream.write(`[WARN] ${new Date().toISOString()} ${message}\n`)
+    }
+  }
+  console.log(`[STARTUP] Log file initialized at: ${logFilePath}`)
+  console.log(`[STARTUP] App version: ${app.getVersion()}`)
+  console.log(`[STARTUP] Electron version: ${process.versions.electron}`)
+  console.log(`[STARTUP] Node version: ${process.versions.node}`)
+  console.log(`[STARTUP] Platform: ${process.platform}`)
+  console.log(`[STARTUP] Arch: ${process.arch}`)
+  console.log(`[STARTUP] App path: ${app.getAppPath()}`)
+  console.log(`[STARTUP] User data path: ${app.getPath("userData")}`)
+} catch (error) {
+  // If logging setup fails, continue anyway
+  process.stderr.write(`[STARTUP] Failed to initialize log file: ${error.message}\n`)
+}
+
 // Prevent multiple instances (skip in MCP mode as we're running as a server process)
 if (!process.argv.includes('--mcp')) {
   const gotTheLock = app.requestSingleInstanceLock()
@@ -2409,24 +2459,31 @@ async function startDatabaseProcessAsync(config) {
 }
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1000,
-    minHeight: 600,
-    titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 8, y: 8 },
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, "preload.js"),
-    },
-    backgroundColor: "#000000",
-  })
+  try {
+    console.log("[CREATE WINDOW] Creating main window...")
+    
+    mainWindow = new BrowserWindow({
+      width: 1400,
+      height: 900,
+      minWidth: 1000,
+      minHeight: 600,
+      titleBarStyle: "hiddenInset",
+      trafficLightPosition: { x: 8, y: 8 },
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, "preload.js"),
+      },
+      backgroundColor: "#000000",
+    })
 
-  // In development, load from Next.js dev server
-  // In production, load from built files
-  const isDev = !app.isPackaged
+    console.log("[CREATE WINDOW] Window created successfully")
+
+    // In development, load from Next.js dev server
+    // In production, load from built files
+    const isDev = !app.isPackaged
+    console.log("[CREATE WINDOW] Is development mode:", isDev)
+    console.log("[CREATE WINDOW] Is packaged:", app.isPackaged)
 
   // Filter out harmless DevTools Protocol errors (Autofill not supported in Electron)
   // These errors come from DevTools trying to enable Autofill features that Electron doesn't support
@@ -2476,12 +2533,26 @@ function createWindow() {
     }
     
     // Log for debugging
+    console.log("[NEXTJS] Starting Next.js server from:", nextServerPath)
+    console.log("[NEXTJS] Working directory:", nextServerCwd)
+    console.log("[NEXTJS] App path:", appPath)
+    console.log("[NEXTJS] Resources path:", process.resourcesPath)
+    console.log("[NEXTJS] __dirname:", __dirname)
     log.info("Starting Next.js server from:", nextServerPath)
     log.info("App path:", appPath)
     log.info("Resources path:", process.resourcesPath)
     
     // Check if the server file exists
     if (!fs.existsSync(nextServerPath)) {
+      const errorMsg = [
+        "Next.js server file not found!",
+        `Tried: ${nextServerPath}`,
+        `App path: ${appPath}`,
+        `Resources path: ${process.resourcesPath}`,
+        `__dirname: ${__dirname}`
+      ].join('\n')
+      
+      console.error("[NEXTJS ERROR]", errorMsg)
       log.error("Next.js server file not found at:", nextServerPath)
       log.error("Tried app path:", path.join(appPath, ".next", "standalone", "server.js"))
       if (appPath.endsWith('.asar')) {
@@ -2491,9 +2562,18 @@ function createWindow() {
         log.error("Tried resources path:", path.join(process.resourcesPath, ".next", "standalone", "server.js"))
       }
       log.error("__dirname:", __dirname)
+      
+      // Show error dialog to user
+      dialog.showErrorBox(
+        'Server Not Found',
+        `Failed to find Next.js server.\n\n${errorMsg}\n\nCheck logs at:\n${logFilePath}`
+      )
+      
       mainWindow.loadURL("about:blank")
       return
     }
+    
+    console.log("[NEXTJS] ✓ Server file found at:", nextServerPath)
     
     // Find Node.js executable
     // Strategy:
@@ -2510,15 +2590,22 @@ function createWindow() {
     // In packaged apps, process.resourcesPath points to the Resources directory
     if (process.resourcesPath) {
       const bundledNodePath = path.join(process.resourcesPath, BUNDLED_NODE_PATH)
+      console.log("[NODE] Checking for bundled Node.js at:", bundledNodePath)
       log.info("Checking for bundled Node.js at:", bundledNodePath)
       if (fs.existsSync(bundledNodePath)) {
         nodeExecutable = bundledNodePath
+        console.log("[NODE] ✓ Using bundled Node.js at:", nodeExecutable)
         log.info("✓ Using bundled Node.js at:", nodeExecutable)
+      } else {
+        console.log("[NODE] Bundled Node.js not found at:", bundledNodePath)
       }
+    } else {
+      console.log("[NODE] No resourcesPath available (development mode?)")
     }
     
     // If bundled node not found, try system node
     if (!nodeExecutable) {
+      console.log("[NODE] Bundled Node.js not found, trying system Node.js...")
       log.info("Bundled Node.js not found, trying system Node.js...")
       const possibleNodePaths = [
         "/opt/homebrew/bin/node",      // Homebrew on Apple Silicon
@@ -2529,6 +2616,7 @@ function createWindow() {
       for (const nodePath of possibleNodePaths) {
         if (fs.existsSync(nodePath)) {
           nodeExecutable = nodePath
+          console.log("[NODE] ✓ Using system Node.js at:", nodeExecutable)
           log.info("Using system Node.js at:", nodeExecutable)
           break
         }
@@ -2538,9 +2626,11 @@ function createWindow() {
     // If still no node found, try using 'node' from PATH
     if (!nodeExecutable) {
       nodeExecutable = "node"
+      console.log("[NODE] Falling back to 'node' from PATH")
       log.info("Falling back to 'node' from PATH (will check if available)")
     }
     
+    console.log("[NODE] Final node executable:", nodeExecutable)
     log.info("Starting Next.js server with:", nodeExecutable)
     
     const nextServer = spawn(nodeExecutable, [nextServerPath], {
@@ -2552,15 +2642,22 @@ function createWindow() {
       cwd: nextServerCwd,
     })
 
+    console.log("[NEXTJS] Spawning Next.js server process...")
+    
     nextServer.stdout.on("data", (data) => {
+      console.log(`[NEXTJS OUTPUT] ${data}`)
       log.info(`Next.js: ${data}`)
     })
 
     nextServer.stderr.on("data", (data) => {
+      console.error(`[NEXTJS ERROR] ${data}`)
       log.error(`Next.js error: ${data}`)
     })
 
     nextServer.on("error", (error) => {
+      console.error("[NEXTJS SPAWN ERROR]", error)
+      console.error("[NEXTJS SPAWN ERROR] Node executable:", nodeExecutable)
+      console.error("[NEXTJS SPAWN ERROR] Server path:", nextServerPath)
       log.error("Failed to start Next.js server:", error)
       log.error("Node executable:", nodeExecutable)
       
@@ -2578,13 +2675,17 @@ function createWindow() {
         "If the problem persists, you can install Node.js manually:",
         "https://nodejs.org or via Homebrew: brew install node",
         "",
-        `Error: ${error.message}`
+        `Error: ${error.message}`,
+        "",
+        `Log file: ${logFilePath}`
       ].join("\n")
       
       const GENERIC_ERROR_MSG = [
         "Failed to start the application server.",
         "",
-        `Error: ${error.message}`
+        `Error: ${error.message}`,
+        "",
+        `Log file: ${logFilePath}`
       ].join("\n")
       
       // Check if error is ENOENT (executable not found)
@@ -2599,21 +2700,44 @@ function createWindow() {
 
     nextServer.on("exit", (code, signal) => {
       if (code !== null) {
+        console.warn(`[NEXTJS EXIT] Next.js server exited with code ${code}`)
         log.warn(`Next.js server exited with code ${code}`)
+        if (code !== 0) {
+          console.error(`[NEXTJS EXIT] Server crashed with non-zero exit code`)
+        }
       } else if (signal) {
+        console.warn(`[NEXTJS EXIT] Next.js server was killed by signal ${signal}`)
         log.warn(`Next.js server was killed by signal ${signal}`)
       }
     })
 
     // Wait a bit longer for the server to start
+    console.log("[NEXTJS] Waiting 3 seconds for server to start...")
     setTimeout(() => {
+      console.log("[NEXTJS] Loading UI from http://localhost:3000")
       mainWindow.loadURL("http://localhost:3000")
     }, 3000)
   }
 
   mainWindow.on("closed", () => {
+    console.log("[WINDOW] Main window closed")
     mainWindow = null
   })
+  
+  console.log("[CREATE WINDOW] createWindow() completed")
+  
+  } catch (error) {
+    console.error("[CREATE WINDOW ERROR] Fatal error in createWindow:", error)
+    console.error("[CREATE WINDOW ERROR] Stack:", error.stack)
+    
+    // Show error to user
+    dialog.showErrorBox(
+      'Window Creation Error',
+      `Failed to create application window:\n\n${error.message}\n\nLog file: ${logFilePath}`
+    )
+    
+    throw error
+  }
 }
 
 // Auto-launch IPC handlers (skip in MCP mode)
@@ -2841,9 +2965,33 @@ ipcMain.handle("dashboard-ready", async () => {
   }
 })
 
+// Global error handlers
+process.on('uncaughtException', (error) => {
+  console.error('[UNCAUGHT EXCEPTION]', error)
+  console.error('Stack:', error.stack)
+  // Try to show dialog if possible
+  try {
+    if (app && !app.isQuitting) {
+      dialog.showErrorBox(
+        'Unexpected Error',
+        `An unexpected error occurred:\n\n${error.message}\n\nThe application will attempt to continue running. Check logs at:\n${logFilePath}`
+      )
+    }
+  } catch (dialogError) {
+    console.error('[DIALOG ERROR]', dialogError)
+  }
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[UNHANDLED REJECTION]', reason)
+  console.error('Promise:', promise)
+})
+
 app.whenReady().then(async () => {
-  log.info("App is ready, initializing...")
-  log.debug("Auto-launcher available:", !!autoLauncher)
+  try {
+    console.log("[STARTUP] App is ready, initializing...")
+    log.info("App is ready, initializing...")
+    log.debug("Auto-launcher available:", !!autoLauncher)
   
   // Check if running in MCP mode
   if (process.argv.includes('--mcp')) {
@@ -3108,6 +3256,21 @@ app.whenReady().then(async () => {
   
   // Start checking after a short delay to ensure the window is ready
   setTimeout(checkOnboardingAndStartProcesses, 2000)
+  
+  console.log("[STARTUP] App initialization completed successfully")
+  } catch (error) {
+    console.error("[STARTUP] Fatal error during app initialization:", error)
+    console.error("[STARTUP] Stack trace:", error.stack)
+    
+    // Show error dialog to user
+    dialog.showErrorBox(
+      'Startup Error',
+      `Failed to start the application:\n\n${error.message}\n\nPlease check the log file at:\n${logFilePath}\n\nIf the problem persists, try reinstalling the application.`
+    )
+    
+    // Quit the app
+    app.quit()
+  }
 })
 
 } // End of if (!process.argv.includes('--mcp') && ipcMain) for dashboard-ready handler
