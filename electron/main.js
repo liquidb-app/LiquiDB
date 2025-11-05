@@ -28,7 +28,7 @@ const brew = require("./brew")
 const storage = require("./storage")
 const HelperServiceManager = require("./helper-service")
 const PermissionsManager = require("./permissions")
-const { getMCPServerStatus, getMCPConnectionInfo } = require("./mcp-server")
+const { initializeMCPServer, getMCPServerStatus, getMCPConnectionInfo } = require("./mcp-server")
 const https = require("https")
 const http = require("http")
 const AutoLaunch = require("auto-launch")
@@ -2590,6 +2590,113 @@ ipcMain.handle("dashboard-ready", async () => {
 app.whenReady().then(async () => {
   log.info("App is ready, initializing...")
   log.debug("Auto-launcher available:", !!autoLauncher)
+  
+  // Check if running in MCP mode
+  if (process.argv.includes('--mcp')) {
+    log.info("Running in MCP server mode, starting MCP server...")
+    
+    // Create wrapper functions for MCP server
+    const startDatabaseFn = async (database) => {
+      try {
+        // Check if database is already running
+        if (runningDatabases.has(database.id)) {
+          return { success: false, error: "Database already running" }
+        }
+        
+        // Start the database using the existing startDatabaseProcess function
+        const result = await startDatabaseProcess(database)
+        return result
+      } catch (error) {
+        console.error(`[MCP] Error starting database ${database.id}:`, error)
+        return { success: false, error: error.message }
+      }
+    }
+    
+    const stopDatabaseFn = async (id) => {
+      try {
+        const db = runningDatabases.get(id)
+        if (!db) {
+          return { success: false, error: "Database not running" }
+        }
+        
+        // Clean up temporary files when stopping database
+        try {
+          const databases = storage.loadDatabases(app)
+          const dbRecord = databases.find(d => d.id === id)
+          if (dbRecord?.containerId) {
+            await cleanupDatabaseTempFiles(app, dbRecord.containerId, dbRecord.type)
+          }
+        } catch (error) {
+          console.error(`[MCP] Error cleaning temp files for ${id}:`, error)
+        }
+        
+        // Stop the database process
+        db.process.kill("SIGTERM")
+        runningDatabases.delete(id)
+        
+        // Update database in storage
+        try {
+          const databases = storage.loadDatabases(app)
+          const dbIndex = databases.findIndex(db => db.id === id)
+          if (dbIndex >= 0) {
+            databases[dbIndex].status = 'stopped'
+            databases[dbIndex].pid = null
+            storage.saveDatabases(app, databases)
+          }
+        } catch (error) {
+          console.error(`[MCP] Error updating storage for ${id}:`, error)
+        }
+        
+        return { success: true }
+      } catch (error) {
+        console.error(`[MCP] Error stopping database ${id}:`, error)
+        return { success: false, error: error.message }
+      }
+    }
+    
+    // Initialize and start the MCP server
+    const mcpStarted = await initializeMCPServer(app, startDatabaseFn, stopDatabaseFn)
+    if (mcpStarted) {
+      log.info("MCP server started successfully in MCP mode")
+      // In MCP mode, prevent the app from quitting
+      // The stdio transport will keep the process alive as long as stdin is open
+      // We need to prevent Electron from auto-quitting when no windows exist
+      if (app && typeof app.on === 'function') {
+        app.on("window-all-closed", () => {
+          // Don't quit in MCP mode - keep the process alive for stdio communication
+          // The process will stay alive as long as stdin (stdio transport) is open
+        })
+      }
+      
+      // Prevent app from quitting when all windows are closed
+      // The MCP server will keep running via stdio transport
+      // The stdio transport connection keeps the Node.js event loop active
+      log.info("MCP server is running and ready for connections")
+      log.info("Process will stay alive as long as stdio transport is connected")
+      
+      // In MCP mode, we don't create windows, so we need to ensure the process stays alive
+      // The stdio transport should keep the event loop active, but we'll also
+      // prevent the app from quitting explicitly
+      if (app && typeof app.on === 'function') {
+        app.on('will-quit', (event) => {
+          // In MCP mode, don't quit unless explicitly requested
+          // The stdio transport will keep the process alive
+          log.info("MCP: App will-quit event received, but keeping process alive for stdio transport")
+        })
+      }
+    } else {
+      log.error("Failed to start MCP server in MCP mode")
+      if (app && typeof app.quit === 'function') {
+        app.quit()
+      }
+      process.exit(1)
+    }
+    
+    // Don't create window or continue with normal app initialization in MCP mode
+    // The process will stay alive as long as the stdio transport is connected
+    // The stdio transport keeps stdin open, which keeps the Node.js event loop active
+    return
+  }
   
   // Initialize permissions manager
   permissionsManager = new PermissionsManager()
