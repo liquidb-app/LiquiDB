@@ -46,6 +46,9 @@
       "public/**/*",
       "package.json"
     ],
+    "asarUnpack": [
+      ".next/standalone/**/*"
+    ],
     "directories": {
       "buildResources": "public"
     },
