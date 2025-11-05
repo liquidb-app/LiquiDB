@@ -2497,29 +2497,41 @@ function createWindow() {
     
     // Find Node.js executable
     // Strategy:
-    // 1. Try to use node from PATH (most common case - users have node installed)
-    // 2. Try common macOS installation paths
-    // 3. Try to use Electron's embedded node (last resort)
+    // 1. Try to use bundled Node.js (included with the app)
+    // 2. Fall back to system Node.js if bundled version not found
     
     let nodeExecutable = null
     
-    // First, try to find node in PATH or common locations
-    const possibleNodePaths = [
-      "/opt/homebrew/bin/node",      // Homebrew on Apple Silicon
-      "/usr/local/bin/node",          // Homebrew on Intel
-      "/usr/bin/node",                // System node
-    ]
-    
-    for (const nodePath of possibleNodePaths) {
-      if (fs.existsSync(nodePath)) {
-        nodeExecutable = nodePath
-        log.info("Using Node.js at:", nodeExecutable)
-        break
+    // First, try to use bundled Node.js from the app resources
+    // In packaged apps, process.resourcesPath points to the Resources directory
+    if (process.resourcesPath) {
+      const bundledNodePath = path.join(process.resourcesPath, 'bin', 'bin', 'node')
+      log.info("Checking for bundled Node.js at:", bundledNodePath)
+      if (fs.existsSync(bundledNodePath)) {
+        nodeExecutable = bundledNodePath
+        log.info("✓ Using bundled Node.js at:", nodeExecutable)
       }
     }
     
-    // If no system node found, try using 'node' from PATH
-    // This will work if node is installed via nvm or other package managers
+    // If bundled node not found, try system node
+    if (!nodeExecutable) {
+      log.info("Bundled Node.js not found, trying system Node.js...")
+      const possibleNodePaths = [
+        "/opt/homebrew/bin/node",      // Homebrew on Apple Silicon
+        "/usr/local/bin/node",          // Homebrew on Intel
+        "/usr/bin/node",                // System node
+      ]
+      
+      for (const nodePath of possibleNodePaths) {
+        if (fs.existsSync(nodePath)) {
+          nodeExecutable = nodePath
+          log.info("Using system Node.js at:", nodeExecutable)
+          break
+        }
+      }
+    }
+    
+    // If still no node found, try using 'node' from PATH
     if (!nodeExecutable) {
       nodeExecutable = "node"
       log.info("Falling back to 'node' from PATH (will check if available)")
@@ -2550,13 +2562,25 @@ function createWindow() {
       
       // Show error dialog to user
       const { dialog } = require("electron")
-      dialog.showErrorBox(
-        "Node.js Not Found",
-        "LiquiDB requires Node.js to be installed on your system.\n\n" +
-        "Please install Node.js from https://nodejs.org or via Homebrew:\n" +
-        "brew install node\n\n" +
-        "Error: " + error.message
-      )
+      
+      // Check if error is ENOENT (executable not found)
+      if (error.code === 'ENOENT') {
+        dialog.showErrorBox(
+          "Application Error",
+          "Failed to start the application server.\n\n" +
+          "The bundled Node.js runtime could not be found or executed.\n" +
+          "Please try reinstalling the application.\n\n" +
+          "If the problem persists, you can install Node.js manually:\n" +
+          "https://nodejs.org or via Homebrew: brew install node\n\n" +
+          "Error: " + error.message
+        )
+      } else {
+        dialog.showErrorBox(
+          "Application Error",
+          "Failed to start the application server.\n\n" +
+          "Error: " + error.message
+        )
+      }
       
       mainWindow.loadURL("about:blank")
     })

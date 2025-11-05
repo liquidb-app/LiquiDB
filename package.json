@@ -32,10 +32,11 @@
     "lint": "eslint .",
     "electron": "electron .",
     "prepare:standalone": "node scripts/prepare-standalone.js",
-    "electron:build": "next build && npm run prepare:standalone && electron-builder",
-    "electron:build:mac": "next build && npm run prepare:standalone && electron-builder --mac",
-    "electron:build:win": "next build && npm run prepare:standalone && electron-builder --win",
-    "electron:build:linux": "next build && npm run prepare:standalone && electron-builder --linux",
+    "prepare:node": "node scripts/download-node.js",
+    "electron:build": "npm run prepare:node && next build && npm run prepare:standalone && electron-builder",
+    "electron:build:mac": "npm run prepare:node && next build && npm run prepare:standalone && electron-builder --mac",
+    "electron:build:win": "npm run prepare:node && next build && npm run prepare:standalone && electron-builder --win",
+    "electron:build:linux": "npm run prepare:node && next build && npm run prepare:standalone && electron-builder --linux",
     "postinstall": "electron-builder install-app-deps || true"
   },
   "build": {
@@ -44,10 +45,19 @@
     "files": [
       "electron/**/*",
       ".next/standalone/**/*",
+      "resources/**/*",
       "package.json"
     ],
     "asarUnpack": [
-      ".next/standalone/**/*"
+      ".next/standalone/**/*",
+      "resources/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/bin/${arch}",
+        "to": "bin",
+        "filter": ["**/*"]
+      }
     ],
     "directories": {
       "buildResources": "public"

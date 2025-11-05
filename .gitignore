@@ -43,3 +43,6 @@ dump.rdb
 *.rdb
 
 /.cursor
+
+# bundled binaries (downloaded during build)
+/resources/bin
