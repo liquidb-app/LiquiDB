@@ -1,7 +1,7 @@
 'use client';
 
-import { motion, useAnimation, useMotionValue, useTransform, animate } from 'motion/react';
-import type { HTMLAttributes, Variants } from 'react';
+import { motion, useAnimation, useMotionValue, useTransform, animate, type Variants } from 'framer-motion';
+import type { HTMLAttributes } from 'react';
 import { forwardRef, useCallback, useImperativeHandle, useRef, useEffect, useId } from 'react';
 import { cn } from '@/lib/utils';
 
