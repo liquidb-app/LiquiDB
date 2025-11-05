@@ -3361,24 +3361,29 @@ async function killAllDatabaseProcesses() {
   }
   
   // Also check storage for PIDs that might not be in runningDatabases (orphaned processes)
-  try {
-    const databases = storage.loadDatabases(app)
-    for (const db of databases) {
-      if (db.pid !== null && !killedPids.has(db.pid)) {
-        console.log(`[Kill] Killing orphaned database ${db.id} (PID: ${db.pid}) from storage`)
-        await killProcessByPid(db.pid, "SIGTERM")
-        killedPids.add(db.pid)
+  // Skip if app is not available (e.g., in MCP mode during cleanup)
+  if (app) {
+    try {
+      const databases = storage.loadDatabases(app)
+      for (const db of databases) {
+        if (db.pid !== null && !killedPids.has(db.pid)) {
+          console.log(`[Kill] Killing orphaned database ${db.id} (PID: ${db.pid}) from storage`)
+          await killProcessByPid(db.pid, "SIGTERM")
+          killedPids.add(db.pid)
+        }
       }
+    } catch (error) {
+      console.error(`[Kill] Error killing processes from storage:`, error)
     }
-  } catch (error) {
-    console.error(`[Kill] Error killing processes from storage:`, error)
   }
   
   // Scan for ALL database processes that might be orphaned (not tracked anywhere)
   // Only kill processes that belong to our app (verify by checking command line contains our data directory)
-  try {
-    const appDataDir = app.getPath("userData") // e.g., ~/Library/Application Support/LiquiDB
-    const databasesDir = path.join(appDataDir, "databases")
+  // Skip if app is not available (e.g., in MCP mode during cleanup)
+  if (app) {
+    try {
+      const appDataDir = app.getPath("userData") // e.g., ~/Library/Application Support/LiquiDB
+      const databasesDir = path.join(appDataDir, "databases")
     
     const databaseProcessNames = ['mysqld', 'postgres', 'mongod', 'redis-server']
     for (const processName of databaseProcessNames) {
@@ -3427,8 +3432,9 @@ async function killAllDatabaseProcesses() {
         // No processes found for this type, or pgrep failed - continue
       }
     }
-  } catch (error) {
-    console.error(`[Kill] Error scanning for orphaned processes:`, error)
+    } catch (error) {
+      console.error(`[Kill] Error scanning for orphaned processes:`, error)
+    }
   }
   
   // Wait a moment for processes to terminate gracefully
@@ -3460,9 +3466,11 @@ async function killAllDatabaseProcesses() {
   }
   
   // Final scan to ensure no database processes belonging to our app are left running
-  try {
-    const appDataDir = app.getPath("userData") // e.g., ~/Library/Application Support/LiquiDB
-    const databasesDir = path.join(appDataDir, "databases")
+  // Skip if app is not available (e.g., in MCP mode during cleanup)
+  if (app) {
+    try {
+      const appDataDir = app.getPath("userData") // e.g., ~/Library/Application Support/LiquiDB
+      const databasesDir = path.join(appDataDir, "databases")
     
     const databaseProcessNames = ['mysqld', 'postgres', 'mongod', 'redis-server']
     for (const processName of databaseProcessNames) {
@@ -3506,12 +3514,14 @@ async function killAllDatabaseProcesses() {
         // No processes found for this type - good
       }
     }
-  } catch (error) {
-    console.error(`[Kill] Error in final orphan scan:`, error)
+    } catch (error) {
+      console.error(`[Kill] Error in final orphan scan:`, error)
+    }
   }
 }
 
-// Cleanup on app termination
+// Cleanup on app termination (skip in MCP mode)
+if (!process.argv.includes('--mcp') && app) {
 app.on("before-quit", async (event) => {
   // Prevent default quit behavior until cleanup is done
   event.preventDefault()
@@ -3569,30 +3579,34 @@ app.on("before-quit", async (event) => {
   app.exit(0)
 })
 
-// Handle app termination
+} // End of if (!process.argv.includes('--mcp') && app) for before-quit handler
+
+// Handle app termination (process signals work in MCP mode)
 process.on("SIGINT", async () => {
   console.log("[App Quit] Received SIGINT, stopping all databases...")
   
   // Kill all database processes (from memory and storage)
   await killAllDatabaseProcesses()
   
-  // Clear all PIDs from storage
-  try {
-    const databases = storage.loadDatabases(app)
-    let updated = false
-    for (const db of databases) {
-      if (db.pid !== null) {
-        db.status = 'stopped'
-        db.pid = null
-        updated = true
+  // Clear all PIDs from storage (skip if app is not available)
+  if (app) {
+    try {
+      const databases = storage.loadDatabases(app)
+      let updated = false
+      for (const db of databases) {
+        if (db.pid !== null) {
+          db.status = 'stopped'
+          db.pid = null
+          updated = true
+        }
       }
+      if (updated) {
+        storage.saveDatabases(app, databases)
+        console.log("[App Quit] Cleared all PIDs from storage (SIGINT)")
+      }
+    } catch (error) {
+      console.error("[App Quit] Failed to clear PIDs from storage (SIGINT):", error)
     }
-    if (updated) {
-      storage.saveDatabases(app, databases)
-      console.log("[App Quit] Cleared all PIDs from storage (SIGINT)")
-    }
-  } catch (error) {
-    console.error("[App Quit] Failed to clear PIDs from storage (SIGINT):", error)
   }
   
   process.exit(0)
@@ -3604,23 +3618,25 @@ process.on("SIGTERM", async () => {
   // Kill all database processes (from memory and storage)
   await killAllDatabaseProcesses()
   
-  // Clear all PIDs from storage
-  try {
-    const databases = storage.loadDatabases(app)
-    let updated = false
-    for (const db of databases) {
-      if (db.pid !== null) {
-        db.status = 'stopped'
-        db.pid = null
-        updated = true
+  // Clear all PIDs from storage (skip if app is not available)
+  if (app) {
+    try {
+      const databases = storage.loadDatabases(app)
+      let updated = false
+      for (const db of databases) {
+        if (db.pid !== null) {
+          db.status = 'stopped'
+          db.pid = null
+          updated = true
+        }
       }
+      if (updated) {
+        storage.saveDatabases(app, databases)
+        console.log("[App Quit] Cleared all PIDs from storage (SIGTERM)")
+      }
+    } catch (error) {
+      console.error("[App Quit] Failed to clear PIDs from storage (SIGTERM):", error)
     }
-    if (updated) {
-      storage.saveDatabases(app, databases)
-      console.log("[App Quit] Cleared all PIDs from storage (SIGTERM)")
-    }
-  } catch (error) {
-    console.error("[App Quit] Failed to clear PIDs from storage (SIGTERM):", error)
   }
   
   process.exit(0)
@@ -3638,23 +3654,25 @@ process.on("uncaughtException", async (error) => {
     console.error("[App Crash] Error killing processes:", killError)
   }
   
-  // Clear all PIDs from storage
-  try {
-    const databases = storage.loadDatabases(app)
-    let updated = false
-    for (const db of databases) {
-      if (db.pid !== null) {
-        db.status = 'stopped'
-        db.pid = null
-        updated = true
+  // Clear all PIDs from storage (skip if app is not available)
+  if (app) {
+    try {
+      const databases = storage.loadDatabases(app)
+      let updated = false
+      for (const db of databases) {
+        if (db.pid !== null) {
+          db.status = 'stopped'
+          db.pid = null
+          updated = true
+        }
       }
+      if (updated) {
+        storage.saveDatabases(app, databases)
+        console.log("[App Crash] Cleared all PIDs from storage")
+      }
+    } catch (storageError) {
+      console.error("[App Crash] Failed to clear PIDs from storage:", storageError)
     }
-    if (updated) {
-      storage.saveDatabases(app, databases)
-      console.log("[App Crash] Cleared all PIDs from storage")
-    }
-  } catch (storageError) {
-    console.error("[App Crash] Failed to clear PIDs from storage:", storageError)
   }
   
   // Re-throw to allow default crash behavior
@@ -3673,27 +3691,30 @@ process.on("unhandledRejection", async (reason, promise) => {
     console.error("[App Crash] Error killing processes:", killError)
   }
   
-  // Clear all PIDs from storage
-  try {
-    const databases = storage.loadDatabases(app)
-    let updated = false
-    for (const db of databases) {
-      if (db.pid !== null) {
-        db.status = 'stopped'
-        db.pid = null
-        updated = true
+  // Clear all PIDs from storage (skip if app is not available)
+  if (app) {
+    try {
+      const databases = storage.loadDatabases(app)
+      let updated = false
+      for (const db of databases) {
+        if (db.pid !== null) {
+          db.status = 'stopped'
+          db.pid = null
+          updated = true
+        }
       }
+      if (updated) {
+        storage.saveDatabases(app, databases)
+        console.log("[App Crash] Cleared all PIDs from storage (unhandled rejection)")
+      }
+    } catch (storageError) {
+      console.error("[App Crash] Failed to clear PIDs from storage (unhandled rejection):", storageError)
     }
-    if (updated) {
-      storage.saveDatabases(app, databases)
-      console.log("[App Crash] Cleared all PIDs from storage (unhandled rejection)")
-    }
-  } catch (storageError) {
-    console.error("[App Crash] Failed to clear PIDs from storage:", storageError)
   }
 })
 
-// IPC handlers for database operations
+// IPC handlers for database operations (skip in MCP mode)
+if (!process.argv.includes('--mcp') && ipcMain) {
 ipcMain.handle("start-database", async (event, config) => {
   const { id } = config
   if (runningDatabases.has(id)) {
