@@ -42,12 +42,14 @@
     "productName": "LiquiDB",
     "files": [
       "electron/**/*",
-      ".next/**/*",
+      ".next/standalone/**/*",
+      ".next/static/**/*",
       "public/**/*",
       "package.json"
     ],
     "asarUnpack": [
-      ".next/standalone/**/*"
+      ".next/standalone/**/*",
+      ".next/static/**/*"
     ],
     "directories": {
       "buildResources": "public"

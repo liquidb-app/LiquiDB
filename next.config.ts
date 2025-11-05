@@ -13,7 +13,16 @@ const nextConfig: NextConfig = {
   },
   output: 'standalone',
   distDir: '.next',
+  // Ensure proper output file tracing for Electron
   outputFileTracingRoot: process.cwd(),
+  // Disable webpack optimizations that might cause issues in Electron
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Server-side optimizations
+      config.externals = config.externals || []
+    }
+    return config
+  },
 };
 
 export default nextConfig;

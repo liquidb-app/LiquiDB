@@ -2517,13 +2517,21 @@ function createWindow() {
     // This will work if the user has Node.js installed via Homebrew or nvm
     log.info("Starting Next.js server with:", nodeExecutable)
     
+    // Set environment variables for Next.js standalone server
+    const serverEnv = {
+      ...process.env,
+      PORT: "3000",
+      HOSTNAME: "127.0.0.1",
+      NODE_ENV: "production",
+      PATH: process.env.PATH || "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin",
+      // Ensure Next.js can find the public folder
+      NEXT_PUBLIC_DIR: path.join(nextServerCwd, "public"),
+    }
+    
     const nextServer = spawn(nodeExecutable, [nextServerPath], {
-      env: { 
-        ...process.env, 
-        PORT: "3000",
-        PATH: process.env.PATH || "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
-      },
+      env: serverEnv,
       cwd: nextServerCwd,
+      stdio: ['ignore', 'pipe', 'pipe']
     })
 
     nextServer.stdout.on("data", (data) => {
