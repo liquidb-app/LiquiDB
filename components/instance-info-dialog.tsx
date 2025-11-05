@@ -13,24 +13,24 @@ import { Area, AreaChart, Line, LineChart, Pie, PieChart, Cell, XAxis, YAxis, Ca
 
 interface SystemInfo {
   success: boolean
-  pid: number | null
-  memory: {
-    rss: number
-    vsz: number
-    cpu: number
-    pmem: number
-    time: string
+  pid?: number | null
+  memory?: {
+    rss?: number
+    vsz?: number
+    cpu?: number
+    pmem?: number
+    time?: string
   } | null
-  systemMemory: {
-    free: number
-    active: number
-    inactive: number
-    wired: number
-    total: number
+  systemMemory?: {
+    free?: number
+    active?: number
+    inactive?: number
+    wired?: number
+    total?: number
   } | null
-  isRunning: boolean
-  killed: boolean
-  exitCode: number | null
+  isRunning?: boolean
+  killed?: boolean
+  exitCode?: number | null
   error?: string
 }
 
@@ -58,7 +58,9 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
     
     try {
       const info = await window.electron?.getDatabaseSystemInfo?.(databaseId)
-      setSystemInfo(info)
+      if (info) {
+        setSystemInfo(info)
+      }
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch system info')
@@ -264,19 +266,19 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-muted-foreground">RSS (Resident Set Size):</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.memory.rss)}</div>
+                        <div className="font-mono text-lg">{formatBytes(systemInfo.memory.rss ?? 0)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">VSZ (Virtual Size):</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.memory.vsz)}</div>
+                        <div className="font-mono text-lg">{formatBytes(systemInfo.memory.vsz ?? 0)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">CPU Usage:</span>
-                        <div className="font-mono text-lg">{formatPercentage(systemInfo.memory.cpu)}</div>
+                        <div className="font-mono text-lg">{formatPercentage(systemInfo.memory.cpu ?? 0)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Memory %:</span>
-                        <div className="font-mono text-lg">{formatPercentage(systemInfo.memory.pmem)}</div>
+                        <div className="font-mono text-lg">{formatPercentage(systemInfo.memory.pmem ?? 0)}</div>
                       </div>
                     </div>
                     <Separator />
@@ -301,19 +303,19 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-muted-foreground">Total Memory:</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory.total)}</div>
+                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory.total ?? 0)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Free Memory:</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory.free)}</div>
+                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory.free ?? 0)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Active Memory:</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory.active)}</div>
+                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory.active ?? 0)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Inactive Memory:</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory.inactive)}</div>
+                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory.inactive ?? 0)}</div>
                       </div>
                     </div>
                     <Separator />
@@ -323,12 +325,12 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                         <div 
                           className="bg-primary h-2 rounded-full transition-all duration-300"
                           style={{ 
-                            width: `${(systemInfo.systemMemory.active / systemInfo.systemMemory.total * 100).toFixed(1)}%` 
+                            width: `${((systemInfo.systemMemory.active ?? 0) / (systemInfo.systemMemory.total ?? 1) * 100).toFixed(1)}%` 
                           }}
                         />
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        {(systemInfo.systemMemory.active / systemInfo.systemMemory.total * 100).toFixed(1)}% used
+                        {((systemInfo.systemMemory.active ?? 0) / (systemInfo.systemMemory.total ?? 1) * 100).toFixed(1)}% used
                       </div>
                     </div>
                   </CardContent>
@@ -482,8 +484,8 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                           <PieChart>
                             <Pie
                               data={[
-                                { name: "RSS Memory", value: systemInfo.memory.rss, fill: "#3b82f6" },
-                                { name: "Virtual Memory", value: systemInfo.memory.vsz - systemInfo.memory.rss, fill: "#10b981" },
+                                { name: "RSS Memory", value: systemInfo.memory.rss ?? 0, fill: "#3b82f6" },
+                                { name: "Virtual Memory", value: (systemInfo.memory.vsz ?? 0) - (systemInfo.memory.rss ?? 0), fill: "#10b981" },
                               ]}
                               cx="50%"
                               cy="50%"
@@ -495,8 +497,8 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                               strokeWidth={2}
                             >
                               {[
-                                { name: "RSS Memory", value: systemInfo.memory.rss, fill: "#3b82f6" },
-                                { name: "Virtual Memory", value: systemInfo.memory.vsz - systemInfo.memory.rss, fill: "#10b981" },
+                                { name: "RSS Memory", value: systemInfo.memory.rss ?? 0, fill: "#3b82f6" },
+                                { name: "Virtual Memory", value: (systemInfo.memory.vsz ?? 0) - (systemInfo.memory.rss ?? 0), fill: "#10b981" },
                               ].map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={entry.fill} />
                               ))}
