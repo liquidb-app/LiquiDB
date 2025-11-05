@@ -37,6 +37,11 @@ declare global {
       fetchQuotes?: () => Promise<{ success: boolean; data?: Array<{ quote: string; author: string }>; error?: string }>
       isOnboardingComplete?: () => boolean
       notifyDashboardReady?: () => Promise<{ success: boolean; triggered?: boolean; alreadyTriggered?: boolean; reason?: string; error?: string }>
+      getSavedImages?: () => Promise<{ success: boolean; images?: Array<{ fileName: string; path: string; created: Date }>; error?: string }>
+      saveCustomImage?: (imageData: { imageUrl?: string; dataUrl?: string }) => Promise<{ success: boolean; imagePath?: string; fileName?: string; error?: string }>
+      convertFileToDataUrl?: (fileUrl: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>
+      isElectron?: boolean
+      platform?: string
     }
   }
 }
