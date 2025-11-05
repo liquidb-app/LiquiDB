@@ -2495,14 +2495,19 @@ function createWindow() {
       return
     }
     
-    // Find Node.js executable path
-    // Try common macOS locations first, then fall back to PATH
-    let nodeExecutable = "node"
+    // Find Node.js executable
+    // Strategy:
+    // 1. Try to use node from PATH (most common case - users have node installed)
+    // 2. Try common macOS installation paths
+    // 3. Try to use Electron's embedded node (last resort)
+    
+    let nodeExecutable = null
+    
+    // First, try to find node in PATH or common locations
     const possibleNodePaths = [
-      "/usr/local/bin/node",
-      "/opt/homebrew/bin/node",
-      "/usr/bin/node",
-      process.execPath.replace(/Electron\.app.*$/, "node"), // Try to find node near Electron
+      "/opt/homebrew/bin/node",      // Homebrew on Apple Silicon
+      "/usr/local/bin/node",          // Homebrew on Intel
+      "/usr/bin/node",                // System node
     ]
     
     for (const nodePath of possibleNodePaths) {
@@ -2514,7 +2519,12 @@ function createWindow() {
     }
     
     // If no system node found, try using 'node' from PATH
-    // This will work if the user has Node.js installed via Homebrew or nvm
+    // This will work if node is installed via nvm or other package managers
+    if (!nodeExecutable) {
+      nodeExecutable = "node"
+      log.info("Falling back to 'node' from PATH (will check if available)")
+    }
+    
     log.info("Starting Next.js server with:", nodeExecutable)
     
     const nextServer = spawn(nodeExecutable, [nextServerPath], {
@@ -2537,6 +2547,17 @@ function createWindow() {
     nextServer.on("error", (error) => {
       log.error("Failed to start Next.js server:", error)
       log.error("Node executable:", nodeExecutable)
+      
+      // Show error dialog to user
+      const { dialog } = require("electron")
+      dialog.showErrorBox(
+        "Node.js Not Found",
+        "LiquiDB requires Node.js to be installed on your system.\n\n" +
+        "Please install Node.js from https://nodejs.org or via Homebrew:\n" +
+        "brew install node\n\n" +
+        "Error: " + error.message
+      )
+      
       mainWindow.loadURL("about:blank")
     })
 
