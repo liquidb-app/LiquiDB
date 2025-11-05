@@ -67,23 +67,20 @@
       "target": [
         "dmg",
         "zip"
-      ],
-      "icon": "public/icon.icns"
+      ]
     },
     "win": {
       "target": [
         "nsis",
         "portable"
-      ],
-      "icon": "public/icon.ico"
+      ]
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "category": "Development",
-      "icon": "public/icon.png"
+      "category": "Development"
     }
   },
   "dependencies": {
