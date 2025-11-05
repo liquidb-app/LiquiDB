@@ -29,12 +29,19 @@ interface SystemStats {
   error?: string
 }
 
+const formatCompactNumber = (value: number, maxDecimals = 2) => {
+  const fixed = Number.isFinite(value) ? value.toFixed(maxDecimals) : '0'
+  // strip trailing zeros and optional dot
+  return fixed.replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1')
+}
+
 const formatBytes = (bytes: number) => {
-  if (bytes === 0) return '0 B'
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
   const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'] as const
+  const i = Math.min(sizes.length - 1, Math.floor(Math.log(bytes) / Math.log(k)))
+  const value = bytes / Math.pow(k, i)
+  return `${formatCompactNumber(value, 1)} ${sizes[i]}`
 }
 
 const formatUptime = (seconds: number) => {
@@ -184,7 +191,7 @@ export function SystemStats() {
                   )}
                   <Database className="h-3 w-3 opacity-60 flex-shrink-0" />
                   {showText && (
-                    <span className="font-mono tabular-nums">{stats.runningDatabases} running</span>
+                    <span className="font-mono tabular-nums">{stats.runningDatabases}</span>
                   )}
                 </div>
               </TooltipTrigger>
@@ -226,7 +233,7 @@ export function SystemStats() {
             <div className="flex items-center gap-1.5 cursor-default">
               <Cpu className="h-3 w-3 opacity-60 flex-shrink-0" />
               {showText && (
-                <span className="font-mono tabular-nums whitespace-nowrap">CPU {cpuPercentage.toFixed(2)}%</span>
+                <span className="font-mono tabular-nums whitespace-nowrap">CPU {formatCompactNumber(cpuPercentage, 1)}%</span>
               )}
             </div>
           </TooltipTrigger>
@@ -249,7 +256,7 @@ export function SystemStats() {
                 <div className="flex items-center gap-1.5 cursor-default">
                   <Activity className="h-3 w-3 opacity-60 flex-shrink-0" />
                   {showText && (
-                    <span className="font-mono tabular-nums whitespace-nowrap">Load {loadAvg.toFixed(2)}</span>
+                    <span className="font-mono tabular-nums whitespace-nowrap">Load {formatCompactNumber(loadAvg, 2)}</span>
                   )}
                 </div>
               </TooltipTrigger>
@@ -274,7 +281,7 @@ export function SystemStats() {
                   <HardDrive className="h-3 w-3 opacity-60 flex-shrink-0" />
                   {showText && (
                     <span className="font-mono tabular-nums whitespace-nowrap">
-                      Disk: {formatBytes(diskUsed)} used (limit {formatBytes(diskTotal)})
+                      {formatBytes(diskUsed)} / {formatBytes(diskTotal)}
                     </span>
                   )}
                 </div>
@@ -300,7 +307,7 @@ export function SystemStats() {
               <div className="flex items-center gap-1.5 cursor-default">
                 <Clock className="h-3 w-3 opacity-60 flex-shrink-0" />
                 {showText && (
-                  <span className="font-mono tabular-nums whitespace-nowrap">Uptime {formatUptime(stats.uptime)}</span>
+                  <span className="font-mono tabular-nums whitespace-nowrap">{formatUptime(stats.uptime)}</span>
                 )}
               </div>
             </TooltipTrigger>
