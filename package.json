@@ -21,7 +21,7 @@
   "main": "electron/main.js",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"next dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "dev": "concurrently \"next dev --turbopack\" \"wait-on http://localhost:3000 && electron .\"",
     "dev:minimal": "LOG_LEVEL=ERROR concurrently \"next dev\" \"wait-on http://localhost:3000 && electron .\"",
     "dev:quiet": "LOG_LEVEL=WARN concurrently \"next dev\" \"wait-on http://localhost:3000 && electron .\"",
     "dev:normal": "LOG_LEVEL=INFO concurrently \"next dev\" \"wait-on http://localhost:3000 && electron .\"",
@@ -34,7 +34,8 @@
     "electron:build": "next build && electron-builder",
     "electron:build:mac": "next build && electron-builder --mac",
     "electron:build:win": "next build && electron-builder --win",
-    "electron:build:linux": "next build && electron-builder --linux"
+    "electron:build:linux": "next build && electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps || true"
   },
   "build": {
     "appId": "com.liquidb.app",
@@ -118,6 +119,7 @@
     "concurrently": "^9.1.2",
     "electron": "^39.0.0",
     "electron-builder": "^26.0.12",
+    "electron-rebuild": "^3.2.9",
     "eslint": "^9.39.0",
     "eslint-config-next": "^15.5.4",
     "postcss": "^8.5",
