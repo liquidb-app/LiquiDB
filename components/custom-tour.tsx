@@ -11,11 +11,6 @@ import { wasTourRequested, setTourRequested } from "@/lib/preferences"
 import { useTheme } from "next-themes"
 import { notifyInfo } from "@/lib/notifications"
 import confetti from "canvas-confetti"
-import { 
-  MockAddDatabaseDialogStep1, 
-  MockAddDatabaseDialogStep2, 
-  MockDatabaseCard 
-} from "@/components/mock-tour-dialogs"
 
 interface TourStep {
   id: string
@@ -71,8 +66,6 @@ const tourSteps: TourStep[] = [
       "MariaDB: MySQL-compatible alternative"
     ],
     placement: "center",
-    demo: true,
-    demoContent: <MockAddDatabaseDialogStep1 />,
     icon: <BoxesIcon size={20} className="text-blue-500" />
   },
   {
@@ -87,8 +80,6 @@ const tourSteps: TourStep[] = [
       "Environment variable management"
     ],
     placement: "center",
-    demo: true,
-    demoContent: <MockAddDatabaseDialogStep2 />,
     icon: <Settings className="w-5 h-5 text-purple-500" />
   },
   {
@@ -103,8 +94,6 @@ const tourSteps: TourStep[] = [
       "Health status indicators"
     ],
     placement: "center",
-    demo: true,
-    demoContent: <MockDatabaseCard />,
     icon: <Check className="w-5 h-5 text-green-500" />
   },
   {
@@ -199,8 +188,6 @@ const tourSteps: TourStep[] = [
       "📊 Monitor: View logs and performance metrics"
     ],
     placement: "center",
-    demo: true,
-    demoContent: <MockDatabaseCard />,
     icon: <Play className="w-5 h-5 text-orange-500" />
   },
   {

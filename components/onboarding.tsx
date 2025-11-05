@@ -364,7 +364,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
     
     const checkAutoLaunchStatus = async () => {
       try {
-        // @ts-expect-error - Electron IPC types not available
         const api = window?.electron
         if (!api?.isAutoLaunchEnabled) {
           console.warn("[Onboarding] Auto-launch status check not available")
@@ -403,7 +402,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       }
       
       try {
-        // @ts-expect-error - Electron IPC types not available
         const api = window?.electron
         if (api?.isAutoLaunchEnabled) {
           const isEnabled = await api.isAutoLaunchEnabled()
@@ -451,12 +449,11 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
         setTimeout(() => reject(new Error('Helper status check timeout')), 5000)
       )
       
-      // @ts-expect-error - Electron IPC types not available
       const statusPromise = window.electron?.getHelperStatus?.()
       
-      const result = await Promise.race([statusPromise, timeoutPromise]) as { success?: boolean; data?: unknown } | Error | undefined
+      const result = await Promise.race([statusPromise, timeoutPromise]) as { success?: boolean; data?: { installed: boolean; running: boolean } } | Error | undefined
       
-      if (result && !(result instanceof Error) && result?.success) {
+      if (result && !(result instanceof Error) && result?.success && result.data) {
         const newStatus = result.data
         
         if (isInitialCheck) {
@@ -466,8 +463,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
         setHelperStatus(prevStatus => {
           if (!prevStatus || 
               prevStatus.installed !== newStatus.installed || 
-              prevStatus.running !== newStatus.running || 
-              prevStatus.isRunning !== newStatus.isRunning) {
+              prevStatus.running !== newStatus.running) {
             console.log("Helper status changed in onboarding, updating UI")
             return newStatus
           }
@@ -518,7 +514,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
     setHelperLoading(true)
     setHelperTimeout(false)
     try {
-      // @ts-expect-error - Electron IPC types not available
       const api = window?.electron
       if (!helperStatus?.installed) {
         const installResult = await api?.installHelper?.()
@@ -683,7 +678,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
     setAutoStartLoading(true)
     
     try {
-      // @ts-expect-error - Electron IPC types not available
       const api = window?.electron
       if (!api?.enableAutoLaunch || !api?.disableAutoLaunch) {
         console.warn("[Onboarding] Auto-launch functions not available")
@@ -730,7 +724,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
 
       if (avatar && avatar.startsWith('data:')) {
         try {
-          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.saveAvatar) {
             const saveResult = await window.electron.saveAvatar(avatar)
             if (saveResult?.success) {
@@ -778,7 +771,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
     }
     if (step === 4) {
       try {
-        // @ts-expect-error - Electron IPC types not available
         const api = window?.electron
         const status = await api?.getHelperStatus?.()
         if (!status?.data?.running) {
@@ -1010,7 +1002,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
                               if (!result) return
                               setAvatar(result)
                               try {
-                                // @ts-expect-error - Electron IPC types not available
                                 if (window.electron?.saveAvatar) {
                                   const saveResult = await window.electron.saveAvatar(result)
                                   if (!saveResult?.success) {
@@ -1040,10 +1031,8 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
                           try {
                             const input = fileInputRef.current
                             if (!input) return
-                            // @ts-expect-error - Electron IPC types not available
                             if (typeof input.showPicker === 'function') {
                               try {
-                                // @ts-expect-error - Electron IPC types not available
                                 await input.showPicker()
                               } catch {
                                 input.click()
