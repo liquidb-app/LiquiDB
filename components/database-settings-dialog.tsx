@@ -745,9 +745,14 @@ export function DatabaseSettingsDialog({
                     <button
                       type="button"
                       onClick={() => {
-                        const connectionString = database.type === "mysql" 
-                          ? `${database.type}://${database.username}:****@localhost:${port}?allowPublicKeyRetrieval=true`
-                          : `${database.type}://${database.username}:****@localhost:${port}`
+                        const auth = database.username && database.password 
+                          ? `${database.username}:${database.password}@`
+                          : database.username 
+                          ? `${database.username}@`
+                          : ''
+                        const connectionString = database.type === "redis"
+                          ? `${database.type}://${auth}localhost:${database.port}`
+                          : `${database.type}://${auth}localhost:${database.port}/${database.name}`
                         navigator.clipboard.writeText(connectionString).then(() => {
                           toast.success("Connection string copied to clipboard")
                           copyConnectionStringRef.current?.startAnimation()
@@ -765,10 +770,16 @@ export function DatabaseSettingsDialog({
                     </button>
                   </div>
                   <code className="text-xs break-all block">
-                    {database.type === "mysql" 
-                      ? `${database.type}://${database.username}:****@localhost:${port}?allowPublicKeyRetrieval=true`
-                      : `${database.type}://${database.username}:****@localhost:${port}`
-                    }
+                    {(() => {
+                      const auth = database.username && database.password 
+                        ? `${database.username}:${database.password}@`
+                        : database.username 
+                        ? `${database.username}@`
+                        : ''
+                      return database.type === "redis"
+                        ? `${database.type}://${auth}localhost:${database.port}`
+                        : `${database.type}://${auth}localhost:${database.port}/${database.name}`
+                    })()}
                   </code>
                   {database.type === "mysql" && (
                     <div className="text-[10px] text-muted-foreground mt-1.5 space-y-1">
