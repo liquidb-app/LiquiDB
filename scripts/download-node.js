@@ -45,11 +45,11 @@ async function downloadNode(arch) {
       response.pipe(file);
 
       file.on('finish', () => {
-        file.close();
-        console.log(`[Download Node] Downloaded ${filename}`);
-        
-        // Extract the tarball
-        console.log(`[Download Node] Extracting ${filename}...`);
+        file.close(() => {
+          console.log(`[Download Node] Downloaded ${filename}`);
+          
+          // Extract the tarball
+          console.log(`[Download Node] Extracting ${filename}...`);
         
         const tar = spawn('tar', ['-xzf', targetPath, '-C', binDir]);
         
@@ -63,8 +63,12 @@ async function downloadNode(arch) {
               console.log(`[Download Node] Extracted and renamed to ${arch}/`);
               
               // Clean up tarball
-              fs.unlinkSync(targetPath);
-              console.log(`[Download Node] Cleaned up ${filename}`);
+              try {
+                fs.unlinkSync(targetPath);
+                console.log(`[Download Node] Cleaned up ${filename}`);
+              } catch (unlinkError) {
+                console.warn(`[Download Node] Could not clean up ${filename}:`, unlinkError.message);
+              }
               
               resolve();
             } else {
@@ -78,9 +82,15 @@ async function downloadNode(arch) {
         tar.on('error', (error) => {
           reject(error);
         });
+        });
       });
     }).on('error', (error) => {
-      fs.unlink(targetPath, () => {});
+      // Clean up partial download on error
+      fs.unlink(targetPath, (unlinkError) => {
+        if (unlinkError) {
+          console.warn(`[Download Node] Could not clean up ${targetPath}:`, unlinkError.message);
+        }
+      });
       reject(error);
     });
   });

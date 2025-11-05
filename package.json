@@ -56,9 +56,7 @@
       {
         "from": "resources/bin/${arch}",
         "to": "bin",
-        "filter": [
-          "**/*"
-        ]
+        "filter": ["**/*"]
       }
     ],
     "directories": {

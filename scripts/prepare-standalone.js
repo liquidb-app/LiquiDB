@@ -55,25 +55,28 @@ console.log('[Prepare Standalone] ✓ Standalone build prepared successfully');
 
 // Helper function to recursively copy directories
 function copyRecursiveSync(src, dest) {
-  const exists = fs.existsSync(src);
-  const stats = exists && fs.statSync(src);
-  const isDirectory = exists && stats.isDirectory();
-
-  if (isDirectory) {
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(dest)) {
-      fs.mkdirSync(dest, { recursive: true });
-    }
+  try {
+    const stats = fs.statSync(src);
     
-    // Recursively copy all files/subdirectories
-    fs.readdirSync(src).forEach((childItemName) => {
-      copyRecursiveSync(
-        path.join(src, childItemName),
-        path.join(dest, childItemName)
-      );
-    });
-  } else {
-    // Copy file
-    fs.copyFileSync(src, dest);
+    if (stats.isDirectory()) {
+      // Create directory if it doesn't exist
+      if (!fs.existsSync(dest)) {
+        fs.mkdirSync(dest, { recursive: true });
+      }
+      
+      // Recursively copy all files/subdirectories
+      fs.readdirSync(src).forEach((childItemName) => {
+        copyRecursiveSync(
+          path.join(src, childItemName),
+          path.join(dest, childItemName)
+        );
+      });
+    } else {
+      // Copy file
+      fs.copyFileSync(src, dest);
+    }
+  } catch (error) {
+    console.error(`[Prepare Standalone] Error copying ${src}:`, error.message);
+    throw error;
   }
 }

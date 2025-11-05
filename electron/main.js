@@ -2500,12 +2500,16 @@ function createWindow() {
     // 1. Try to use bundled Node.js (included with the app)
     // 2. Fall back to system Node.js if bundled version not found
     
+    // Path structure: electron-builder extraResources creates 'bin' folder,
+    // and we copy the node tarball's 'bin' directory into it, resulting in 'bin/bin/node'
+    const BUNDLED_NODE_PATH = path.join('bin', 'bin', 'node')
+    
     let nodeExecutable = null
     
     // First, try to use bundled Node.js from the app resources
     // In packaged apps, process.resourcesPath points to the Resources directory
     if (process.resourcesPath) {
-      const bundledNodePath = path.join(process.resourcesPath, 'bin', 'bin', 'node')
+      const bundledNodePath = path.join(process.resourcesPath, BUNDLED_NODE_PATH)
       log.info("Checking for bundled Node.js at:", bundledNodePath)
       if (fs.existsSync(bundledNodePath)) {
         nodeExecutable = bundledNodePath
@@ -2563,23 +2567,31 @@ function createWindow() {
       // Show error dialog to user
       const { dialog } = require("electron")
       
+      // Error messages
+      const ERROR_TITLE = "Application Error"
+      const NODE_NOT_FOUND_MSG = [
+        "Failed to start the application server.",
+        "",
+        "The bundled Node.js runtime could not be found or executed.",
+        "Please try reinstalling the application.",
+        "",
+        "If the problem persists, you can install Node.js manually:",
+        "https://nodejs.org or via Homebrew: brew install node",
+        "",
+        `Error: ${error.message}`
+      ].join("\n")
+      
+      const GENERIC_ERROR_MSG = [
+        "Failed to start the application server.",
+        "",
+        `Error: ${error.message}`
+      ].join("\n")
+      
       // Check if error is ENOENT (executable not found)
       if (error.code === 'ENOENT') {
-        dialog.showErrorBox(
-          "Application Error",
-          "Failed to start the application server.\n\n" +
-          "The bundled Node.js runtime could not be found or executed.\n" +
-          "Please try reinstalling the application.\n\n" +
-          "If the problem persists, you can install Node.js manually:\n" +
-          "https://nodejs.org or via Homebrew: brew install node\n\n" +
-          "Error: " + error.message
-        )
+        dialog.showErrorBox(ERROR_TITLE, NODE_NOT_FOUND_MSG)
       } else {
-        dialog.showErrorBox(
-          "Application Error",
-          "Failed to start the application server.\n\n" +
-          "Error: " + error.message
-        )
+        dialog.showErrorBox(ERROR_TITLE, GENERIC_ERROR_MSG)
       }
       
       mainWindow.loadURL("about:blank")

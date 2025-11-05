@@ -39,6 +39,8 @@ This document outlines all the changes made to fix the Electron build for macOS 
 - Updated `build.files` to include standalone directory and resources
 - Configured `asarUnpack` for standalone files and bundled binaries
 - Added `extraResources` to properly bundle architecture-specific Node.js
+  - Uses `${arch}` template variable (electron-builder replaces with 'arm64' or 'x64')
+  - Copies correct Node.js binary for the target architecture
 
 ## Build Process
 
