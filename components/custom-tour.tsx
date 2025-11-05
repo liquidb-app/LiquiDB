@@ -220,22 +220,20 @@ const tourSteps: TourStep[] = [
 ]
 
 export function CustomTour() {
-  const [isOpen, setIsOpen] = useState(true) // Tour is open when this component renders
+  const [isOpen, setIsOpen] = useState(true)
   const [currentStep, setCurrentStep] = useState(0)
   const [targetElement, setTargetElement] = useState<HTMLElement | null>(null)
-  useTheme() // Keep for theme context
+  useTheme()
 
-  // Set tour mode flag to prevent database creation
   useEffect(() => {
     document.body.setAttribute('data-tour-mode', 'true')
     
-    // Show tour mode notification after a short delay to ensure dashboard is visible
     const timer = setTimeout(() => {
       notifyInfo("Tour Mode Active", {
         description: "You're now in tour mode. Database creation is disabled until the tour completes.",
         duration: 4000
       })
-    }, 1000) // 1 second delay to ensure dashboard is fully visible
+    }, 1000)
     
     return () => {
       document.body.removeAttribute('data-tour-mode')
@@ -244,7 +242,6 @@ export function CustomTour() {
   }, [])
 
   const handleNext = () => {
-    // Simple progression through tour steps - no more real UI interactions
     if (currentStep < tourSteps.length - 1) {
       setCurrentStep(currentStep + 1)
     } else {
@@ -259,7 +256,6 @@ export function CustomTour() {
   }
 
   const handleSkip = () => {
-    // Show skip notification (no confetti for skipping)
     notifyInfo("Tour Skipped", {
       description: "Tour mode disabled. You can now create databases and use all features.",
       duration: 3000
@@ -271,7 +267,7 @@ export function CustomTour() {
   }
 
   const triggerConfetti = () => {
-    const end = Date.now() + 3 * 1000 // 3 seconds
+    const end = Date.now() + 3 * 1000
     const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1"]
 
     const frame = () => {
@@ -301,16 +297,13 @@ export function CustomTour() {
   }
 
   const handleComplete = () => {
-    // Trigger confetti celebration
     triggerConfetti()
     
-    // Show completion notification
     notifyInfo("Tour Complete! 🎉", {
       description: "Congratulations! You've completed the tour. You can now create databases and use all features.",
       duration: 4000
     })
     
-    // Close tour after a short delay to let confetti start
     setTimeout(() => {
       // Remove tour mode flag and force reflow to ensure CSS updates
       document.body.removeAttribute('data-tour-mode')
@@ -321,7 +314,6 @@ export function CustomTour() {
 
   const currentStepData = tourSteps[currentStep]
   
-  // Smart positioning function for side-by-side layout
   const getTourPosition = () => {
     const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
@@ -329,7 +321,6 @@ export function CustomTour() {
     const margin = 20
     
     if (currentStepData.demo) {
-      // For demo steps, use side-by-side layout
       return {
         left: `${margin}px`,
         top: `${margin}px`,
@@ -339,7 +330,6 @@ export function CustomTour() {
         zIndex: 99999
       }
     } else if (targetElement && currentStepData.highlight) {
-      // For highlighting steps, position tour card on the left
       return {
         left: `${margin}px`,
         top: `${margin}px`,
@@ -349,7 +339,6 @@ export function CustomTour() {
         zIndex: 99999
       }
     } else {
-      // For center placement (welcome/completion), center the tour card
       return {
         left: '50%',
         top: '50%',
@@ -361,7 +350,6 @@ export function CustomTour() {
     }
   }
 
-  // Get mockup position for side-by-side layout
   const getMockupPosition = () => {
     const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
@@ -381,30 +369,25 @@ export function CustomTour() {
     return null
   }
 
-  // Recalculate position on window resize and scroll
   useEffect(() => {
     const handleResize = () => {
-      // Force re-render to recalculate position
       setCurrentStep(prev => prev)
     }
     
     const handleScroll = () => {
-      // Force re-render to recalculate position
       setCurrentStep(prev => prev)
     }
     
     window.addEventListener('resize', handleResize)
-    window.addEventListener('scroll', handleScroll, true) // Use capture to catch all scroll events
+    window.addEventListener('scroll', handleScroll, true)
     return () => {
       window.removeEventListener('resize', handleResize)
       window.removeEventListener('scroll', handleScroll, true)
     }
   }, [])
 
-  // Find target element for highlighting
   useEffect(() => {
     if (currentStepData.target && currentStepData.placement !== 'center') {
-      // Try multiple selectors to find the target element
       const selectors = currentStepData.target.split(', ')
       let element: HTMLElement | null = null
       
@@ -412,16 +395,13 @@ export function CustomTour() {
         try {
           element = document.querySelector(selector) as HTMLElement
           if (element && element.offsetParent !== null) {
-            // Element is visible
             break
           }
         } catch {
-          // Invalid selector, continue
           continue
         }
       }
       
-      // If still not found, try to find by text content
       if (!element) {
         const buttons = document.querySelectorAll('button')
         for (const button of buttons) {
@@ -432,14 +412,12 @@ export function CustomTour() {
         }
       }
       
-      // Verify element is actually visible on screen; if offscreen try scroll into view
       if (element) {
         const rect = element.getBoundingClientRect()
         const inView = rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth
         if (!inView) {
           element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' as ScrollBehavior })
         }
-        // Recalculate after potential scroll
         const rect2 = element.getBoundingClientRect()
         const nowInView = rect2.bottom > 0 && rect2.top < window.innerHeight && rect2.right > 0 && rect2.left < window.innerWidth
         if (!nowInView || element.offsetParent === null) {
@@ -679,20 +657,16 @@ export function CustomTour() {
   )
 }
 
-// Wrapper component to replace MaybeStartTour
 export function MaybeStartTour() {
   const [shouldShowTour, setShouldShowTour] = useState(false)
 
   useEffect(() => {
-    // Check for tour request on mount
     if (wasTourRequested()) {
       setShouldShowTour(true)
-      // Clear the tour request immediately
       setTourRequested(false)
     }
   }, [])
 
-  // Listen for tour request changes (in case it's set after component mounts)
   useEffect(() => {
     const checkTourRequest = () => {
       if (wasTourRequested()) {
@@ -701,16 +675,13 @@ export function MaybeStartTour() {
       }
     }
 
-    // Check immediately
     checkTourRequest()
 
-    // Set up interval to check for tour requests
     const interval = setInterval(checkTourRequest, 100)
 
     return () => clearInterval(interval)
   }, [])
 
-  // Only render the tour if it was requested
   if (!shouldShowTour) {
     return null
   }
