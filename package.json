@@ -56,7 +56,9 @@
       {
         "from": "resources/bin/${arch}",
         "to": "bin",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "directories": {
@@ -111,6 +113,7 @@
     "cmdk": "1.0.4",
     "date-fns": "4.1.0",
     "framer-motion": "*",
+    "geist": "^1.5.1",
     "lucide-react": "^0.454.0",
     "motion": "^12.23.24",
     "next": "15.5.4",
