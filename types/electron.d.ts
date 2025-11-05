@@ -10,7 +10,9 @@ declare global {
       disableAutoLaunch?: () => Promise<{ success: boolean; error?: string }>
       getHelperStatus?: () => Promise<{ success: boolean; data?: { installed: boolean; running: boolean }; error?: string }>
       installHelper?: () => Promise<{ success: boolean; error?: string }>
+      startHelper?: () => Promise<{ success: boolean; error?: string }>
       startHelperOnDemand?: () => Promise<{ success: boolean; error?: string }>
+      cleanupHelper?: () => Promise<{ success: boolean; data?: { method?: string; cleanedCount?: number; timestamp?: number }; error?: string }>
       getMCPStatus?: () => Promise<{ success: boolean; data?: { running: boolean; name: string }; error?: string }>
       getMCPConnectionInfo?: () => Promise<{ success: boolean; data?: { name: string; command: string; args: string[]; description: string; isDevelopment: boolean }; error?: string }>
       getBannedPorts?: () => Promise<{ success: boolean; data?: number[]; error?: string }>
