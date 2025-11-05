@@ -2,10 +2,29 @@
 
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
+
 import { cn } from "@/lib/utils"
 
+// Format: { [dataKey]: { label, icon, color, etc. } }
+export type ChartConfig = Record<
+  string,
+  {
+    label?: React.ReactNode
+    icon?: React.ComponentType
+    color?: string
+    className?: string
+    labelWrapperClassName?: string
+    labelClassName?: string
+    labelColor?: string
+    iconColor?: string
+    formatter?: (value: unknown, item: unknown, index: number, payload: unknown) => React.ReactNode
+    valueClassName?: string
+    valueColor?: string
+  }
+>
+
 const ChartContext = React.createContext<{
-  config: Record<string, unknown>
+  config: ChartConfig
 }>({
   config: {},
 })
@@ -13,7 +32,8 @@ const ChartContext = React.createContext<{
 const ChartContainer = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
-    config: Record<string, unknown>
+    config: ChartConfig
+    children: React.ReactElement
   }
 >(({ id, className, children, config, ...props }, ref) => {
   const uniqueId = React.useId()
@@ -67,7 +87,7 @@ const ChartTooltipContent = React.forwardRef<
       labelClassName,
       formatter,
       color,
-      nameKey: _nameKey,
+      nameKey,
       labelKey,
     },
     ref
@@ -81,8 +101,9 @@ const ChartTooltipContent = React.forwardRef<
 
       const [item] = payload
       const key = `${labelKey || item.dataKey || item.name || "value"}`
-      const _value =
-        config?.[key]?.label || item.name || item.dataKey || "Value"
+      const itemConfig = config[key as keyof typeof config]
+      const value =
+        itemConfig?.label || item.name || item.dataKey || "Value"
       const formattedLabel =
         typeof labelFormatter === "function"
           ? labelFormatter(label, payload)
@@ -90,7 +111,7 @@ const ChartTooltipContent = React.forwardRef<
 
       return (
         <div className={cn("font-medium", labelClassName)}>
-          {formattedLabel}
+          {formattedLabel || value}
         </div>
       )
     }, [
@@ -107,10 +128,16 @@ const ChartTooltipContent = React.forwardRef<
       return null
     }
 
-    const nestLabel = (item: Record<string, unknown> & { dataKey?: string, name?: string, payload?: { fill?: string }, color?: string }, i: number) => {
-      const key = `${labelKey || item.dataKey || item.name || "value"}`
-      const itemConfig = config?.[key]
-      const indicatorColor = color || item.payload?.fill || item.color
+    const nestLabel = (
+      item: NonNullable<
+        React.ComponentProps<typeof RechartsPrimitive.Tooltip>["payload"]
+      >[number],
+      i: number
+    ) => {
+      const key = `${nameKey || item.name || item.dataKey || "value"}`
+      const itemConfig = config[key as keyof typeof config]
+      const indicatorColor =
+        color || item.payload?.fill || item.color || "hsl(var(--foreground))"
 
       return (
         <div
@@ -152,22 +179,24 @@ const ChartTooltipContent = React.forwardRef<
                 )}
                 style={
                   {
-                    "--color-text": itemConfig?.labelColor || "hsl(var(--muted-foreground))",
+                    "--color-text":
+                      itemConfig?.labelColor || "hsl(var(--muted-foreground))",
                   } as React.CSSProperties
                 }
               >
-                {itemConfig?.icon && (
+                {itemConfig?.icon ? (
                   <div
                     className="text-[--color-icon]"
                     style={
                       {
-                        "--color-icon": itemConfig?.iconColor || indicatorColor,
+                        "--color-icon":
+                          itemConfig?.iconColor || indicatorColor,
                       } as React.CSSProperties
                     }
                   >
-                    {itemConfig.icon}
+                    <itemConfig.icon />
                   </div>
-                )}
+                ) : null}
                 <span className="text-[--color-text]">
                   {itemConfig?.label || item.name || item.dataKey}
                 </span>
@@ -182,13 +211,14 @@ const ChartTooltipContent = React.forwardRef<
                   )}
                   style={
                     {
-                      "--color-value": itemConfig?.valueColor || "hsl(var(--foreground))",
+                      "--color-value":
+                        itemConfig?.valueColor || "hsl(var(--foreground))",
                     } as React.CSSProperties
                   }
                 >
                   {formatter
-                    ? formatter(item.value, item.name, item, i, item.payload)
-                    : item.value}
+                    ? formatter(item.value ?? '', item.name ?? '', item, i, item.payload)
+                    : String(item.value)}
                 </div>
               )}
             </div>
@@ -206,18 +236,12 @@ const ChartTooltipContent = React.forwardRef<
         )}
       >
         {tooltipLabel}
-        <div className="grid gap-1.5">
-          {payload.map(nestLabel)}
-        </div>
+        <div className="grid gap-1.5">{payload.map(nestLabel)}</div>
       </div>
     )
   }
 )
 ChartTooltipContent.displayName = "ChartTooltipContent"
 
-export {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-}
+export { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend }
+
