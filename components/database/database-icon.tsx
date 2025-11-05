@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { BoxesIcon } from "@/components/ui/boxes"
 
 /**
- * Component to handle custom image loading with file:// URL conversion
+ * Component to handle custom image loading with file:
  */
 export function DatabaseIcon({ src, alt, className }: { src: string, alt: string, className: string }) {
   const [imageSrc, setImageSrc] = useState<string | null>(null)
@@ -15,14 +15,12 @@ export function DatabaseIcon({ src, alt, className }: { src: string, alt: string
     const loadImage = async () => {
       if (!src) return
       
-      // If it's already a data URL, use it directly
       if (src.startsWith('data:')) {
         setImageSrc(src)
         setIsLoading(false)
         return
       }
       
-      // If it's a file:// URL, convert it to data URL
       if (src.startsWith('file://')) {
         try {
           // @ts-expect-error - Electron IPC types not available
@@ -40,7 +38,6 @@ export function DatabaseIcon({ src, alt, className }: { src: string, alt: string
           setIsLoading(false)
         }
       } else {
-        // For other URLs, try to load directly
         setImageSrc(src)
         setIsLoading(false)
       }
@@ -75,7 +72,6 @@ export function renderDatabaseIcon(icon: string | undefined, className: string =
     return <BoxesIcon size={14} />
   }
   
-  // Check if it's a custom image path (starts with file path or data URL)
   if (icon.startsWith('/') || icon.startsWith('file://') || icon.startsWith('data:') || icon.includes('.')) {
     return (
       <DatabaseIcon 
@@ -86,7 +82,6 @@ export function renderDatabaseIcon(icon: string | undefined, className: string =
     )
   }
   
-  // It's an emoji, render as text
   return <span className="text-base leading-none">{icon}</span>
 }
 

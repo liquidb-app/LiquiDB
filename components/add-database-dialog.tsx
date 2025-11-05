@@ -25,13 +25,11 @@ import { toast } from "sonner"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { DatabaseContainer } from "@/lib/types"
 
-// Helper function to render database icons (emoji or custom image)
 const renderDatabaseIcon = (icon: string | undefined, className: string = "w-full h-full object-cover") => {
   if (!icon) {
     return <BoxesIcon size={14} />
   }
   
-  // Check if it's a custom image path (starts with file path or data URL)
   if (icon.startsWith('/') || icon.startsWith('file://') || icon.startsWith('data:') || icon.includes('.')) {
     return (
       <DatabaseIcon 
@@ -42,11 +40,9 @@ const renderDatabaseIcon = (icon: string | undefined, className: string = "w-ful
     )
   }
   
-  // It's an emoji, render as text
   return <span className="text-lg leading-none">{icon}</span>
 }
 
-// Component to handle custom image loading with file:// URL conversion
 const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
   const [imageSrc, setImageSrc] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -56,14 +52,12 @@ const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, class
     const loadImage = async () => {
       if (!src) return
       
-      // If it's already a data URL, use it directly
       if (src.startsWith('data:')) {
         setImageSrc(src)
         setIsLoading(false)
         return
       }
       
-      // If it's a file:// URL, convert it to data URL
       if (src.startsWith('file://')) {
         try {
           // @ts-expect-error - Electron IPC types not available
@@ -81,7 +75,6 @@ const DatabaseIcon = ({ src, alt, className }: { src: string, alt: string, class
           setIsLoading(false)
         }
       } else {
-        // For other URLs, try to load directly
         setImageSrc(src)
         setIsLoading(false)
       }

@@ -18,7 +18,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Kbd } from "@/components/ui/kbd"
 import { Upload, LinkIcon } from "lucide-react"
 
-// Component to handle custom image loading with file:// URL conversion
 const SavedImageIcon = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
   const [imageSrc, setImageSrc] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -28,14 +27,12 @@ const SavedImageIcon = ({ src, alt, className }: { src: string, alt: string, cla
     const loadImage = async () => {
       if (!src) return
       
-      // If it's already a data URL, use it directly
       if (src.startsWith('data:')) {
         setImageSrc(src)
         setIsLoading(false)
         return
       }
       
-      // If it's a file:// URL, convert it to data URL
       if (src.startsWith('file://')) {
         try {
           // @ts-expect-error - Electron IPC types not available
@@ -53,7 +50,6 @@ const SavedImageIcon = ({ src, alt, className }: { src: string, alt: string, cla
           setIsLoading(false)
         }
       } else {
-        // For other URLs, try to load directly
         setImageSrc(src)
         setIsLoading(false)
       }
@@ -137,11 +133,10 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
   const [savedImages, setSavedImages] = useState<Array<{fileName: string, path: string, created: Date}>>([])
   const [isSaving, setIsSaving] = useState(false)
 
-  // Load saved images when dialog opens
   useEffect(() => {
     if (open && window.electron?.getSavedImages) {
-      window.electron.getSavedImages().then((result) => {
-        if (result.success) {
+      window.electron.getSavedImages().then((result: { success: boolean; images?: Array<{ fileName: string; path: string; created: Date }>; error?: string }) => {
+        if (result.success && result.images) {
           setSavedImages(result.images)
         }
       })
@@ -152,9 +147,7 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
     if (activeTab === "emoji") {
       onSave(selectedIcon)
     } else if (activeTab === "image" && imageUrl) {
-      // Check if it's a data URL (uploaded file), file URL (saved image), or external URL
       if (imageUrl.startsWith("data:")) {
-        // It's a data URL from file upload, save it locally
         setIsSaving(true)
         try {
           const result = await window.electron?.saveCustomImage({ dataUrl: imageUrl })
@@ -162,19 +155,17 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
             onSave(result.imagePath)
           } else {
             console.error("Failed to save image:", result?.error)
-            onSave(imageUrl) // Fallback to original data URL
+            onSave(imageUrl)
           }
         } catch (error) {
           console.error("Error saving image:", error)
-          onSave(imageUrl) // Fallback to original data URL
+          onSave(imageUrl)
         } finally {
           setIsSaving(false)
         }
       } else if (imageUrl.startsWith("file://")) {
-        // It's a file URL from a previously saved image, use it directly
         onSave(imageUrl)
       } else {
-        // It's an external URL, save it locally
         setIsSaving(true)
         try {
           const result = await window.electron?.saveCustomImage({ imageUrl })
@@ -182,11 +173,11 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
             onSave(result.imagePath)
           } else {
             console.error("Failed to save image:", result?.error)
-            onSave(imageUrl) // Fallback to original URL
+            onSave(imageUrl)
           }
         } catch (error) {
           console.error("Error saving image:", error)
-          onSave(imageUrl) // Fallback to original URL
+          onSave(imageUrl)
         } finally {
           setIsSaving(false)
         }
@@ -195,12 +186,10 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
     onOpenChange(false)
   }, [activeTab, selectedIcon, imageUrl, onSave, onOpenChange])
 
-  // Keyboard event handlers
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!open) return
       
-      // Don't handle shortcuts when typing in inputs
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
         return
       }
