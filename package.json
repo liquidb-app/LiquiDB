@@ -33,10 +33,10 @@
     "electron": "electron .",
     "prepare:standalone": "node scripts/prepare-standalone.js",
     "prepare:node": "node scripts/download-node.js",
-    "electron:build": "npm run prepare:node && next build && npm run prepare:standalone && electron-builder",
-    "electron:build:mac": "npm run prepare:node && next build && npm run prepare:standalone && electron-builder --mac",
-    "electron:build:win": "npm run prepare:node && next build && npm run prepare:standalone && electron-builder --win",
-    "electron:build:linux": "npm run prepare:node && next build && npm run prepare:standalone && electron-builder --linux",
+    "electron:build": "npm run prepare:node && next build && npm run prepare:standalone && electron-builder && node scripts/post-build.js",
+    "electron:build:mac": "npm run prepare:node && next build && npm run prepare:standalone && electron-builder --mac && node scripts/post-build.js",
+    "electron:build:win": "npm run prepare:node && next build && npm run prepare:standalone && electron-builder --win && node scripts/post-build.js",
+    "electron:build:linux": "npm run prepare:node && next build && npm run prepare:standalone && electron-builder --linux && node scripts/post-build.js",
     "postinstall": "electron-builder install-app-deps || true"
   },
   "build": {

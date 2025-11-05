@@ -7,51 +7,110 @@ const { log } = require('./logger')
 // Set up file logging for production
 const fs = require("fs")
 const path = require("path")
-const logFilePath = path.join(app.getPath("userData"), "app.log")
+const os = require("os")
 
-// Create a log file stream
+// Try to set up logging - use temp dir if userData not available
+let logFilePath
 let logStream
+let logInitialized = false
+
 try {
+  // Try to get userData path - this might fail if app isn't ready yet
+  try {
+    const userDataPath = app.getPath("userData")
+    // Ensure the directory exists
+    if (!fs.existsSync(userDataPath)) {
+      fs.mkdirSync(userDataPath, { recursive: true })
+    }
+    logFilePath = path.join(userDataPath, "app.log")
+  } catch (e) {
+    // Fallback to temp directory if userData not available
+    logFilePath = path.join(os.tmpdir(), "liquidb-app.log")
+  }
+  
+  // Create log file stream with auto-flush
   logStream = fs.createWriteStream(logFilePath, { flags: 'a' })
+  
+  // Helper to write to log with immediate flush
+  const writeToLog = (level, message) => {
+    if (logStream && !logStream.destroyed) {
+      logStream.write(`[${level}] ${new Date().toISOString()} ${message}\n`)
+      // Force flush to disk immediately
+      if (logStream.writable) {
+        logStream.write('', () => {}) // This forces a flush
+      }
+    }
+  }
+  
+  // Override console methods
+  const originalLog = console.log
+  const originalError = console.error
+  const originalInfo = console.info
+  const originalWarn = console.warn
+  
   console.log = (...args) => {
     const message = args.join(' ')
-    process.stdout.write(message + '\n')
-    if (logStream) {
-      logStream.write(`[LOG] ${new Date().toISOString()} ${message}\n`)
-    }
+    originalLog(message)
+    writeToLog('LOG', message)
   }
   console.error = (...args) => {
     const message = args.join(' ')
-    process.stderr.write(message + '\n')
-    if (logStream) {
-      logStream.write(`[ERROR] ${new Date().toISOString()} ${message}\n`)
-    }
+    originalError(message)
+    writeToLog('ERROR', message)
   }
   console.info = (...args) => {
     const message = args.join(' ')
-    process.stdout.write(message + '\n')
-    if (logStream) {
-      logStream.write(`[INFO] ${new Date().toISOString()} ${message}\n`)
-    }
+    originalInfo(message)
+    writeToLog('INFO', message)
   }
   console.warn = (...args) => {
     const message = args.join(' ')
-    process.stderr.write(message + '\n')
-    if (logStream) {
-      logStream.write(`[WARN] ${new Date().toISOString()} ${message}\n`)
-    }
+    originalWarn(message)
+    writeToLog('WARN', message)
   }
-  console.log(`[STARTUP] Log file initialized at: ${logFilePath}`)
+  
+  logInitialized = true
+  console.log(`[STARTUP] ========================================`)
+  console.log(`[STARTUP] LiquiDB Starting`)
+  console.log(`[STARTUP] ========================================`)
+  console.log(`[STARTUP] Log file: ${logFilePath}`)
+  console.log(`[STARTUP] Timestamp: ${new Date().toISOString()}`)
   console.log(`[STARTUP] App version: ${app.getVersion()}`)
   console.log(`[STARTUP] Electron version: ${process.versions.electron}`)
   console.log(`[STARTUP] Node version: ${process.versions.node}`)
   console.log(`[STARTUP] Platform: ${process.platform}`)
   console.log(`[STARTUP] Arch: ${process.arch}`)
-  console.log(`[STARTUP] App path: ${app.getAppPath()}`)
-  console.log(`[STARTUP] User data path: ${app.getPath("userData")}`)
+  console.log(`[STARTUP] Process ID: ${process.pid}`)
+  
+  try {
+    console.log(`[STARTUP] App path: ${app.getAppPath()}`)
+    console.log(`[STARTUP] User data path: ${app.getPath("userData")}`)
+  } catch (e) {
+    console.log(`[STARTUP] App paths not yet available: ${e.message}`)
+  }
+  
+  console.log(`[STARTUP] ========================================`)
+  
+  // Create a canary file to prove the app started
+  try {
+    const canaryPath = path.join(path.dirname(logFilePath), 'app-started.txt')
+    fs.writeFileSync(canaryPath, `App started at ${new Date().toISOString()}\nPID: ${process.pid}\nLog: ${logFilePath}\n`)
+  } catch (e) {
+    console.error(`[STARTUP] Could not create canary file: ${e.message}`)
+  }
 } catch (error) {
-  // If logging setup fails, continue anyway
-  process.stderr.write(`[STARTUP] Failed to initialize log file: ${error.message}\n`)
+  // If logging setup fails, write to stderr and try to show error
+  process.stderr.write(`[STARTUP] CRITICAL: Failed to initialize logging: ${error.message}\n`)
+  process.stderr.write(`[STARTUP] Stack: ${error.stack}\n`)
+  
+  // Try to show error dialog
+  try {
+    if (app && dialog) {
+      dialog.showErrorBox('Logging Error', `Failed to initialize logging:\n\n${error.message}\n\nThe app may not function correctly.`)
+    }
+  } catch (e) {
+    // Can't do anything more
+  }
 }
 
 // Prevent multiple instances (skip in MCP mode as we're running as a server process)
@@ -2965,26 +3024,62 @@ ipcMain.handle("dashboard-ready", async () => {
   }
 })
 
-// Global error handlers
+// Global error handlers - set up as early as possible
 process.on('uncaughtException', (error) => {
-  console.error('[UNCAUGHT EXCEPTION]', error)
-  console.error('Stack:', error.stack)
+  const errorMsg = `[UNCAUGHT EXCEPTION] ${error.message}\n${error.stack}`
+  console.error(errorMsg)
+  
+  // Force flush logs
+  if (logStream && !logStream.destroyed) {
+    try {
+      // Synchronously write the critical error
+      fs.appendFileSync(logFilePath, `${errorMsg}\n`)
+    } catch (e) {
+      process.stderr.write(`Failed to write crash log: ${e.message}\n`)
+    }
+  }
+  
   // Try to show dialog if possible
   try {
     if (app && !app.isQuitting) {
       dialog.showErrorBox(
         'Unexpected Error',
-        `An unexpected error occurred:\n\n${error.message}\n\nThe application will attempt to continue running. Check logs at:\n${logFilePath}`
+        `An unexpected error occurred:\n\n${error.message}\n\nCheck logs at:\n${logFilePath}\n\nThe application will now exit.`
       )
     }
   } catch (dialogError) {
     console.error('[DIALOG ERROR]', dialogError)
   }
+  
+  // Exit after error
+  process.exit(1)
 })
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('[UNHANDLED REJECTION]', reason)
-  console.error('Promise:', promise)
+  const errorMsg = `[UNHANDLED REJECTION] ${reason}\nPromise: ${promise}`
+  console.error(errorMsg)
+  
+  // Force flush logs
+  if (logStream && !logStream.destroyed) {
+    try {
+      fs.appendFileSync(logFilePath, `${errorMsg}\n`)
+    } catch (e) {
+      process.stderr.write(`Failed to write rejection log: ${e.message}\n`)
+    }
+  }
+})
+
+// Log when process is about to exit
+process.on('exit', (code) => {
+  const exitMsg = `[PROCESS EXIT] Exit code: ${code}`
+  if (logStream && !logStream.destroyed) {
+    try {
+      fs.appendFileSync(logFilePath, `${exitMsg}\n`)
+    } catch (e) {
+      // Can't do much at this point
+    }
+  }
+  process.stderr.write(`${exitMsg}\n`)
 })
 
 app.whenReady().then(async () => {
