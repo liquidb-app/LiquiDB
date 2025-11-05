@@ -4,19 +4,21 @@ const archiver = require("archiver")
 // Import logging system
 const { log } = require('./logger')
 
-// Prevent multiple instances
-const gotTheLock = app.requestSingleInstanceLock()
+// Prevent multiple instances (skip in MCP mode as we're running as a server process)
+if (!process.argv.includes('--mcp')) {
+  const gotTheLock = app.requestSingleInstanceLock()
 
-if (!gotTheLock) {
-  app.quit()
-} else {
-  app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
-    // Someone tried to run a second instance, we should focus our window instead.
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
-    }
-  })
+  if (!gotTheLock) {
+    app.quit()
+  } else {
+    app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
+      // Someone tried to run a second instance, we should focus our window instead.
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore()
+        mainWindow.focus()
+      }
+    })
+  }
 }
 const path = require("path")
 const { spawn } = require("child_process")
@@ -40,36 +42,47 @@ let helperService = null
 let permissionsManager = null
 let autoStartTriggered = false // Track if auto-start has been triggered
 
-// Auto-launch configuration
-let autoLauncher
-try {
-  log.debug("App path:", process.execPath)
-  log.debug("App name:", require('path').basename(process.execPath))
-  
-  // Use the proper app name instead of executable name
-  const appName = app.getName() || "LiquiDB"
-  log.debug("Using app name:", appName)
-  
-  // For macOS, try to use the app bundle path if available
-  let appPath = process.execPath
-  if (process.platform === 'darwin' && process.execPath.includes('.app')) {
-    // Extract the app bundle path from the executable path
-    const pathParts = process.execPath.split('/')
-    const appIndex = pathParts.findIndex(part => part.endsWith('.app'))
-    if (appIndex !== -1) {
-      appPath = pathParts.slice(0, appIndex + 1).join('/')
-      log.debug("Using app bundle path:", appPath)
-    }
+// Helper function to safely register IPC handlers (skip in MCP mode)
+function registerIpcHandler(channel, handler) {
+  if (!process.argv.includes('--mcp') && ipcMain) {
+    ipcMain.handle(channel, handler)
   }
-  
-  autoLauncher = new AutoLaunch({
-    name: appName,
-    path: appPath,
-    isHidden: true
-  })
-  log.info("Auto-launch module initialized successfully")
-} catch (error) {
-  console.error("[Auto-launch] Failed to initialize auto-launch module:", error)
+}
+
+// Auto-launch configuration (skip in MCP mode)
+let autoLauncher
+if (!process.argv.includes('--mcp')) {
+  try {
+    log.debug("App path:", process.execPath)
+    log.debug("App name:", require('path').basename(process.execPath))
+    
+    // Use the proper app name instead of executable name
+    const appName = app.getName() || "LiquiDB"
+    log.debug("Using app name:", appName)
+    
+    // For macOS, try to use the app bundle path if available
+    let appPath = process.execPath
+    if (process.platform === 'darwin' && process.execPath.includes('.app')) {
+      // Extract the app bundle path from the executable path
+      const pathParts = process.execPath.split('/')
+      const appIndex = pathParts.findIndex(part => part.endsWith('.app'))
+      if (appIndex !== -1) {
+        appPath = pathParts.slice(0, appIndex + 1).join('/')
+        log.debug("Using app bundle path:", appPath)
+      }
+    }
+    
+    autoLauncher = new AutoLaunch({
+      name: appName,
+      path: appPath,
+      isHidden: true
+    })
+    log.info("Auto-launch module initialized successfully")
+  } catch (error) {
+    console.error("[Auto-launch] Failed to initialize auto-launch module:", error)
+    autoLauncher = null
+  }
+} else {
   autoLauncher = null
 }
 
@@ -2447,7 +2460,8 @@ function createWindow() {
   })
 }
 
-// Auto-launch IPC handlers
+// Auto-launch IPC handlers (skip in MCP mode)
+if (!process.argv.includes('--mcp') && ipcMain) {
 ipcMain.handle("auto-launch:isEnabled", async () => {
   try {
     if (!autoLauncher) {
@@ -2526,7 +2540,10 @@ ipcMain.handle("auto-launch:disable", async () => {
   }
 })
 
-// External link handler
+} // End of if (!process.argv.includes('--mcp') && ipcMain) for auto-launch handlers
+
+// External link handler (skip in MCP mode)
+if (!process.argv.includes('--mcp') && ipcMain) {
 ipcMain.handle("open-external-link", async (event, url) => {
   try {
     await shell.openExternal(url)
@@ -2936,6 +2953,10 @@ app.whenReady().then(async () => {
   // Start checking after a short delay to ensure the window is ready
   setTimeout(checkOnboardingAndStartProcesses, 2000)
 })
+
+} // End of if (!process.argv.includes('--mcp') && ipcMain) for dashboard-ready handler
+
+if (!process.argv.includes('--mcp') && ipcMain) {
 ipcMain.handle("app:quit", async () => {
   try {
     app.quit()
@@ -2945,6 +2966,10 @@ ipcMain.handle("app:quit", async () => {
   }
 })
 
+} // End of if (!process.argv.includes('--mcp') && ipcMain) for app:quit handler
+
+// Window management (skip in MCP mode - no windows in server mode)
+if (!process.argv.includes('--mcp') && app) {
 app.on("window-all-closed", async () => {
   if (process.platform !== "darwin") {
     app.quit()
@@ -2980,6 +3005,8 @@ app.on("activate", () => {
     createWindow()
   }
 })
+
+} // End of if (!process.argv.includes('--mcp') && app) for window management
 
 // Cleanup temporary files for a database
 async function cleanupDatabaseTempFiles(app, containerId, dbType) {
@@ -5713,3 +5740,5 @@ ipcMain.handle("recreate-databases-file", async () => {
     return { success: false, error: error.message, recreated: false }
   }
 })
+
+} // End of if (!process.argv.includes('--mcp') && ipcMain) for all IPC handlers
