@@ -2414,6 +2414,15 @@ function createWindow() {
   // In production, load from built files
   const isDev = !app.isPackaged
 
+  // Filter out harmless DevTools Protocol errors (Autofill not supported in Electron)
+  // These errors come from DevTools trying to enable Autofill features that Electron doesn't support
+  mainWindow.webContents.on("console-message", (event, level, message) => {
+    // Suppress harmless Autofill DevTools Protocol errors
+    if (message && (message.includes("Autofill.enable") || message.includes("Autofill.setAddresses"))) {
+      return // Don't log these errors
+    }
+  })
+
   if (isDev) {
     mainWindow.loadURL("http://localhost:3000")
     mainWindow.webContents.openDevTools()
