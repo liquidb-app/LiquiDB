@@ -2442,17 +2442,116 @@ function createWindow() {
     mainWindow.webContents.openDevTools()
   } else {
     // Start Next.js server in production
-    const nextServer = spawn("node", [path.join(__dirname, "../.next/standalone/server.js")], {
-      env: { ...process.env, PORT: "3000" },
+    // Use app.getAppPath() to get the correct path in packaged apps
+    // When files are unpacked from ASAR, they're in app.asar.unpacked directory
+    const appPath = app.getAppPath()
+    
+    // Try multiple possible paths for the Next.js server
+    // 1. Direct path (if files are in app.asar)
+    // 2. Unpacked path (if files are in app.asar.unpacked)
+    // 3. Resources path (fallback)
+    let nextServerPath = path.join(appPath, ".next", "standalone", "server.js")
+    let nextServerCwd = path.join(appPath, ".next", "standalone")
+    
+    // If using ASAR and files are unpacked, check the unpacked location
+    if (appPath.endsWith('.asar')) {
+      // Unpacked files are in app.asar.unpacked at the same level
+      const unpackedPath = appPath.replace('.asar', '.asar.unpacked')
+      const unpackedServerPath = path.join(unpackedPath, ".next", "standalone", "server.js")
+      if (fs.existsSync(unpackedServerPath)) {
+        nextServerPath = unpackedServerPath
+        nextServerCwd = path.join(unpackedPath, ".next", "standalone")
+        log.info("Using unpacked Next.js server from:", nextServerPath)
+      }
+    }
+    
+    // Also try resourcesPath as fallback
+    if (!fs.existsSync(nextServerPath) && process.resourcesPath) {
+      const resourcesServerPath = path.join(process.resourcesPath, ".next", "standalone", "server.js")
+      if (fs.existsSync(resourcesServerPath)) {
+        nextServerPath = resourcesServerPath
+        nextServerCwd = path.join(process.resourcesPath, ".next", "standalone")
+        log.info("Using Next.js server from resourcesPath:", nextServerPath)
+      }
+    }
+    
+    // Log for debugging
+    log.info("Starting Next.js server from:", nextServerPath)
+    log.info("App path:", appPath)
+    log.info("Resources path:", process.resourcesPath)
+    
+    // Check if the server file exists
+    if (!fs.existsSync(nextServerPath)) {
+      log.error("Next.js server file not found at:", nextServerPath)
+      log.error("Tried app path:", path.join(appPath, ".next", "standalone", "server.js"))
+      if (appPath.endsWith('.asar')) {
+        log.error("Tried unpacked path:", appPath.replace('.asar', '.asar.unpacked') + "/.next/standalone/server.js")
+      }
+      if (process.resourcesPath) {
+        log.error("Tried resources path:", path.join(process.resourcesPath, ".next", "standalone", "server.js"))
+      }
+      log.error("__dirname:", __dirname)
+      mainWindow.loadURL("about:blank")
+      return
+    }
+    
+    // Find Node.js executable path
+    // Try common macOS locations first, then fall back to PATH
+    let nodeExecutable = "node"
+    const possibleNodePaths = [
+      "/usr/local/bin/node",
+      "/opt/homebrew/bin/node",
+      "/usr/bin/node",
+      process.execPath.replace(/Electron\.app.*$/, "node"), // Try to find node near Electron
+    ]
+    
+    for (const nodePath of possibleNodePaths) {
+      if (fs.existsSync(nodePath)) {
+        nodeExecutable = nodePath
+        log.info("Using Node.js at:", nodeExecutable)
+        break
+      }
+    }
+    
+    // If no system node found, try using 'node' from PATH
+    // This will work if the user has Node.js installed via Homebrew or nvm
+    log.info("Starting Next.js server with:", nodeExecutable)
+    
+    const nextServer = spawn(nodeExecutable, [nextServerPath], {
+      env: { 
+        ...process.env, 
+        PORT: "3000",
+        PATH: process.env.PATH || "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+      },
+      cwd: nextServerCwd,
     })
 
     nextServer.stdout.on("data", (data) => {
-      console.log(`Next.js: ${data}`)
+      log.info(`Next.js: ${data}`)
     })
 
+    nextServer.stderr.on("data", (data) => {
+      log.error(`Next.js error: ${data}`)
+    })
+
+    nextServer.on("error", (error) => {
+      log.error("Failed to start Next.js server:", error)
+      log.error("Node executable:", nodeExecutable)
+      mainWindow.loadURL("about:blank")
+    })
+
+    nextServer.on("exit", (code, signal) => {
+      if (code !== null) {
+        log.warn(`Next.js server exited with code ${code}`)
+      } else if (signal) {
+        log.warn(`Next.js server was killed by signal ${signal}`)
+      }
+    })
+
+    // Wait a bit longer for the server to start
     setTimeout(() => {
       mainWindow.loadURL("http://localhost:3000")
-    }, 2000)
+    }, 3000)
   }
 
   mainWindow.on("closed", () => {
