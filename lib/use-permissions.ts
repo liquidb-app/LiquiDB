@@ -30,13 +30,12 @@ export function usePermissions() {
     setError(null)
     
     try {
-      // @ts-expect-error - Electron IPC types not available
       const [permissionsResult, descriptionsResult] = await Promise.all([
         window.electron?.checkPermissions?.(),
         window.electron?.getPermissionDescriptions?.()
       ])
 
-      if (permissionsResult?.success && descriptionsResult?.success) {
+      if (permissionsResult?.success && descriptionsResult?.success && permissionsResult.data && descriptionsResult.data) {
         const result: PermissionsResult = permissionsResult.data
         const descriptions = descriptionsResult.data
 
@@ -67,7 +66,6 @@ export function usePermissions() {
 
   const openSystemPreferences = useCallback(async () => {
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.openSystemPreferences?.()
       if (!result?.success) {
         throw new Error(result?.error || 'Failed to open system preferences')
@@ -79,7 +77,6 @@ export function usePermissions() {
 
   const openPermissionPage = useCallback(async (permissionType: string) => {
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.openPermissionPage?.(permissionType)
       if (!result?.success) {
         throw new Error(result?.error || 'Failed to open permission page')
@@ -94,19 +91,34 @@ export function usePermissions() {
     setError(null)
     
     try {
-      // @ts-expect-error - Electron IPC types not available
-      const result = await window.electron?.requestCriticalPermissions?.()
-      if (result?.success) {
-        const permissionList: Permission[] = result.data.results.map((result) => {
-          const desc = descriptions[result.permission]
+      const [result, descriptionsResult] = await Promise.all([
+        window.electron?.requestCriticalPermissions?.(),
+        window.electron?.getPermissionDescriptions?.()
+      ])
+      
+      if (result?.success && descriptionsResult?.success && result.data && descriptionsResult.data) {
+        const descriptions = descriptionsResult.data
+        const permissionList: Permission[] = result.data.results.map((resultItem: { permission: string; granted: boolean; error: string | null }) => {
+          const desc = descriptions[resultItem.permission]
+          if (!desc) {
+            return {
+              name: resultItem.permission,
+              description: resultItem.permission,
+              why: '',
+              icon: '🔒',
+              critical: false,
+              granted: resultItem.granted,
+              error: resultItem.error || undefined
+            }
+          }
           return {
             name: desc.name,
             description: desc.description,
             why: desc.why,
             icon: desc.icon,
             critical: desc.critical,
-            granted: result.granted,
-            error: result.error || undefined
+            granted: resultItem.granted,
+            error: resultItem.error || undefined
           }
         })
         setPermissions(permissionList)
@@ -122,7 +134,6 @@ export function usePermissions() {
 
   const requestPermission = useCallback(async (permissionName: string) => {
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.requestPermission?.(permissionName)
       if (result?.success) {
         // Refresh permissions after requesting

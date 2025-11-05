@@ -218,7 +218,6 @@ export function ProfileMenuTrigger() {
           <DropdownMenuItem
             onClick={() => {
               setDropdownOpen(false)
-              // @ts-expect-error - Electron IPC types not available
               window.electron?.openExternalLink?.("https://liquidb.app/help")
             }}
             className="cursor-pointer gap-2"
@@ -235,7 +234,6 @@ export function ProfileMenuTrigger() {
         <DropdownMenuItem
           onClick={() => {
             setDropdownOpen(false)
-            // @ts-expect-error - Electron IPC types not available
             window.electron?.quitApp?.()
           }}
           className="cursor-pointer text-destructive focus:text-destructive gap-2"

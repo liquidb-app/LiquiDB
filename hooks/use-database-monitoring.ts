@@ -62,7 +62,6 @@ export function useDatabaseMonitoring({
   const fetchSystemInfo = useCallback(async (databaseId: string) => {
     try {
       log.debug(`Fetching system info for database ${databaseId}`)
-      // @ts-expect-error - Electron IPC types not available
       const systemInfo = await window.electron?.getDatabaseSystemInfo?.(databaseId)
       
       log.verbose(`Raw system info for ${databaseId}:`, systemInfo)

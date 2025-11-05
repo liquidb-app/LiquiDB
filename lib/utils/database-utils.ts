@@ -23,13 +23,11 @@ export function isContainerIdDuplicate(containerId: string, databases: DatabaseC
  */
 export async function checkDatabasesFileExists(): Promise<boolean> {
   try {
-    // @ts-expect-error - Electron IPC types not available
     const fileCheck = await window.electron?.checkDatabasesFile?.()
     if (fileCheck && !fileCheck.exists) {
       console.log("[Storage] databases.json file missing during runtime, clearing dashboard")
       
       // Recreate the file
-      // @ts-expect-error - Electron IPC types not available
       const recreateResult = await window.electron?.recreateDatabasesFile?.()
       if (recreateResult?.success) {
         console.log("[Storage] Recreated databases.json file")

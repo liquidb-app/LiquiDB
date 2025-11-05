@@ -23,7 +23,6 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
   const checkHealth = async () => {
     setIsChecking(true)
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.getHelperHealth?.()
       if (result?.success) {
         const isMainAppRunning = window.electron?.isElectron
@@ -46,12 +45,10 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
   const handleReinstall = async () => {
     setIsReinstalling(true)
     try {
-      // @ts-expect-error - Electron IPC types not available
       await window.electron?.uninstallHelper?.()
       
       await new Promise(resolve => setTimeout(resolve, 1000))
       
-      // @ts-expect-error - Electron IPC types not available
       const installResult = await window.electron?.startHelper?.()
       
       if (installResult?.success) {

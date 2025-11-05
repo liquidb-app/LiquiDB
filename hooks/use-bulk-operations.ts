@@ -205,7 +205,6 @@ export function useBulkOperations({
           await new Promise(resolve => setTimeout(resolve, 500 * index))
         }
 
-        // @ts-expect-error - Electron IPC types not available
         const result = await window.electron?.stopDatabase?.(db.id)
         return { id: db.id, success: result?.success || false, error: result?.error }
       } catch (error) {

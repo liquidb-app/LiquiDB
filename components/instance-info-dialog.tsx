@@ -57,7 +57,6 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
     setError(null)
     
     try {
-      // @ts-expect-error - Electron IPC types not available
       const info = await window.electron?.getDatabaseSystemInfo?.(databaseId)
       setSystemInfo(info)
       

@@ -276,7 +276,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
 
   const handleOpenExternalLink = async (url: string) => {
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.openExternalLink?.(url)
       if (!result?.success) {
         notifyError("Failed to open link", {
@@ -302,7 +301,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
       if (onDeleteAll) {
         await onDeleteAll()
       } else {
-        // @ts-expect-error - Electron IPC types not available
         const result = await window.electron?.deleteAllDatabases?.()
         if (result?.success) {
           notifySuccess("All databases deleted", {
@@ -328,7 +326,6 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
   const handleHelperAction = async (action: 'install' | 'start' | 'cleanup') => {
     setHelperLoading(true)
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.[`${action}Helper`]?.()
       if (result?.success) {
         const method = result.data?.method === 'direct' ? ' (direct cleanup)' : ''

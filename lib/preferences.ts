@@ -108,7 +108,6 @@ export async function setAutoLaunch(enabled: boolean): Promise<void> {
       return
     }
 
-    // @ts-expect-error - Electron IPC types not available
     const result = enabled 
       ? await window.electron?.enableAutoLaunch?.()
       : await window.electron?.disableAutoLaunch?.()
@@ -127,9 +126,8 @@ export async function setAutoLaunch(enabled: boolean): Promise<void> {
 // Banned ports functions
 export async function getBannedPorts(): Promise<number[]> {
   try {
-    // @ts-expect-error - Electron IPC types not available
     const result = await window.electron?.getBannedPorts?.()
-    return result?.success ? result.data : []
+    return result?.success && result.data ? result.data : []
   } catch (error) {
     console.error("Failed to get banned ports:", error)
     return []
@@ -144,7 +142,6 @@ export async function setBannedPorts(ports: number[]): Promise<void> {
       return
     }
 
-    // @ts-expect-error - Electron IPC types not available
     const result = await window.electron?.setBannedPorts?.(ports)
     if (!result?.success) {
       console.error("Failed to set banned ports:", result?.error)

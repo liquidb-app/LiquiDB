@@ -87,7 +87,6 @@ export function useDatabaseOperations({
           onClick: async () => {
             const updatedDb = { ...targetDb, port: suggestedPort }
             try {
-              // @ts-expect-error - Electron IPC types not available
               await window.electron?.saveDatabase?.(updatedDb)
               setDatabases(prev => prev.map(db => db.id === id ? updatedDb : db))
               notifySuccess("Port Updated", {
@@ -144,7 +143,6 @@ export function useDatabaseOperations({
     })
 
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.startDatabase?.(targetDb)
       
       if (result?.success) {
@@ -233,7 +231,6 @@ export function useDatabaseOperations({
     )
 
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.stopDatabase?.(id)
       if (result?.success) {
         setDatabases((prev) =>
@@ -284,7 +281,6 @@ export function useDatabaseOperations({
       })
 
       try {
-        // @ts-expect-error - Electron IPC types not available
         const stopResult = await window.electron?.stopDatabase?.(id)
         
         if (stopResult?.success) {
@@ -306,9 +302,7 @@ export function useDatabaseOperations({
 
   const deleteDatabase = useCallback((id: string) => {
     const db = databases.find((d) => d.id === id)
-    // @ts-expect-error - Electron IPC types not available
     if (window.electron?.deleteDatabase) {
-      // @ts-expect-error - Electron IPC types not available
       window.electron.deleteDatabase(id)
     }
     setDatabases(databases.filter((d) => d.id !== id))
@@ -341,7 +335,6 @@ export function useDatabaseOperations({
     setDatabases(databases.map((db) => (db.id === updatedDatabase.id ? updatedDatabase : db)))
     
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.saveDatabase?.(updatedDatabase)
       if (result && result.success === false) {
         notifyError("Failed to update database", {
@@ -363,7 +356,6 @@ export function useDatabaseOperations({
       })
 
       try {
-        // @ts-expect-error - Electron IPC types not available
         const stopResult = await window.electron?.stopDatabase?.(updatedDatabase.id)
         
         if (stopResult?.success) {
@@ -407,9 +399,7 @@ export function useDatabaseOperations({
     }
 
     try {
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.saveDatabase) {
-        // @ts-expect-error - Electron IPC types not available
         await window.electron.saveDatabase(database)
       }
     } catch (error) {

@@ -34,9 +34,7 @@ export function isPortBanned(port: number, bannedPorts: number[]): boolean {
  */
 export async function checkPortConflict(port: number): Promise<{ inUse: boolean; processName?: string; pid?: string }> {
   try {
-    // @ts-expect-error - Electron IPC types not available
     if (window.electron?.checkPortConflict) {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron.checkPortConflict(port)
       // Only return false if we got a definitive success response
       if (result?.success === true && result?.inUse === false) {

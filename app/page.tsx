@@ -271,11 +271,10 @@ export default function DatabaseManager() {
   // Handle opening external links
   const handleOpenExternalLink = async (url: string) => {
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.openExternalLink?.(url)
-      if (!result?.success) {
+      if (result && !result.success) {
         notifyError("Failed to open link", {
-          description: result?.error || "Could not open the link in your default browser.",
+          description: result.error || "Could not open the link in your default browser.",
         })
       }
     } catch {
@@ -519,9 +518,7 @@ export default function DatabaseManager() {
   // Function to check for port conflicts dynamically (no caching)
   const checkPortConflict = async (port: number): Promise<{ inUse: boolean; processName?: string; pid?: string }> => {
     try {
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.checkPortConflict) {
-        // @ts-expect-error - Electron IPC types not available
         const result = await window.electron.checkPortConflict(port)
         // Only return false if we got a definitive success response
         if (result?.success === true && result?.inUse === false) {
@@ -826,7 +823,6 @@ export default function DatabaseManager() {
   const fetchSystemInfo = async (databaseId: string) => {
     try {
       log.debug(`Fetching system info for database ${databaseId}`)
-      // @ts-expect-error - Electron IPC types not available
       const systemInfo = await window.electron?.getDatabaseSystemInfo?.(databaseId)
       
       log.verbose(`Raw system info for ${databaseId}:`, systemInfo)
@@ -919,7 +915,6 @@ export default function DatabaseManager() {
       // Check if databases.json file exists
       let fileExists = false
       try {
-        // @ts-expect-error - Electron IPC types not available
         const fileCheck = await window.electron?.checkDatabasesFile?.()
         fileExists = fileCheck?.exists || false
         
@@ -935,9 +930,7 @@ export default function DatabaseManager() {
       
       // Try to load databases with retry logic
       try {
-        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.getDatabases) {
-          // @ts-expect-error - Electron IPC types not available
           const list = await window.electron.getDatabases()
           const databases = Array.isArray(list) ? list : []
           
@@ -967,14 +960,11 @@ export default function DatabaseManager() {
             
             // Clean up any dead processes first
             try {
-              // @ts-expect-error - Electron IPC types not available
               if (window.electron?.cleanupDeadProcesses) {
-                // @ts-expect-error - Electron IPC types not available
                 const cleanupResult = await window.electron.cleanupDeadProcesses()
                 if (cleanupResult.success && (cleanupResult.cleanedProcesses > 0 || cleanupResult.updatedStatuses > 0)) {
                   console.log(`[Cleanup] Cleaned up ${cleanupResult.cleanedProcesses} dead processes, updated ${cleanupResult.updatedStatuses} statuses`)
                   // Reload databases after cleanup
-                  // @ts-expect-error - Electron IPC types not available
                   const cleanedList = await window.electron.getDatabases()
                   const cleanedDatabases = Array.isArray(cleanedList) ? cleanedList : []
                   setDatabases(cleanedDatabases)
@@ -991,7 +981,6 @@ export default function DatabaseManager() {
           // Force immediate status check for all databases
           const checkDatabasesFileExists = async () => {
             try {
-              // @ts-expect-error - Electron IPC types not available
               const fileCheck = await window.electron?.checkDatabasesFile?.()
               if (!fileCheck?.exists) {
                 console.log("[Storage] databases.json file deleted, clearing dashboard")
@@ -1046,7 +1035,6 @@ export default function DatabaseManager() {
                 for (const db of databasesToCheck) {
                   if (!isMounted) break
                   try {
-                    // @ts-expect-error - Electron IPC types not available
                     const status = await window.electron?.checkDatabaseStatus?.(db.id)
                     
                     if (status?.status && status.status !== db.status && isMounted) {
@@ -1074,7 +1062,7 @@ export default function DatabaseManager() {
                       }
                       
                       console.log(`[Status Update] Database ${db.id}: ${db.status} → ${status.status}`)
-                      statusUpdates.push({ id: db.id, status: status.status, pid: status.pid })
+                      statusUpdates.push({ id: db.id, status: status.status, pid: status.pid ?? undefined })
                     }
                   } catch (error) {
                     console.log(`[Status Check Error] Database ${db.id}:`, error)
@@ -1174,10 +1162,8 @@ export default function DatabaseManager() {
           systemInfoInterval = startSystemInfoMonitoring()
           
           // Set up real-time status change listener from electron main process
-          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.onDatabaseStatusChanged) {
             log.debug(`Setting up database status listener`)
-            // @ts-expect-error - Electron IPC types not available
             window.electron.onDatabaseStatusChanged((data: { id: string, status: DatabaseStatus, error?: string, exitCode?: number, ready?: boolean, pid?: number }) => {
               if (!isMounted) return
               
@@ -1276,17 +1262,12 @@ export default function DatabaseManager() {
           }
           
           // Set up auto-start event listeners (remove existing listeners first to prevent leaks)
-          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.removeAllListeners) {
-            // @ts-expect-error - Electron IPC types not available
             window.electron.removeAllListeners('auto-start-port-conflicts')
-            // @ts-expect-error - Electron IPC types not available
             window.electron.removeAllListeners('auto-start-completed')
           }
           
-          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.onAutoStartPortConflicts) {
-            // @ts-expect-error - Electron IPC types not available
             window.electron.onAutoStartPortConflicts((event, data) => {
               if (!isMounted) return
               
@@ -1302,9 +1283,7 @@ export default function DatabaseManager() {
             })
           }
           
-          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.onAutoStartCompleted) {
-            // @ts-expect-error - Electron IPC types not available
             window.electron.onAutoStartCompleted((event, data) => {
               if (!isMounted) return
               
@@ -1377,13 +1356,9 @@ export default function DatabaseManager() {
         })
         pendingTimeouts.clear()
         
-        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.removeAllListeners) {
-          // @ts-expect-error - Electron IPC types not available
           window.electron.removeAllListeners('database-status-changed')
-          // @ts-expect-error - Electron IPC types not available
           window.electron.removeAllListeners('auto-start-port-conflicts')
-          // @ts-expect-error - Electron IPC types not available
           window.electron.removeAllListeners('auto-start-completed')
         }
       }
@@ -1411,14 +1386,12 @@ export default function DatabaseManager() {
 
   const checkDatabasesFileExists = async () => {
     try {
-      // @ts-expect-error - Electron IPC types not available
       const fileCheck = await window.electron?.checkDatabasesFile?.()
       if (fileCheck && !fileCheck.exists) {
         console.log("[Storage] databases.json file missing during runtime, clearing dashboard")
         setDatabases([])
         
         // Recreate the file
-        // @ts-expect-error - Electron IPC types not available
         const recreateResult = await window.electron?.recreateDatabasesFile?.()
         if (recreateResult?.success) {
           console.log("[Storage] Recreated databases.json file")
@@ -1624,7 +1597,6 @@ export default function DatabaseManager() {
           await new Promise(resolve => setTimeout(resolve, 500 * index))
         }
 
-        // @ts-expect-error - Electron IPC types not available
         const result = await window.electron?.stopDatabase?.(db.id)
         return { id: db.id, success: result?.success || false, error: result?.error }
       } catch (error) {
@@ -1867,14 +1839,12 @@ export default function DatabaseManager() {
       
       // Check if databases.json file exists
       try {
-        // @ts-expect-error - Electron IPC types not available
         const fileCheck = await window.electron?.checkDatabasesFile?.()
         if (fileCheck && !fileCheck.exists) {
           console.log("[Storage] databases.json file missing, clearing dashboard")
           if (isMounted) setDatabases([])
           
           // Recreate the file
-          // @ts-expect-error - Electron IPC types not available
           const recreateResult = await window.electron?.recreateDatabasesFile?.()
           if (recreateResult?.success) {
             console.log("[Storage] Recreated databases.json file")
@@ -1885,9 +1855,7 @@ export default function DatabaseManager() {
         console.error("[Storage] Error checking databases file:", error)
       }
       
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.getDatabases) {
-        // @ts-expect-error - Electron IPC types not available
         const list = await window.electron.getDatabases()
         const databases = Array.isArray(list) ? list : []
         
@@ -1902,10 +1870,8 @@ export default function DatabaseManager() {
         
         // Save updated databases if any were fixed
         if (updatedDatabases.some((db, index) => db.status !== databases[index]?.status)) {
-          // @ts-expect-error - Electron IPC types not available
           if (window.electron?.saveDatabase) {
             for (const db of updatedDatabases) {
-              // @ts-expect-error - Electron IPC types not available
               await window.electron.saveDatabase(db)
             }
           }
@@ -1919,7 +1885,6 @@ export default function DatabaseManager() {
           if (!isMounted) return
           for (const db of updatedDatabases) {
             try {
-              // @ts-expect-error - Electron IPC types not available
               const status = await window.electron?.checkDatabaseStatus?.(db.id)
               if (status?.status && status.status !== db.status && isMounted) {
                 console.log(`[App Load] Database ${db.id} is actually ${status.status}`)
@@ -1980,7 +1945,6 @@ export default function DatabaseManager() {
                 databasesToCheck.forEach(async (db) => {
                   if (!isMounted) return
                   try {
-                    // @ts-expect-error - Electron IPC types not available
                     const status = await window.electron?.checkDatabaseStatus?.(db.id)
                     
                     if (status?.status && status.status !== db.status && isMounted) {
@@ -2032,10 +1996,8 @@ export default function DatabaseManager() {
         statusInterval = startStatusMonitoring()
         
         // Set up real-time status change listener from electron main process
-        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.onDatabaseStatusChanged) {
           console.log(`[Listener Setup] Setting up database status listener`)
-          // @ts-expect-error - Electron IPC types not available
           window.electron.onDatabaseStatusChanged((data: { id: string, status: DatabaseStatus, error?: string, exitCode?: number, ready?: boolean, pid?: number }) => {
             if (!isMounted) return
             
@@ -2138,18 +2100,13 @@ export default function DatabaseManager() {
     }
     
     // Set up auto-start port conflict listener (remove existing listeners first to prevent leaks)
-    // @ts-expect-error - Electron IPC types not available
     if (window.electron?.removeAllListeners) {
-      // @ts-expect-error - Electron IPC types not available
       window.electron.removeAllListeners('auto-start-port-conflicts')
-      // @ts-expect-error - Electron IPC types not available
       window.electron.removeAllListeners('auto-start-completed')
     }
     
-    // @ts-expect-error - Electron IPC types not available
     if (window.electron?.onAutoStartPortConflicts) {
       console.log(`[Listener Setup] Setting up auto-start port conflicts listener`)
-      // @ts-expect-error - Electron IPC types not available
       window.electron.onAutoStartPortConflicts((event, data) => {
         if (!isMounted) return
         
@@ -2166,10 +2123,8 @@ export default function DatabaseManager() {
     }
     
     // Set up auto-start completion listener
-    // @ts-expect-error - Electron IPC types not available
     if (window.electron?.onAutoStartCompleted) {
       console.log(`[Listener Setup] Setting up auto-start completion listener`)
-      // @ts-expect-error - Electron IPC types not available
       window.electron.onAutoStartCompleted((event, data) => {
         if (!isMounted) return
         
@@ -2211,9 +2166,7 @@ export default function DatabaseManager() {
       })
       pendingTimeouts.clear()
       
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.removeDatabaseStatusListener) {
-        // @ts-expect-error - Electron IPC types not available
         window.electron.removeDatabaseStatusListener()
       }
     }
@@ -2250,9 +2203,7 @@ export default function DatabaseManager() {
     }
 
     try {
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.saveDatabase) {
-        // @ts-expect-error - Electron IPC types not available
         await window.electron.saveDatabase(database)
       }
     } catch (error) {
@@ -2344,7 +2295,6 @@ export default function DatabaseManager() {
             // Update the database port and save it
             const updatedDb = { ...targetDb, port: suggestedPort }
             try {
-              // @ts-expect-error - Electron IPC types not available
               await window.electron?.saveDatabase?.(updatedDb)
               setDatabases(prev => prev.map(db => db.id === id ? updatedDb : db))
               notifySuccess("Port Updated", {
@@ -2408,7 +2358,6 @@ export default function DatabaseManager() {
     })
 
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.startDatabase?.(targetDb)
       
       if (result?.success) {
@@ -2521,7 +2470,6 @@ export default function DatabaseManager() {
               // Update the database port and save it
               const updatedDb = { ...targetDb, port: suggestedPort }
               try {
-                // @ts-expect-error - Electron IPC types not available
                 await window.electron?.saveDatabase?.(updatedDb)
                 setDatabases(prev => prev.map(db => db.id === id ? updatedDb : db))
                 notifySuccess("Port Updated", {
@@ -2555,7 +2503,6 @@ export default function DatabaseManager() {
       )
 
       try {
-        // @ts-expect-error - Electron IPC types not available
         const result = await window.electron?.stopDatabase?.(id)
         if (result?.success) {
           setDatabases((prev) =>
@@ -2610,18 +2557,14 @@ export default function DatabaseManager() {
     
     // Perform actual deletion in background (non-blocking)
     try {
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.deleteDatabase) {
-        // @ts-expect-error - Electron IPC types not available
         await window.electron.deleteDatabase(id)
       }
     } catch (error) {
       console.error(`[Delete] Error deleting database ${id}:`, error)
       // If deletion failed, reload databases to sync state
       try {
-        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.getDatabases) {
-          // @ts-expect-error - Electron IPC types not available
           const list = await window.electron.getDatabases()
           setDatabases(Array.isArray(list) ? list : [])
         }
@@ -2670,7 +2613,6 @@ export default function DatabaseManager() {
     
     // Actually delete all databases
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.deleteAllDatabases?.()
       if (result?.success) {
         // Wait a bit more to ensure all animations complete
@@ -2743,7 +2685,6 @@ export default function DatabaseManager() {
     
     // Save the updated database to Electron storage with validation
     try {
-      // @ts-expect-error - Electron IPC types not available
       const result = await window.electron?.saveDatabase?.(updatedDatabase)
       if (result && result.success === false) {
         notifyError("Failed to update database", {
@@ -2769,7 +2710,6 @@ export default function DatabaseManager() {
 
       try {
         // Stop the database first
-        // @ts-expect-error - Electron IPC types not available
         const stopResult = await window.electron?.stopDatabase?.(updatedDatabase.id)
         
         if (stopResult?.success) {
@@ -2845,7 +2785,6 @@ export default function DatabaseManager() {
 
       try {
         // Stop the database first
-        // @ts-expect-error - Electron IPC types not available
         const stopResult = await window.electron?.stopDatabase?.(id)
         
         if (stopResult?.success) {

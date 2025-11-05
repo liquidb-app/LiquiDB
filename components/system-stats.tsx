@@ -52,7 +52,6 @@ export function SystemStats() {
 
   const fetchStats = async () => {
     try {
-      // @ts-expect-error - Electron IPC types not available
       const data = await window.electron?.getSystemStats?.()
       if (data) {
         setStats(data)
