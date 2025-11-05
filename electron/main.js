@@ -2537,9 +2537,90 @@ ipcMain.handle("open-external-link", async (event, url) => {
   }
 })
 
-// Dashboard ready handler - trigger auto-start immediately when dashboard is loaded
+} // End of if (!process.argv.includes('--mcp') && ipcMain) for external-link handler
+
+// Dashboard ready handler - trigger auto-start immediately when dashboard is loaded (skip in MCP mode)
+if (!process.argv.includes('--mcp') && ipcMain) {
 ipcMain.handle("dashboard-ready", async () => {
   try {
+    // Initialize MCP server when app is fully loaded
+    // Check if MCP server is already running (only if not in --mcp mode)
+    if (!process.argv.includes('--mcp')) {
+      const mcpStatus = getMCPServerStatus()
+      if (!mcpStatus.running) {
+        console.log("[MCP] Starting MCP server...")
+        
+        // Create wrapper functions for MCP server
+        const startDatabaseFn = async (database) => {
+          try {
+            // Check if database is already running
+            if (runningDatabases.has(database.id)) {
+              return { success: false, error: "Database already running" }
+            }
+            
+            // Start the database using the existing startDatabaseProcess function
+            const result = await startDatabaseProcess(database)
+            return result
+          } catch (error) {
+            console.error(`[MCP] Error starting database ${database.id}:`, error)
+            return { success: false, error: error.message }
+          }
+        }
+        
+        const stopDatabaseFn = async (id) => {
+          try {
+            const db = runningDatabases.get(id)
+            if (!db) {
+              return { success: false, error: "Database not running" }
+            }
+            
+            // Clean up temporary files when stopping database
+            try {
+              const databases = storage.loadDatabases(app)
+              const dbRecord = databases.find(d => d.id === id)
+              if (dbRecord?.containerId) {
+                await cleanupDatabaseTempFiles(app, dbRecord.containerId, dbRecord.type)
+              }
+            } catch (error) {
+              console.error(`[MCP] Error cleaning temp files for ${id}:`, error)
+            }
+            
+            // Stop the database process
+            db.process.kill("SIGTERM")
+            runningDatabases.delete(id)
+            
+            // Update database in storage
+            try {
+              const databases = storage.loadDatabases(app)
+              const dbIndex = databases.findIndex(db => db.id === id)
+              if (dbIndex >= 0) {
+                databases[dbIndex].status = 'stopped'
+                databases[dbIndex].pid = null
+                storage.saveDatabases(app, databases)
+              }
+            } catch (error) {
+              console.error(`[MCP] Error updating storage for ${id}:`, error)
+            }
+            
+            return { success: true }
+          } catch (error) {
+            console.error(`[MCP] Error stopping database ${id}:`, error)
+            return { success: false, error: error.message }
+          }
+        }
+        
+        // Initialize and start the MCP server
+        const mcpStarted = await initializeMCPServer(app, startDatabaseFn, stopDatabaseFn)
+        if (mcpStarted) {
+          console.log("[MCP] MCP server started successfully")
+        } else {
+          console.error("[MCP] Failed to start MCP server")
+        }
+      } else {
+        console.log("[MCP] MCP server is already running")
+      }
+    }
+    
     if (autoStartTriggered) {
       console.log("[Auto-start] Auto-start already triggered, ignoring dashboard-ready signal")
       return { success: true, alreadyTriggered: true }
