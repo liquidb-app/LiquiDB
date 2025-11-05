@@ -28,6 +28,7 @@ const brew = require("./brew")
 const storage = require("./storage")
 const HelperServiceManager = require("./helper-service")
 const PermissionsManager = require("./permissions")
+const { getMCPServerStatus, getMCPConnectionInfo } = require("./mcp-server")
 const https = require("https")
 const http = require("http")
 const AutoLaunch = require("auto-launch")
@@ -4990,6 +4991,28 @@ ipcMain.handle("helper:status", async (event) => {
     return { success: true, data: status }
   } catch (error) {
     console.error("[Helper Status] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+// MCP server status
+ipcMain.handle("mcp:status", async (event) => {
+  try {
+    const status = getMCPServerStatus()
+    return { success: true, data: status }
+  } catch (error) {
+    console.error("[MCP Status] Error:", error)
+    return { success: false, error: error.message }
+  }
+})
+
+// MCP connection info
+ipcMain.handle("mcp:connection-info", async (event) => {
+  try {
+    const info = getMCPConnectionInfo()
+    return { success: true, data: info }
+  } catch (error) {
+    console.error("[MCP Connection Info] Error:", error)
     return { success: false, error: error.message }
   }
 })

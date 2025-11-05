@@ -11,6 +11,8 @@ declare global {
       getHelperStatus?: () => Promise<{ success: boolean; data?: { installed: boolean; running: boolean }; error?: string }>
       installHelper?: () => Promise<{ success: boolean; error?: string }>
       startHelperOnDemand?: () => Promise<{ success: boolean; error?: string }>
+      getMCPStatus?: () => Promise<{ success: boolean; data?: { running: boolean; name: string }; error?: string }>
+      getMCPConnectionInfo?: () => Promise<{ success: boolean; data?: { name: string; command: string; args: string[]; description: string; isDevelopment: boolean }; error?: string }>
       getBannedPorts?: () => Promise<{ success: boolean; data?: number[]; error?: string }>
       setBannedPorts?: (ports: number[]) => Promise<{ success: boolean; error?: string }>
       getSystemStats?: () => Promise<{
