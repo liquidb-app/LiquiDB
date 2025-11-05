@@ -63,7 +63,6 @@ export function ProfileMenuTrigger() {
           className="h-9 w-9 rounded-full p-0 hover:bg-accent/50 transition-colors relative cursor-pointer select-none"
           style={{ 
             userSelect: 'none',
-            WebkitUserSelect: 'none',
             MozUserSelect: 'none',
             msUserSelect: 'none',
             cursor: 'pointer'
@@ -74,7 +73,6 @@ export function ProfileMenuTrigger() {
             className="h-8 w-8 select-none"
             style={{ 
               userSelect: 'none',
-              WebkitUserSelect: 'none',
               MozUserSelect: 'none',
               msUserSelect: 'none'
             }}
@@ -87,15 +85,7 @@ export function ProfileMenuTrigger() {
                 draggable={false}
                 style={{ 
                   userSelect: 'none',
-                  WebkitUserSelect: 'none',
-                  MozUserSelect: 'none',
-                  msUserSelect: 'none',
                   pointerEvents: 'none',
-                  WebkitUserDrag: 'none',
-                  KhtmlUserDrag: 'none',
-                  MozUserDrag: 'none',
-                  OUserDrag: 'none',
-                  userDrag: 'none'
                 }}
               />
             )}
@@ -103,9 +93,6 @@ export function ProfileMenuTrigger() {
               className="text-[10px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors pointer-events-none select-none"
               style={{ 
                 userSelect: 'none',
-                WebkitUserSelect: 'none',
-                MozUserSelect: 'none',
-                msUserSelect: 'none',
                 pointerEvents: 'none'
               }}
             >
@@ -117,7 +104,6 @@ export function ProfileMenuTrigger() {
             aria-hidden="true"
             style={{ 
               userSelect: 'none',
-              WebkitUserSelect: 'none',
               pointerEvents: 'none'
             }}
           />
