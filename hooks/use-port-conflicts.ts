@@ -12,11 +12,13 @@ export function usePortConflicts() {
   useEffect(() => {
     const loadBannedPorts = async () => {
       try {
-        // @ts-expect-error - Electron IPC types not available
         if (window.electron?.getBannedPorts) {
-          // @ts-expect-error - Electron IPC types not available
-          const ports = await window.electron.getBannedPorts()
-          setBannedPorts(Array.isArray(ports) ? ports : [])
+          const result = await window.electron.getBannedPorts()
+          if (result.success && result.data) {
+            setBannedPorts(result.data)
+          } else {
+            setBannedPorts([])
+          }
         } else {
           const saved = localStorage.getItem("blacklisted-ports")
           if (saved) setBannedPorts(JSON.parse(saved))
