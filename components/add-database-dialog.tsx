@@ -23,7 +23,7 @@ import { Eye, EyeOff, Info } from "lucide-react"
 import { SparklesIcon } from "@/components/ui/sparkles"
 import { toast } from "sonner"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import type { DatabaseContainer } from "@/lib/types"
+import type { DatabaseContainer, DatabaseType } from "@/lib/types"
 
 const renderDatabaseIcon = (icon: string | undefined, className: string = "w-full h-full object-cover") => {
   if (!icon) {
@@ -106,7 +106,7 @@ interface AddDatabaseDialogProps {
   onAdd: (database: DatabaseContainer) => void
 }
 
-const DATABASE_CONFIGS = {
+const DATABASE_CONFIGS: Record<DatabaseType, { defaultPort: number; brewPackage: string; icon: string }> = {
   postgresql: {
     defaultPort: 5432,
     brewPackage: "postgresql",
@@ -261,9 +261,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       }
       
       const [versionDetails, stableVersionsData] = await Promise.all([
-        // @ts-expect-error - Electron IPC types not available
         window.electron?.getBrewVersions?.(brewPackage) || Promise.resolve([]),
-        // @ts-expect-error - Electron IPC types not available
         withTimeout(
           window.electron?.getStableVersions?.(databaseType) || Promise.resolve([]),
           5000,
@@ -274,8 +272,8 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       setStableVersions(stableVersionsData)
       
       if (versionDetails && versionDetails.length > 0) {
-        const uniqueVersions = versionDetails.filter((versionDetail, index, self) => 
-          index === self.findIndex(v => v.fullVersion === versionDetail.fullVersion)
+        const uniqueVersions = versionDetails.filter((versionDetail: { majorVersion: string; fullVersion: string; packageName: string }, index: number, self: { majorVersion: string; fullVersion: string; packageName: string }[]) => 
+          index === self.findIndex((v: { majorVersion: string; fullVersion: string; packageName: string }) => v.fullVersion === versionDetail.fullVersion)
         )
         setAvailableVersions(uniqueVersions)
         setVersion(uniqueVersions[0].fullVersion)
@@ -296,7 +294,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
 
 
   const getFallbackVersionDetails = (databaseType: DatabaseType): Array<{majorVersion: string, fullVersion: string, packageName: string}> => {
-    const fallbackDetails = {
+    const fallbackDetails: Record<DatabaseType, Array<{majorVersion: string, fullVersion: string, packageName: string}>> = {
       postgresql: [
         { majorVersion: "16", fullVersion: "16.1", packageName: "postgresql@16" },
         { majorVersion: "15", fullVersion: "15.5", packageName: "postgresql@15" },
@@ -642,12 +640,10 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       setInstallProgress(10)
       setInstallMsg("Checking Homebrew…")
       
-      // @ts-expect-error - Electron IPC types not available
       const hasBrew = await window.electron?.brewIsInstalled?.()
       if (!hasBrew) {
         setInstallProgress(20)
         setInstallMsg("Installing Homebrew… this could take a few minutes")
-        // @ts-expect-error - Electron IPC types not available
         await window.electron?.brewInstall?.()
         setInstallProgress(50)
       }
@@ -658,11 +654,10 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       const versionDetail = availableVersions.find(v => v.fullVersion === version)
       const majorVersion = versionDetail?.majorVersion || version.split('.').slice(0, 2).join('.')
       
-      // @ts-expect-error - Electron IPC types not available
       const installResult = await window.electron?.brewInstallDb?.({ dbType: selectedType, version: majorVersion })
       
       setInstallProgress(100)
-      if (installResult?.alreadyInstalled || installResult?.stdout?.includes("already installed")) {
+      if (typeof installResult === 'object' && (installResult?.alreadyInstalled || installResult?.stdout?.includes("already installed"))) {
         setInstallMsg(`${selectedType} ${version} is already installed and ready to use.`)
       } else {
         setInstallMsg("Installation complete! Database is ready to start.")
@@ -704,9 +699,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
         dataPath: `~/Library/Application Support/LiquiDB/databases/${id}`,
       }
       
-      // @ts-expect-error - Electron IPC types not available
       if (window.electron?.saveDatabase) {
-        // @ts-expect-error - Electron IPC types not available
         await window.electron.saveDatabase(database)
       }
       
@@ -751,20 +744,16 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       switch (event.key) {
         case 'Enter':
           event.preventDefault()
-          if (step === 'form') {
+          if (step === 'config') {
             handleSubmit()
-          } else if (step === 'install') {
-            if (!installing && canStart) {
-              handleSubmit()
-            }
           }
           break
         case 'Escape':
           event.preventDefault()
-          if (step === 'form') {
+          if (step === 'config') {
             handleClose()
-          } else if (step === 'install') {
-            handleBack()
+          } else if (step === 'type') {
+            handleClose()
           }
           break
       }
