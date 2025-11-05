@@ -434,7 +434,10 @@ export function DatabaseSettingsDialog({
           let actualPassword = password
           if (!actualPassword || actualPassword === "") {
             if (window.electron?.getPassword) {
-              actualPassword = await window.electron.getPassword(database.id)
+              const pass = await window.electron.getPassword(database.id)
+              if (pass) {
+                actualPassword = pass
+              }
             }
           }
           

@@ -29,7 +29,9 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
         if (isMainAppRunning) {
           setIsHealthy(true)
         } else {
-          setIsHealthy(result.data.isHealthy)
+          if (result.data) {
+            setIsHealthy(result.data.isHealthy)
+          }
         }
       } else {
         setIsHealthy(false)
