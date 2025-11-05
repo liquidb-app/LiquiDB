@@ -45,12 +45,11 @@
     "files": [
       "electron/**/*",
       ".next/standalone/**/*",
-      "resources/**/*",
+      "!resources/**/*",
       "package.json"
     ],
     "asarUnpack": [
-      ".next/standalone/**/*",
-      "resources/**/*"
+      ".next/standalone/**/*"
     ],
     "extraResources": [
       {
@@ -67,7 +66,13 @@
       "target": [
         "dmg",
         "zip"
-      ]
+      ],
+      "type": "distribution",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "writeUpdateInfo": false
     },
     "win": {
       "target": [
