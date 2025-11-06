@@ -32,11 +32,14 @@ let isMCPServerRunning = false
  */
 async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn) {
   try {
-    log.info("Initializing MCP server...")
+    log.info("[MCP] Initializing MCP server...")
+    log.debug("[MCP] App instance available:", !!appInstance)
+    log.debug("[MCP] Start database function available:", typeof startDatabaseFn === 'function')
+    log.debug("[MCP] Stop database function available:", typeof stopDatabaseFn === 'function')
     
     // Ensure app is available
     if (!appInstance) {
-      log.error("MCP: App instance not available")
+      log.error("[MCP] App instance not available")
       return false
     }
     
@@ -44,12 +47,16 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
     let Server, StdioServerTransport, CallToolRequestSchema, ListToolsRequestSchema
     
     try {
+      log.debug("[MCP] Loading MCP SDK components...")
       Server = require("@modelcontextprotocol/sdk/server/index.js").Server
       StdioServerTransport = require("@modelcontextprotocol/sdk/server/stdio.js").StdioServerTransport
       CallToolRequestSchema = require("@modelcontextprotocol/sdk/types.js").CallToolRequestSchema
       ListToolsRequestSchema = require("@modelcontextprotocol/sdk/types.js").ListToolsRequestSchema
+      log.debug("[MCP] MCP SDK components loaded successfully")
     } catch (error) {
-      log.error("MCP: Failed to load MCP SDK:", error)
+      log.error("[MCP] Failed to load MCP SDK:", error)
+      log.error("[MCP] Error details:", error.message)
+      log.error("[MCP] Stack trace:", error.stack)
       return false
     }
     
@@ -67,7 +74,12 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
 
     // Set up error handling
     mcpServer.onerror = (error) => {
-      log.error("MCP Server error:", error)
+      log.error("[MCP] MCP Server error:", error)
+      log.error("[MCP] Error details:", error.message)
+      if (error.stack) {
+        log.error("[MCP] Stack trace:", error.stack)
+      }
+      // Don't crash - just log the error
     }
 
     // List available tools
@@ -604,18 +616,44 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
       }
     })
 
-    // Create stdio transport
-    transport = new StdioServerTransport()
+    // Create stdio transport with error handling
+    log.debug("[MCP] Creating stdio transport...")
+    try {
+      transport = new StdioServerTransport()
+      log.debug("[MCP] Stdio transport created successfully")
+    } catch (transportError) {
+      log.error("[MCP] Failed to create stdio transport:", transportError)
+      log.error("[MCP] Error details:", transportError.message)
+      log.error("[MCP] Stack trace:", transportError.stack)
+      return false
+    }
 
-    // Connect server to transport
-    await mcpServer.connect(transport)
+    // Connect server to transport with error handling
+    log.debug("[MCP] Connecting server to transport...")
+    try {
+      await mcpServer.connect(transport)
+      log.debug("[MCP] Server connected to transport successfully")
+    } catch (connectError) {
+      log.error("[MCP] Failed to connect server to transport:", connectError)
+      log.error("[MCP] Error details:", connectError.message)
+      log.error("[MCP] Stack trace:", connectError.stack)
+      // Clean up transport if connection failed
+      transport = null
+      return false
+    }
     
     isMCPServerRunning = true
 
-    log.info("MCP server started successfully on stdio")
+    log.info("[MCP] MCP server started successfully on stdio")
     return true
   } catch (error) {
-    log.error("Failed to initialize MCP server:", error)
+    log.error("[MCP] Failed to initialize MCP server:", error)
+    log.error("[MCP] Error details:", error.message)
+    log.error("[MCP] Stack trace:", error.stack)
+    // Clean up on error
+    transport = null
+    mcpServer = null
+    isMCPServerRunning = false
     return false
   }
 }

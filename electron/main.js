@@ -3036,13 +3036,26 @@ ipcMain.handle("dashboard-ready", async () => {
           }
         }
         
-        // Initialize and start the MCP server
-        const mcpStarted = await initializeMCPServer(app, startDatabaseFn, stopDatabaseFn)
-        if (mcpStarted) {
-          console.log("[MCP] MCP server started successfully")
-        } else {
-          console.error("[MCP] Failed to start MCP server")
-        }
+        // Initialize and start the MCP server asynchronously to avoid blocking
+        // Defer initialization to ensure app is fully ready and stats are working
+        // Use setTimeout to defer until after dashboard is fully loaded
+        setTimeout(() => {
+          log.info("[MCP] Starting MCP server initialization (deferred)...")
+          initializeMCPServer(app, startDatabaseFn, stopDatabaseFn)
+            .then((mcpStarted) => {
+              if (mcpStarted) {
+                log.info("[MCP] MCP server started successfully")
+              } else {
+                log.warn("[MCP] Failed to start MCP server (non-fatal, app continues)")
+              }
+            })
+            .catch((error) => {
+              // Log error but don't crash - app should continue running
+              log.error("[MCP] Error starting MCP server (non-fatal):", error)
+              log.error("[MCP] Stack trace:", error.stack)
+              // Don't throw - let the app continue running
+            })
+        }, 2000) // Defer by 2 seconds to ensure app is fully ready
       } else {
         console.log("[MCP] MCP server is already running")
       }
