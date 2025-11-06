@@ -4615,6 +4615,9 @@ ipcMain.handle("get-database-system-info", async (event, id) => {
 let previousAppCpuUsage = null
 let previousAppCpuCheckTime = null
 
+// Cache previous stats to return on error (prevents showing 0 when stats collection fails)
+let cachedStats = null
+
 // Get app-specific statistics (RAM, CPU usage for app + instances)
 ipcMain.handle("get-system-stats", async () => {
   try {
@@ -4657,7 +4660,11 @@ ipcMain.handle("get-system-stats", async () => {
       try {
         // Get process stats for all PIDs at once
         const pidList = pids.join(',')
-        const psOutput = execSync(`ps -o pid,rss,pcpu -p ${pidList}`, { encoding: 'utf8', timeout: 2000 })
+        const psOutput = execSync(`ps -o pid,rss,pcpu -p ${pidList}`, { 
+          encoding: 'utf8', 
+          timeout: 2000,
+          maxBuffer: 1024 * 1024 // 1MB buffer
+        })
         const lines = psOutput.trim().split('\n')
         
         // Skip header line
@@ -4677,24 +4684,61 @@ ipcMain.handle("get-system-stats", async () => {
           }
         }
       } catch (psError) {
-        log.debug(`Could not get process stats:`, psError.message)
-        // Fallback: try individual processes
-        for (const pid of pids) {
-          try {
-            const psOutput = execSync(`ps -o rss,pcpu -p ${pid}`, { encoding: 'utf8', timeout: 1000 })
-            const lines = psOutput.trim().split('\n')
-            if (lines.length > 1) {
-              const parts = lines[1].trim().split(/\s+/)
-              if (parts.length >= 2) {
-                const memoryKB = parseInt(parts[0]) || 0
-                totalMemoryUsage += memoryKB * 1024
-                
-                const cpuPercent = parseFloat(parts[1]) || 0
-                totalCpuUsage += cpuPercent
+        // Handle EAGAIN errors gracefully
+        if (psError.code === 'EAGAIN' || psError.errno === -35) {
+          log.debug(`Resource temporarily unavailable (EAGAIN) for stats, using fallback`)
+          // Use fallback with delays
+          for (const pid of pids) {
+            try {
+              // Add small delay between calls to prevent resource exhaustion
+              await new Promise(resolve => setTimeout(resolve, 50))
+              const psOutput = execSync(`ps -o rss,pcpu -p ${pid}`, { 
+                encoding: 'utf8', 
+                timeout: 1000,
+                maxBuffer: 64 * 1024 // 64KB buffer
+              })
+              const lines = psOutput.trim().split('\n')
+              if (lines.length > 1) {
+                const parts = lines[1].trim().split(/\s+/)
+                if (parts.length >= 2) {
+                  const memoryKB = parseInt(parts[0]) || 0
+                  totalMemoryUsage += memoryKB * 1024
+                  
+                  const cpuPercent = parseFloat(parts[1]) || 0
+                  totalCpuUsage += cpuPercent
+                }
               }
+            } catch (individualError) {
+              // Skip this PID if we can't get stats
+              log.debug(`Could not get stats for PID ${pid}:`, individualError.message)
             }
-          } catch (individualError) {
-            log.debug(`Could not get stats for PID ${pid}:`, individualError.message)
+          }
+        } else {
+          log.debug(`Could not get process stats:`, psError.message)
+          // Fallback: try individual processes with delays
+          for (const pid of pids) {
+            try {
+              // Add small delay between calls to prevent resource exhaustion
+              await new Promise(resolve => setTimeout(resolve, 50))
+              const psOutput = execSync(`ps -o rss,pcpu -p ${pid}`, { 
+                encoding: 'utf8', 
+                timeout: 1000,
+                maxBuffer: 64 * 1024 // 64KB buffer
+              })
+              const lines = psOutput.trim().split('\n')
+              if (lines.length > 1) {
+                const parts = lines[1].trim().split(/\s+/)
+                if (parts.length >= 2) {
+                  const memoryKB = parseInt(parts[0]) || 0
+                  totalMemoryUsage += memoryKB * 1024
+                  
+                  const cpuPercent = parseFloat(parts[1]) || 0
+                  totalCpuUsage += cpuPercent
+                }
+              }
+            } catch (individualError) {
+              log.debug(`Could not get stats for PID ${pid}:`, individualError.message)
+            }
           }
         }
       }
@@ -4710,7 +4754,11 @@ ipcMain.handle("get-system-stats", async () => {
     try {
       // Use df command to get disk usage for home directory
       const homeDir = os.homedir()
-      const dfOutput = execSync(`df -k "${homeDir}"`, { encoding: 'utf8', timeout: 1000 })
+      const dfOutput = execSync(`df -k "${homeDir}"`, { 
+        encoding: 'utf8', 
+        timeout: 1000,
+        maxBuffer: 64 * 1024 // 64KB buffer
+      })
       const lines = dfOutput.split('\n')
       if (lines.length > 1) {
         // Parse the output - format: Filesystem 1024-blocks Used Available Capacity Mounted
@@ -4722,7 +4770,12 @@ ipcMain.handle("get-system-stats", async () => {
         }
       }
     } catch (diskError) {
-      log.debug(`Could not get disk usage:`, diskError.message)
+      // Handle EAGAIN errors gracefully - don't fail completely
+      if (diskError.code === 'EAGAIN' || diskError.errno === -35) {
+        log.debug(`Resource temporarily unavailable (EAGAIN) for disk stats, using defaults`)
+      } else {
+        log.debug(`Could not get disk usage:`, diskError.message)
+      }
     }
     
     // Calculate load average based on number of processes (simplified)
@@ -4734,17 +4787,19 @@ ipcMain.handle("get-system-stats", async () => {
     previousAppCpuUsage = totalCpuUsage
     previousAppCpuCheckTime = Date.now()
     
-    return {
+    // Ensure we always return valid data, even if some operations failed
+    // Use fallback values to prevent showing 0 when there's an error
+    const stats = {
       success: true,
       memory: {
-        total: totalMemoryUsage, // App total memory (no free/total system concept)
+        total: totalMemoryUsage || 0, // App total memory (no free/total system concept)
         free: 0, // Not applicable for app stats
-        used: totalMemoryUsage,
+        used: totalMemoryUsage || 0,
         percentage: 0 // Not applicable for app stats
       },
       cpu: {
-        usage: totalCpuUsage,
-        percentage: totalCpuUsage
+        usage: totalCpuUsage || 0,
+        percentage: totalCpuUsage || 0
       },
       disk: diskTotal > 0 ? {
         total: diskTotal,
@@ -4752,18 +4807,65 @@ ipcMain.handle("get-system-stats", async () => {
         used: diskUsed,
         percentage: diskTotal > 0 ? (diskUsed / diskTotal) * 100 : 0
       } : null,
-      uptime: uptimeSeconds,
-      loadAverage: loadAverage,
-      runningDatabases: runningDatabasesCount
+      uptime: uptimeSeconds || 0,
+      loadAverage: loadAverage || [0, 0, 0],
+      runningDatabases: runningDatabasesCount || 0
     }
+    
+    // Cache stats for error recovery
+    cachedStats = stats
+    
+    return stats
   } catch (error) {
-    log.error(`Error getting app stats:`, error)
+    // Handle EAGAIN errors gracefully - return cached or default values instead of failing
+    if (error.code === 'EAGAIN' || error.errno === -35) {
+      log.debug(`[System Stats] Resource temporarily unavailable (EAGAIN), returning cached stats`)
+      // Return cached stats if available, otherwise return defaults
+      if (cachedStats) {
+        // Update uptime and running databases count (these are always available)
+        return {
+          ...cachedStats,
+          uptime: Math.floor(process.uptime()),
+          runningDatabases: runningDatabases.size || 0
+        }
+      }
+    }
+    
+    log.error(`[System Stats] Error getting app stats:`, error)
+    log.error(`[System Stats] Error details:`, error.message)
+    if (error.stack) {
+      log.error(`[System Stats] Stack trace:`, error.stack)
+    }
+    
+    // Return cached stats if available, otherwise return defaults
+    if (cachedStats) {
+      log.debug(`[System Stats] Returning cached stats due to error`)
+      // Update uptime and running databases count (these are always available)
+      return {
+        ...cachedStats,
+        uptime: Math.floor(process.uptime()),
+        runningDatabases: runningDatabases.size || 0
+      }
+    }
+    
+    // Last resort: return default values (but this should rarely happen)
+    log.warn(`[System Stats] No cached stats available, returning defaults`)
     return {
-      success: false,
-      error: error.message,
-      memory: null,
-      cpu: null,
-      disk: null
+      success: true,
+      memory: {
+        total: 0,
+        free: 0,
+        used: 0,
+        percentage: 0
+      },
+      cpu: {
+        usage: 0,
+        percentage: 0
+      },
+      disk: null,
+      uptime: Math.floor(process.uptime()),
+      loadAverage: [0, 0, 0],
+      runningDatabases: runningDatabases.size || 0
     }
   }
 })
@@ -4771,7 +4873,7 @@ ipcMain.handle("get-system-stats", async () => {
 // Clean up dead processes and reset statuses
 ipcMain.handle("cleanup-dead-processes", async () => {
   try {
-    console.log("[Cleanup] Starting cleanup of dead processes")
+    // Only log if there's actual work to do
     let cleanedCount = 0
     
     // Check all running databases
@@ -4806,7 +4908,10 @@ ipcMain.handle("cleanup-dead-processes", async () => {
       console.log(`[Cleanup] Updated ${updatedCount} database statuses in storage`)
     }
     
-    console.log(`[Cleanup] Cleanup complete: removed ${cleanedCount} dead processes, updated ${updatedCount} statuses`)
+    // Only log if cleanup actually did something
+    if (cleanedCount > 0 || updatedCount > 0) {
+      console.log(`[Cleanup] Cleanup complete: removed ${cleanedCount} dead processes, updated ${updatedCount} statuses`)
+    }
     return { success: true, cleanedProcesses: cleanedCount, updatedStatuses: updatedCount }
   } catch (error) {
     console.error("[Cleanup] Error during cleanup:", error)
@@ -6249,7 +6354,10 @@ ipcMain.handle("convert-file-to-data-url", async (event, fileUrl) => {
 ipcMain.handle("check-databases-file", async () => {
   try {
     const exists = storage.checkDatabasesFileExists(app)
-    console.log(`[Storage Check] databases.json exists: ${exists}`)
+    // Only log if file doesn't exist (error case)
+    if (!exists) {
+      console.log(`[Storage Check] databases.json does not exist`)
+    }
     return { success: true, exists }
   } catch (error) {
     console.error("[Storage Check] Error checking databases file:", error)
