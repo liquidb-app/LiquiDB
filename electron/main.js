@@ -3792,6 +3792,13 @@ async function cleanupOrphanedDatabases(app) {
 // Helper function to kill a process by PID
 async function killProcessByPid(pid, signal = "SIGTERM") {
   return new Promise((resolve) => {
+    // Validate PID is a valid number
+    if (pid === null || pid === undefined || typeof pid !== 'number' || isNaN(pid)) {
+      console.log(`[Kill] Invalid PID: ${pid}, skipping`)
+      resolve(false)
+      return
+    }
+    
     try {
       process.kill(pid, signal)
       console.log(`[Kill] Sent ${signal} to PID ${pid}`)
@@ -3833,10 +3840,13 @@ async function killAllDatabaseProcesses() {
     try {
       const databases = storage.loadDatabases(app)
       for (const db of databases) {
-        if (db.pid !== null && !killedPids.has(db.pid)) {
+        // Check that pid is a valid number (not null, undefined, or NaN)
+        if (db.pid !== null && db.pid !== undefined && typeof db.pid === 'number' && !isNaN(db.pid) && !killedPids.has(db.pid)) {
           console.log(`[Kill] Killing orphaned database ${db.id} (PID: ${db.pid}) from storage`)
           await killProcessByPid(db.pid, "SIGTERM")
           killedPids.add(db.pid)
+        } else if (db.pid === null || db.pid === undefined) {
+          console.log(`[Kill] Skipping orphaned database ${db.id} (PID: ${db.pid}) from storage - no valid PID`)
         }
       }
     } catch (error) {
