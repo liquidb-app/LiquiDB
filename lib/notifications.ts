@@ -138,9 +138,6 @@ const getNotifications = (): NotificationManager => {
 
 // Export singleton instance - access via getter to ensure lazy initialization
 export const notifications = {
-  get instance() {
-    return getNotifications()
-  },
   success: (...args: Parameters<NotificationManager['success']>) => getNotifications().success(...args),
   error: (...args: Parameters<NotificationManager['error']>) => getNotifications().error(...args),
   info: (...args: Parameters<NotificationManager['info']>) => getNotifications().info(...args),
