@@ -3880,8 +3880,15 @@ async function killAllDatabaseProcesses() {
             if (!isKnownProcess) {
               // Verify this process belongs to our app by checking its command line
               try {
+                // Add delay between execSync calls to prevent EAGAIN errors
+                await new Promise(resolve => setTimeout(resolve, 50))
+                
                 const { execSync: execSyncCheck } = require('child_process')
-                const psOutput = execSyncCheck(`ps -p ${pid} -o command=`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+                const psOutput = execSyncCheck(`ps -p ${pid} -o command=`, { 
+                  encoding: 'utf8', 
+                  stdio: ['ignore', 'pipe', 'ignore'],
+                  timeout: 2000
+                })
                 const command = psOutput.trim()
                 
                 // Check if command line contains our app's data directory
@@ -3893,11 +3900,20 @@ async function killAllDatabaseProcesses() {
                   console.log(`[Kill] Command: ${command.substring(0, 200)}`)
                   await killProcessByPid(pid, "SIGTERM")
                   killedPids.add(pid)
+                  // Add delay after killing to prevent resource exhaustion
+                  await new Promise(resolve => setTimeout(resolve, 100))
                 } else {
                   // This process doesn't belong to our app - leave it alone
                   console.log(`[Kill] Found ${processName} process (PID: ${pid}) but it doesn't belong to our app, skipping`)
                 }
               } catch (psError) {
+                // Handle EAGAIN errors gracefully
+                if (psError.code === 'EAGAIN' || psError.errno === -35) {
+                  console.log(`[Kill] Resource temporarily unavailable (EAGAIN) for PID ${pid}, waiting and retrying...`)
+                  await new Promise(resolve => setTimeout(resolve, 500))
+                  // Skip this PID for now to prevent further resource exhaustion
+                  continue
+                }
                 // Process might have died between pgrep and ps, or we can't read it - skip
                 console.log(`[Kill] Could not verify process ${pid} belongs to app, skipping:`, psError.message)
               }
@@ -4122,6 +4138,33 @@ process.on("SIGTERM", async () => {
 process.on("uncaughtException", async (error) => {
   console.error("[App Crash] Uncaught exception:", error)
   
+  // Handle EAGAIN errors gracefully - don't crash the app
+  if (error.code === 'EAGAIN' || error.errno === -35) {
+    console.error("[App Crash] Resource exhaustion (EAGAIN) detected, waiting before cleanup...")
+    // Wait a bit to let resources recover
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    // Try to kill processes with more delays
+    try {
+      console.log("[App Crash] Attempting to kill database processes with delays...")
+      // Kill processes one at a time with delays
+      for (const [id, db] of runningDatabases) {
+        try {
+          db.process.kill("SIGTERM")
+          await new Promise(resolve => setTimeout(resolve, 200))
+        } catch (e) {
+          // Ignore individual errors
+        }
+      }
+    } catch (killError) {
+      console.error("[App Crash] Error killing processes:", killError)
+    }
+    
+    // Don't re-throw EAGAIN errors - let the app continue
+    console.log("[App Crash] EAGAIN error handled, app will continue")
+    return
+  }
+  
   // Kill all database processes before crashing
   try {
     console.log("[App Crash] Killing all database processes before exit...")
@@ -4151,7 +4194,7 @@ process.on("uncaughtException", async (error) => {
     }
   }
   
-  // Re-throw to allow default crash behavior
+  // Re-throw to allow default crash behavior (except for EAGAIN which we handled above)
   throw error
 })
 
