@@ -2,7 +2,7 @@ import { useEffect, useCallback } from "react"
 import { log } from "@/lib/logger"
 import { notifySuccess, notifyError, notifyInfo, notifyWarning } from "@/lib/notifications"
 import { formatBytes } from "@/lib/utils/database/database-utils"
-import type { DatabaseContainer } from "@/lib/types"
+import type { DatabaseContainer, DatabaseStatus } from "@/lib/types"
 
 export const useDatabaseMonitoring = (
   databases: DatabaseContainer[],
@@ -146,6 +146,8 @@ export const useDatabaseMonitoring = (
     // Track all pending timeouts to clear them on unmount
     const pendingTimeouts = new Set<NodeJS.Timeout>()
 
+    let hasRunInitialCleanup = false
+    
     const load = async (retryCount = 0) => {
       const maxRetries = 3
       
@@ -156,7 +158,7 @@ export const useDatabaseMonitoring = (
         return
       }
       
-      // Check if databases.json file exists
+      // Check if databases.json file exists (only log if file is missing)
       let fileExists = false
       try {
         const fileCheck = await window.electron?.checkDatabasesFile?.()
@@ -202,20 +204,23 @@ export const useDatabaseMonitoring = (
               }
             })
             
-            // Clean up any dead processes first
-            try {
-              if (window.electron?.cleanupDeadProcesses) {
-                const cleanupResult = await window.electron.cleanupDeadProcesses()
-                if (cleanupResult.success && (cleanupResult.cleanedProcesses > 0 || cleanupResult.updatedStatuses > 0)) {
-                  console.log(`[Cleanup] Cleaned up ${cleanupResult.cleanedProcesses} dead processes, updated ${cleanupResult.updatedStatuses} statuses`)
-                  // Reload databases after cleanup
-                  const cleanedList = await window.electron.getDatabases()
-                  const cleanedDatabases = Array.isArray(cleanedList) ? cleanedList : []
-                  setDatabases(cleanedDatabases)
+            // Clean up any dead processes only once on initial load
+            if (!hasRunInitialCleanup) {
+              hasRunInitialCleanup = true
+              try {
+                if (window.electron?.cleanupDeadProcesses) {
+                  const cleanupResult = await window.electron.cleanupDeadProcesses()
+                  if (cleanupResult.success && (cleanupResult.cleanedProcesses > 0 || cleanupResult.updatedStatuses > 0)) {
+                    console.log(`[Cleanup] Cleaned up ${cleanupResult.cleanedProcesses} dead processes, updated ${cleanupResult.updatedStatuses} statuses`)
+                    // Reload databases after cleanup
+                    const cleanedList = await window.electron.getDatabases()
+                    const cleanedDatabases = Array.isArray(cleanedList) ? cleanedList : []
+                    setDatabases(cleanedDatabases)
+                  }
                 }
+              } catch (cleanupError) {
+                console.error("[Cleanup] Error during cleanup:", cleanupError)
               }
-            } catch (cleanupError) {
-              console.error("[Cleanup] Error during cleanup:", cleanupError)
             }
             
             // Port conflicts are now checked dynamically, no need to cache
@@ -230,6 +235,7 @@ export const useDatabaseMonitoring = (
                 console.log("[Storage] databases.json file deleted, clearing dashboard")
                 if (isMounted) setDatabases([])
               }
+              // Don't log if file exists - only log when there's an issue
             } catch (error) {
               console.error("[Storage] Error checking databases file:", error)
             }
@@ -241,9 +247,9 @@ export const useDatabaseMonitoring = (
               if (!isMounted) return
               
               try {
-                // Check if databases file still exists every 10 checks (every 2.5 minutes)
+                // Check if databases file still exists every 20 checks (every 10 minutes) - reduced frequency
                 fileCheckCounter++
-                if (fileCheckCounter >= 10) {
+                if (fileCheckCounter >= 20) {
                   await checkDatabasesFileExists()
                   fileCheckCounter = 0
                 }
@@ -607,356 +613,6 @@ export const useDatabaseMonitoring = (
         }
       }
     }, [setDatabases, databasesRef, lastStatusCheckRef, lastSystemInfoCheck, setLastSystemInfoCheck, lastSystemInfoCheckRef, startDatabaseWithErrorHandlingRef, checkDatabasesFileExists, fetchSystemInfo])
-
-  // Second useEffect for monitoring (duplicate/alternative implementation)
-  useEffect(() => {
-    let statusInterval: NodeJS.Timeout | null = null
-    let isMounted = true
-    const pendingTimeouts = new Set<NodeJS.Timeout>()
-
-    const load = async () => {
-      // Check if Electron is available
-      if (!window.electron) {
-        console.log("[Debug] Electron not available yet, retrying in 1 second")
-        const timeoutId = setTimeout(load, 1000)
-        pendingTimeouts.add(timeoutId)
-        return
-      }
-      
-      // Check if databases.json file exists
-      try {
-        const fileCheck = await window.electron?.checkDatabasesFile?.()
-        if (fileCheck && !fileCheck.exists) {
-          console.log("[Storage] databases.json file missing, clearing dashboard")
-          if (isMounted) setDatabases([])
-          
-          // Recreate the file
-          const recreateResult = await window.electron?.recreateDatabasesFile?.()
-          if (recreateResult?.success) {
-            console.log("[Storage] Recreated databases.json file")
-          }
-          return
-        }
-      } catch (error) {
-        console.error("[Storage] Error checking databases file:", error)
-      }
-      
-      if (window.electron?.getDatabases) {
-        const list = await window.electron.getDatabases()
-        const databases = Array.isArray(list) ? list : []
-        
-        // Fix any databases stuck in "installing" status
-        const updatedDatabases = databases.map(db => {
-          if (db.status === "installing") {
-            console.log(`[Cleanup] Fixing database ${db.id} stuck in installing status`)
-            return { ...db, status: "stopped" as const }
-          }
-          return db
-        })
-        
-        // Save updated databases if any were fixed
-        if (updatedDatabases.some((db, index) => db.status !== databases[index]?.status)) {
-          if (window.electron?.saveDatabase) {
-            for (const db of updatedDatabases) {
-              await window.electron.saveDatabase(db)
-            }
-          }
-        }
-        
-        if (isMounted) setDatabases(updatedDatabases)
-        
-        // Force immediate status check for all databases
-        const timeoutId = setTimeout(async () => {
-          pendingTimeouts.delete(timeoutId)
-          if (!isMounted) return
-          for (const db of updatedDatabases) {
-            try {
-              const status = await window.electron?.checkDatabaseStatus?.(db.id)
-              if (status?.status && status.status !== db.status && isMounted) {
-                console.log(`[App Load] Database ${db.id} is actually ${status.status}`)
-                setDatabases(prev => prev.map(d => 
-                  d.id === db.id ? { ...d, status: status.status } : d
-                ))
-              }
-            } catch {
-              // Ignore errors during initial load
-            }
-          }
-        }, 1000)
-        pendingTimeouts.add(timeoutId)
-        
-        // Optimized status monitoring with adaptive frequency and memory management
-        let fileCheckCounter = 0
-        let noActiveDatabasesCount = 0
-        let lastDatabaseCount = 0
-        
-        const startStatusMonitoring = () => {
-          return setInterval(async () => {
-            if (!isMounted) return
-            
-            try {
-              // Only check file existence every 60 seconds (6 iterations) to reduce overhead
-              fileCheckCounter++
-              if (fileCheckCounter >= 6) {
-                await checkDatabasesFileExists()
-                fileCheckCounter = 0
-              }
-              
-              // Get current database list from state at the time of check
-              setDatabases(currentDatabases => {
-                if (!isMounted) return currentDatabases
-                
-                const databasesToCheck = currentDatabases.filter(db => 
-                  db.status === "running" || db.status === "starting" || db.status === "stopping"
-                )
-                
-                // If no active databases, reduce monitoring frequency significantly
-                if (databasesToCheck.length === 0) {
-                  noActiveDatabasesCount++
-                  // Skip monitoring if no active databases for 3 consecutive checks (30 seconds)
-                  if (noActiveDatabasesCount < 3) return currentDatabases
-                  // Reset counter and continue with minimal checks
-                  noActiveDatabasesCount = 0
-                } else {
-                  noActiveDatabasesCount = 0
-                }
-                
-                // Only check if database count changed or there are active databases
-                if (databasesToCheck.length === 0 && currentDatabases.length === lastDatabaseCount) {
-                  return currentDatabases // Skip unnecessary checks
-                }
-                lastDatabaseCount = currentDatabases.length
-                
-                // Check each database status asynchronously
-                databasesToCheck.forEach(async (db) => {
-                  if (!isMounted) return
-                  try {
-                    const status = await window.electron?.checkDatabaseStatus?.(db.id)
-                    
-                    if (status?.status && status.status !== db.status && isMounted) {
-                      // Protection against race conditions during startup
-                      // Don't update from "starting" to "stopped" too quickly
-                      if (db.status === "starting" && status.status === "stopped") {
-                        // Check if the database was recently started (within last 30 seconds)
-                        const timeSinceStarted = Date.now() - (db.lastStarted || 0)
-                        if (timeSinceStarted < 30000) {
-                          console.log(`[Status Protection] Database ${db.id} still in startup phase, ignoring status change to stopped`)
-                          return
-                        }
-                      }
-                      
-                      // Don't update from "running" to "stopped" unless confirmed by real-time listener
-                      if (db.status === "running" && status.status === "stopped") {
-                        console.log(`[Status Protection] Database ${db.id} was running, deferring to real-time listener for stopped status`)
-                        return
-                      }
-                      
-                      // Don't update from "stopping" to "running" - this shouldn't happen
-                      if (db.status === "stopping" && status.status === "running") {
-                        console.log(`[Status Protection] Database ${db.id} was stopping, ignoring status change to running`)
-                        return
-                      }
-                      
-                      console.log(`[Status Update] Database ${db.id}: ${db.status} → ${status.status}`)
-                      
-                      // Update the database status immediately, preserving PID if provided
-                      setDatabases(prev => prev.map(d => 
-                        d.id === db.id ? { ...d, status: status.status, pid: status.pid || d.pid } : d
-                      ))
-                      
-                      // Notifications are handled by the real-time listener to avoid duplicates
-                    }
-                  } catch (error) {
-                    console.log(`[Status Check Error] Database ${db.id}:`, error)
-                  }
-                })
-                
-                return currentDatabases
-              })
-            } catch (error) {
-              console.log(`[Status Monitoring Error]:`, error)
-            }
-          }, 15000) // Reduced frequency to every 15 seconds to save memory
-        }
-        
-        statusInterval = startStatusMonitoring()
-        
-        // Set up real-time status change listener from electron main process
-        if (window.electron?.onDatabaseStatusChanged) {
-          console.log(`[Listener Setup] Setting up database status listener`)
-          window.electron.onDatabaseStatusChanged((data: { id: string, status: DatabaseStatus, error?: string, exitCode?: number, ready?: boolean, pid?: number }) => {
-            if (!isMounted) return
-            
-            console.log(`[Real-time Status] Database ${data.id} status changed to ${data.status}${data.ready ? ' (ready)' : ''} (PID: ${data.pid})`)
-            
-            // Create a simple event key to prevent duplicate processing
-            // For stopped events, use a simpler key to prevent duplicates from error/exit events
-            const eventKey = data.status === 'stopped' 
-              ? `${data.id}-stopped` 
-              : `${data.id}-${data.status}-${data.ready ? 'ready' : 'not-ready'}`
-            
-            // Check if we've already processed this exact event in the last 500ms (reduced further)
-            const now = Date.now()
-            const lastProcessed = lastStatusCheckRef.current[eventKey] || 0
-            
-            if (now - lastProcessed < 500) {
-              console.log(`[Real-time Status] Duplicate event ignored: ${eventKey} (last processed: ${new Date(lastProcessed).toISOString()})`)
-              return
-            }
-            
-            console.log(`[Real-time Status] Processing event: ${eventKey} (time since last: ${now - lastProcessed}ms)`)
-            
-            // Update the last processed time (both ref and state)
-            lastStatusCheckRef.current[eventKey] = now
-            
-            console.log(`[Real-time Status] Processing event: ${eventKey}`)
-            
-            // Update database status immediately
-            if (isMounted) {
-              setDatabases(prev => {
-                const updated = prev.map(db => 
-                  db.id === data.id ? { ...db, status: data.status as DatabaseStatus, pid: data.pid } : db
-                )
-                
-                // Show notifications only for actual status changes
-                if (data.status === "stopped") {
-                  const db = prev.find(d => d.id === data.id)
-                  if (db && db.status !== "stopped") {
-                    if (db.status === "starting") {
-                      // Database was starting but failed
-                      if (data.error) {
-                        notifyError("Database failed to start", {
-                          description: `${db.name} failed to start: ${data.error}`,
-                          id: `db-failed-start-${db.id}-${now}`, // Unique ID to prevent duplicates
-                          action: {
-                            label: "Retry",
-                            onClick: () => startDatabaseWithErrorHandlingRef.current(data.id)
-                          }
-                        })
-                      } else {
-                        notifyError("Database failed to start", {
-                          description: `${db.name} could not start properly. Please check the logs.`,
-                          id: `db-failed-start-${db.id}-${now}`, // Unique ID to prevent duplicates
-                          action: {
-                            label: "Retry",
-                            onClick: () => startDatabaseWithErrorHandlingRef.current(data.id)
-                          }
-                        })
-                      }
-                    } else if (db.status === "running") {
-                      // Database was running but crashed
-                      if (data.error) {
-                        notifyError("Database crashed", {
-                          description: `${db.name} stopped due to an error: ${data.error}`,
-                          id: `db-crashed-${db.id}-${now}`, // Unique ID to prevent duplicates
-                        })
-                      } else {
-                        notifyInfo("Database stopped", {
-                          description: `${db.name} has stopped running.`,
-                          id: `db-stopped-${db.id}-${now}`, // Unique ID to prevent duplicates
-                        })
-                      }
-                    }
-                  }
-                } else if (data.status === "running") {
-                  const db = prev.find(d => d.id === data.id)
-                  if (db && db.status === "starting") {
-                    // Database was starting and is now running
-                    console.log(`[Notification] Showing success notification for database ${db.id} (${db.name}) - Event Key: ${eventKey}`)
-                    if (data.ready) {
-                      notifySuccess("Database ready", {
-                        description: `${db.name} is now running and ready to accept connections.`,
-                        id: `db-ready-${db.id}-${now}`, // Unique ID to prevent duplicates
-                      })
-                    } else {
-                      notifySuccess("Database started", {
-                        description: `${db.name} is now running.`,
-                        id: `db-started-${db.id}-${now}`, // Unique ID to prevent duplicates
-                      })
-                    }
-                  }
-                }
-                
-                return updated
-              })
-            }
-          })
-        }
-      }
-    }
-    
-    // Set up auto-start port conflict listener (remove existing listeners first to prevent leaks)
-    if (window.electron?.removeAllListeners) {
-      window.electron.removeAllListeners('auto-start-port-conflicts')
-      window.electron.removeAllListeners('auto-start-completed')
-    }
-    
-    if (window.electron?.onAutoStartPortConflicts) {
-      console.log(`[Listener Setup] Setting up auto-start port conflicts listener`)
-      window.electron.onAutoStartPortConflicts((event, data) => {
-        if (!isMounted) return
-        
-        console.log(`[Auto-start] Port conflicts detected:`, data.conflicts)
-        
-        // Show notification for each port conflict
-        data.conflicts.forEach((conflict) => {
-          notifyWarning("Auto-start Port Conflict Resolved", {
-            description: `${conflict.databaseName} port changed from ${conflict.originalPort} to ${conflict.newPort} due to conflict with ${conflict.conflictingDatabase}`,
-            duration: 8000,
-          })
-        })
-      })
-    }
-    
-    // Set up auto-start completion listener
-    if (window.electron?.onAutoStartCompleted) {
-      console.log(`[Listener Setup] Setting up auto-start completion listener`)
-      window.electron.onAutoStartCompleted((event, data) => {
-        if (!isMounted) return
-        
-        console.log(`[Auto-start] Auto-start completed:`, data)
-        
-        // Show summary notification
-        if (data.portConflicts > 0) {
-          notifyInfo("Auto-start Completed with Port Conflicts", {
-            description: `${data.successful} databases started, ${data.failed} failed, ${data.portConflicts} port conflicts resolved`,
-            duration: 6000,
-          })
-        } else if (data.failed > 0) {
-          notifyWarning("Auto-start Completed with Issues", {
-            description: `${data.successful} databases started, ${data.failed} failed`,
-            duration: 6000,
-          })
-        } else if (data.successful > 0) {
-          notifySuccess("Auto-start Completed", {
-            description: `Successfully started ${data.successful} databases`,
-            duration: 4000,
-          })
-        }
-      })
-    }
-    
-    load()
-
-    // Clean up interval and listeners on unmount
-    return () => {
-      isMounted = false
-      if (statusInterval) {
-        clearInterval(statusInterval)
-        statusInterval = null
-      }
-      
-      // Clear all pending timeouts to prevent memory leaks
-      pendingTimeouts.forEach(timeoutId => {
-        clearTimeout(timeoutId)
-      })
-      pendingTimeouts.clear()
-      
-      if (window.electron?.removeDatabaseStatusListener) {
-        window.electron.removeDatabaseStatusListener()
-      }
-    }
-  }, [setDatabases, lastStatusCheckRef, startDatabaseWithErrorHandlingRef, checkDatabasesFileExists])
 
   return {
     fetchSystemInfo
