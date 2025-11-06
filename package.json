@@ -53,24 +53,33 @@
     ],
     "asarUnpack": [
       "**/*.node",
-      "build/**"
+      "build/**",
+      "out/**"
     ],
     "directories": {
-      "buildResources": "public"
+      "buildResources": "build"
+    },
+    "dmg": {
+      "background": "build/dmg-background.png",
+      "window": {
+        "width": 540,
+        "height": 380
+      }
     },
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
-      "icon": "public/icon.icns"
+      "identity": null,
+      "icon": "build/icon.icns"
     },
     "win": {
       "target": [
         "nsis",
         "portable"
-      ],
-      "icon": "public/icon.ico"
+      ]
     },
     "linux": {
       "target": [
@@ -78,7 +87,7 @@
         "deb"
       ],
       "category": "Development",
-      "icon": "public/icon.png"
+      "vendor": "LiquidB"
     }
   },
   "dependencies": {
@@ -136,5 +145,4 @@
     "typescript": "^5",
     "wait-on": "^8.0.1"
   }
-  
 }
