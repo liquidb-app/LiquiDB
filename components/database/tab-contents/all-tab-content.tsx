@@ -30,7 +30,6 @@ interface AllTabContentProps {
   isPortBanned: (port: number) => boolean
   PortConflictWarning: React.ComponentType<{ port: number; databaseId: string; databaseStatus: string }>
   fetchSystemInfo: (databaseId: string) => void
-  lastSystemInfoCheck: Record<string, number>
   setLastSystemInfoCheck: React.Dispatch<React.SetStateAction<Record<string, number>>>
   lastSystemInfoCheckRef: React.MutableRefObject<Record<string, number>>
 }
@@ -59,7 +58,6 @@ export function AllTabContent({
   isPortBanned,
   PortConflictWarning,
   fetchSystemInfo,
-  lastSystemInfoCheck,
   setLastSystemInfoCheck,
   lastSystemInfoCheckRef,
 }: AllTabContentProps) {
@@ -116,7 +114,6 @@ export function AllTabContent({
               isPortBanned={isPortBanned}
               PortConflictWarning={PortConflictWarning}
               fetchSystemInfo={fetchSystemInfo}
-              lastSystemInfoCheck={lastSystemInfoCheck}
               setLastSystemInfoCheck={setLastSystemInfoCheck}
               lastSystemInfoCheckRef={lastSystemInfoCheckRef}
               filterFn={(db) => db.status === "running" || db.status === "starting" || db.status === "stopping"}
@@ -156,7 +153,6 @@ export function AllTabContent({
               isPortBanned={isPortBanned}
               PortConflictWarning={PortConflictWarning}
               fetchSystemInfo={fetchSystemInfo}
-              lastSystemInfoCheck={lastSystemInfoCheck}
               setLastSystemInfoCheck={setLastSystemInfoCheck}
               lastSystemInfoCheckRef={lastSystemInfoCheckRef}
               filterFn={(db) => db.status === "stopped"}

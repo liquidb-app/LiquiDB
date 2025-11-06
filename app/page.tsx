@@ -381,7 +381,6 @@ export default function DatabaseManager() {
                     isPortBanned={isPortBanned}
                     PortConflictWarning={PortConflictWarning}
                     fetchSystemInfo={fetchSystemInfo}
-                    lastSystemInfoCheck={lastSystemInfoCheck}
                     setLastSystemInfoCheck={setLastSystemInfoCheck}
                     lastSystemInfoCheckRef={lastSystemInfoCheckRef}
                   />
@@ -412,7 +411,6 @@ export default function DatabaseManager() {
                     isPortBanned={isPortBanned}
                     PortConflictWarning={PortConflictWarning}
                     fetchSystemInfo={fetchSystemInfo}
-                    lastSystemInfoCheck={lastSystemInfoCheck}
                     setLastSystemInfoCheck={setLastSystemInfoCheck}
                     lastSystemInfoCheckRef={lastSystemInfoCheckRef}
                   />
@@ -443,7 +441,6 @@ export default function DatabaseManager() {
                     isPortBanned={isPortBanned}
                     PortConflictWarning={PortConflictWarning}
                     fetchSystemInfo={fetchSystemInfo}
-                    lastSystemInfoCheck={lastSystemInfoCheck}
                     setLastSystemInfoCheck={setLastSystemInfoCheck}
                     lastSystemInfoCheckRef={lastSystemInfoCheckRef}
                   />

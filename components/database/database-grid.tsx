@@ -26,7 +26,6 @@ interface DatabaseGridProps {
   isPortBanned: (port: number) => boolean
   PortConflictWarning: React.ComponentType<{ port: number; databaseId: string; databaseStatus: string }>
   fetchSystemInfo: (databaseId: string) => void
-  lastSystemInfoCheck: Record<string, number>
   setLastSystemInfoCheck: React.Dispatch<React.SetStateAction<Record<string, number>>>
   lastSystemInfoCheckRef: React.MutableRefObject<Record<string, number>>
   filterFn?: (db: DatabaseContainer) => boolean
@@ -55,7 +54,6 @@ export function DatabaseGrid({
   isPortBanned,
   PortConflictWarning,
   fetchSystemInfo,
-  lastSystemInfoCheck,
   setLastSystemInfoCheck,
   lastSystemInfoCheckRef,
   filterFn,
@@ -91,7 +89,6 @@ export function DatabaseGrid({
             isPortBanned={isPortBanned}
             PortConflictWarning={PortConflictWarning}
             fetchSystemInfo={fetchSystemInfo}
-            lastSystemInfoCheck={lastSystemInfoCheck}
             setLastSystemInfoCheck={setLastSystemInfoCheck}
             lastSystemInfoCheckRef={lastSystemInfoCheckRef}
           />

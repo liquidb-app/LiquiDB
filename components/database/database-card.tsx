@@ -39,7 +39,6 @@ interface DatabaseCardProps {
   isPortBanned: (port: number) => boolean
   PortConflictWarning: React.ComponentType<{ port: number; databaseId: string; databaseStatus: string }>
   fetchSystemInfo: (databaseId: string) => void
-  lastSystemInfoCheck: Record<string, number>
   setLastSystemInfoCheck: React.Dispatch<React.SetStateAction<Record<string, number>>>
   lastSystemInfoCheckRef: React.MutableRefObject<Record<string, number>>
 }
@@ -66,7 +65,6 @@ export function DatabaseCard({
   isPortBanned,
   PortConflictWarning,
   fetchSystemInfo,
-  lastSystemInfoCheck,
   setLastSystemInfoCheck,
   lastSystemInfoCheckRef,
 }: DatabaseCardProps) {
@@ -224,7 +222,6 @@ export function DatabaseCard({
           <SystemMetrics
             database={db}
             fetchSystemInfo={fetchSystemInfo}
-            lastSystemInfoCheck={lastSystemInfoCheck}
             setLastSystemInfoCheck={setLastSystemInfoCheck}
             lastSystemInfoCheckRef={lastSystemInfoCheckRef}
           />
