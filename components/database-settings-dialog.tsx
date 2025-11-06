@@ -126,18 +126,18 @@ export function DatabaseSettingsDialog({
   onDelete,
   allDatabases = [],
 }: DatabaseSettingsDialogProps) {
-  const [name, setName] = useState(database.name)
+  const [name, setName] = useState(database?.name || "")
   const [nameError, setNameError] = useState("")
   const MAX_NAME_LENGTH = 15
-  const [port, setPort] = useState(database.port.toString())
+  const [port, setPort] = useState(database?.port?.toString() || "")
   const [portError, setPortError] = useState<string>("")
   const [checkingPort, setCheckingPort] = useState(false)
   const [portStatus, setPortStatus] = useState<"available" | "conflict" | "checking" | null>(null)
   const [portConflictInfo, setPortConflictInfo] = useState<{ processName: string; pid: string } | null>(null)
-  const [username, setUsername] = useState(database.username)
+  const [username, setUsername] = useState(database?.username || "")
   const [password, setPassword] = useState("")
   const [autoStart, setAutoStart] = useState(false)
-  const [selectedIcon, setSelectedIcon] = useState(database.icon || "")
+  const [selectedIcon, setSelectedIcon] = useState(database?.icon || "")
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [iconPickerOpen, setIconPickerOpen] = useState(false)
   const [autoStartConflict, setAutoStartConflict] = useState<string | null>(null)
@@ -164,9 +164,11 @@ export function DatabaseSettingsDialog({
   }
 
   useEffect(() => {
-    setName(database.name)
-    setPort(database.port.toString())
-    setUsername(database.username)
+    if (!database) return
+    
+    setName(database.name || "")
+    setPort(database.port?.toString() || "")
+    setUsername(database.username || "")
     setPassword("")
     setSelectedIcon(database.icon || "")
     setAutoStart(database.autoStart || false)
@@ -177,13 +179,15 @@ export function DatabaseSettingsDialog({
   }, [database])
   
   useEffect(() => {
+    if (!database) return
+    
     if (username !== database.username) {
-      setUsername(database.username)
+      setUsername(database.username || "")
     }
-  }, [username, database.username])
+  }, [username, database])
 
   useEffect(() => {
-    if (!port || !open) {
+    if (!database || !port || !open) {
       setPortStatus(null)
       setPortConflictInfo(null)
       return
@@ -206,13 +210,13 @@ export function DatabaseSettingsDialog({
       setPortStatus("checking")
       
       try {
-        const internalConflict = allDatabases.find(db => 
-          db.id !== database.id && db.port === portNum
+        const internalConflict = allDatabases?.find(db => 
+          db?.id !== database?.id && db?.port === portNum
         )
         
         if (internalConflict) {
           setPortStatus("conflict")
-          setPortConflictInfo({ processName: `Another database: ${internalConflict.name}`, pid: 'N/A' })
+          setPortConflictInfo({ processName: `Another database: ${internalConflict?.name || 'Unknown'}`, pid: 'N/A' })
           return
         }
         
@@ -223,7 +227,7 @@ export function DatabaseSettingsDialog({
             setPortStatus("conflict")
             setPortConflictInfo({
               processName: processInfo?.processName || 'Unknown process',
-              pid: processInfo?.pid || 'Unknown'
+              pid: processInfo?.pid?.toString() || 'Unknown'
             })
           } else {
             setPortStatus("available")
@@ -249,15 +253,17 @@ export function DatabaseSettingsDialog({
     }, 500)
 
     return () => clearTimeout(timeoutId)
-  }, [port, database.port, database.id, allDatabases, open])
+  }, [port, database, allDatabases, open])
 
   const findNextAvailablePort = useCallback(async (startPort: number): Promise<number> => {
+    if (!database) return startPort
+    
     let port = startPort
     const maxAttempts = 100
     
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const internalConflict = allDatabases.find(db => 
-        db.id !== database.id && db.port === port
+      const internalConflict = allDatabases?.find(db => 
+        db?.id !== database?.id && db?.port === port
       )
       
       if (internalConflict) {
@@ -290,9 +296,11 @@ export function DatabaseSettingsDialog({
     }
     
     return startPort
-  }, [allDatabases, database.id])
+  }, [allDatabases, database])
 
   const validatePort = useCallback(async (p: string) => {
+    if (!database) return false
+    
     setPortError("")
     const portNum = Number.parseInt(p)
     if (isNaN(portNum)) {
@@ -311,13 +319,13 @@ export function DatabaseSettingsDialog({
     try {
       setCheckingPort(true)
       
-      const internalConflict = allDatabases.find(db => 
-        db.id !== database.id && db.port === portNum
+      const internalConflict = allDatabases?.find(db => 
+        db?.id !== database?.id && db?.port === portNum
       )
       
       if (internalConflict) {
         const suggestedPort = await findNextAvailablePort(portNum + 1)
-        setPortError(`Port is in use by "${internalConflict.name}". Suggested: ${suggestedPort}`)
+        setPortError(`Port is in use by "${internalConflict?.name || 'Unknown'}". Suggested: ${suggestedPort}`)
         setCheckingPort(false)
         return false
       }
@@ -328,7 +336,7 @@ export function DatabaseSettingsDialog({
           const suggestedPort = await findNextAvailablePort(portNum + 1)
           const processInfo = conflictResult?.processInfo
           const processName = processInfo?.processName || 'Unknown process'
-          const pid = processInfo?.pid || 'Unknown'
+          const pid = processInfo?.pid?.toString() || 'Unknown'
           setPortError(`Port is in use by ${processName} (PID: ${pid}). Suggested: ${suggestedPort}`)
           setCheckingPort(false)
           return false
@@ -359,22 +367,22 @@ export function DatabaseSettingsDialog({
       setCheckingPort(false)
     }
     return true
-  }, [allDatabases, database.id, database.port, findNextAvailablePort])
+  }, [database, allDatabases, findNextAvailablePort])
 
   const checkAutoStartPortConflict = (enableAutoStart: boolean) => {
-    if (!enableAutoStart) {
+    if (!database || !enableAutoStart) {
       setAutoStartConflict(null)
       return true
     }
 
-    const conflictingDb = allDatabases.find(db => 
-      db.id !== database.id && 
-      db.port === database.port && 
-      db.autoStart
+    const conflictingDb = allDatabases?.find(db => 
+      db?.id !== database?.id && 
+      db?.port === database?.port && 
+      db?.autoStart
     )
 
     if (conflictingDb) {
-      setAutoStartConflict(conflictingDb.name)
+      setAutoStartConflict(conflictingDb?.name || 'Unknown')
       return false
     }
 
@@ -389,9 +397,14 @@ export function DatabaseSettingsDialog({
   }
 
   const handleCancel = useCallback(() => {
-    setName(database.name)
-    setPort(database.port.toString())
-    setUsername(database.username)
+    if (!database) {
+      onOpenChange(false)
+      return
+    }
+    
+    setName(database.name || "")
+    setPort(database.port?.toString() || "")
+    setUsername(database.username || "")
     setPassword("")
     setSelectedIcon(database.icon || "")
     setAutoStart(database.autoStart || false)
@@ -401,6 +414,8 @@ export function DatabaseSettingsDialog({
 
 
   const handleSave = useCallback(async () => {
+    if (!database) return
+    
     if (!validateName(name)) {
       return
     }
@@ -411,15 +426,19 @@ export function DatabaseSettingsDialog({
     }
 
     const portNum = Number.parseInt(port)
+    if (isNaN(portNum)) {
+      return
+    }
+    
     const checkAndSave = async () => {
       const updated = {
         ...database,
-        name,
+        name: name || database.name || "",
         port: portNum,
-        username: database.username,
-        password: password || database.password,
-        icon: selectedIcon,
-        autoStart,
+        username: database.username || "",
+        password: password || database.password || "",
+        icon: selectedIcon || "",
+        autoStart: autoStart || false,
       }
       if (window.electron?.saveDatabase) {
         await window.electron.saveDatabase(updated)
@@ -431,19 +450,22 @@ export function DatabaseSettingsDialog({
       
       if (credentialsChanged && database.status === "running") {
         try {
-          let actualPassword = password
+          let actualPassword = password || ""
           if (!actualPassword || actualPassword === "") {
-            if (window.electron?.getPassword) {
-              actualPassword = await window.electron.getPassword(database.id)
+            if (window.electron?.getPassword && database.id) {
+              const pass = await window.electron.getPassword(database.id)
+              if (pass) {
+                actualPassword = pass
+              }
             }
           }
           
-          if (window.electron?.updateDatabaseCredentials) {
+          if (window.electron?.updateDatabaseCredentials && database.id) {
             const result = await window.electron.updateDatabaseCredentials({
               id: database.id,
-              username: database.username,
+              username: database.username || "",
               password: actualPassword,
-              name: name || database.name
+              name: name || database.name || ""
             })
             
             if (!result?.success) {
@@ -465,6 +487,8 @@ export function DatabaseSettingsDialog({
   }
 
   const handleConfirmDelete = () => {
+    if (!database?.id) return
+    
     setShowDeleteConfirm(false)
     setTimeout(() => {
       onDelete(database.id)
@@ -472,19 +496,20 @@ export function DatabaseSettingsDialog({
   }
 
   const handleExport = async () => {
-    if (isExporting) return
+    if (!database || isExporting) return
     
     try {
       if (window.electron?.exportDatabase) {
         setIsExporting(true)
         
-        let currentDescription = `Preparing export for ${database.name}...`
-        const toastId = toast.loading(`Exporting ${database.name}...`, {
+        const dbName = database.name || "database"
+        let currentDescription = `Preparing export for ${dbName}...`
+        const toastId = toast.loading(`Exporting ${dbName}...`, {
           description: currentDescription,
         })
 
-        window.electron?.onExportProgress?.((progress: { stage: string, message: string, progress: number, total: number }) => {
-          if (progress.message && progress.message !== currentDescription) {
+        window.electron?.onExportProgress?.((progress: { stage?: string, message?: string, progress?: number, total?: number }) => {
+          if (progress?.message && progress.message !== currentDescription) {
             currentDescription = progress.message
             toast.loading("Exporting database instance...", {
               id: toastId,
@@ -502,10 +527,10 @@ export function DatabaseSettingsDialog({
             toast.dismiss(toastId)
 
             if (result?.success) {
-              const fileName = result.filePath ? result.filePath.split(/[/\\]/).pop() : 'file'
-              const sizeMB = result.size ? (result.size / (1024 * 1024)).toFixed(2) : '0'
+              const fileName = result?.filePath ? result.filePath.split(/[/\\]/).pop() : 'file'
+              const sizeMB = result?.size ? (result.size / (1024 * 1024)).toFixed(2) : '0'
               toast.success(`Export completed successfully`, {
-                description: `${database.name} exported to ${fileName} (${sizeMB} MB)`,
+                description: `${dbName} exported to ${fileName} (${sizeMB} MB)`,
                 duration: 5000,
               })
             } else if (result?.canceled) {
@@ -515,7 +540,7 @@ export function DatabaseSettingsDialog({
               })
             } else {
               toast.error("Export failed", {
-                description: result?.error || `Failed to export ${database.name}`,
+                description: result?.error || `Failed to export ${dbName}`,
                 duration: 5000,
               })
             }
@@ -539,6 +564,7 @@ export function DatabaseSettingsDialog({
         })
       }
     } catch (error) {
+      setIsExporting(false)
       toast.error("Export error", {
         description: error instanceof Error ? error.message : "An error occurred while exporting",
         duration: 5000,
@@ -570,13 +596,17 @@ export function DatabaseSettingsDialog({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [open, handleSave, handleCancel, onOpenChange])
 
+  if (!database) {
+    return null
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={handleCancel}>
         <DialogContent className="sm:max-w-[500px] !top-[15vh] !translate-y-0">
           <DialogHeader>
-            <DialogTitle>Database Settings</DialogTitle>
-            <DialogDescription>Configure settings for {database.name}</DialogDescription>
+                  <DialogTitle>Database Settings</DialogTitle>
+            <DialogDescription>Configure settings for {database?.name || "database"}</DialogDescription>
           </DialogHeader>
 
           <div className="min-h-[200px] max-h-[500px] overflow-y-auto">
@@ -694,7 +724,7 @@ export function DatabaseSettingsDialog({
                   </Label>
                   <Input
                     id="edit-username"
-                    value={database.username}
+                    value={database?.username || ""}
                     disabled
                     className="h-8 text-sm"
                   />
@@ -721,14 +751,19 @@ export function DatabaseSettingsDialog({
                     <button
                       type="button"
                       onClick={() => {
+                        if (!database) return
+                        
                         const auth = database.username && database.password 
                           ? `${database.username}:${database.password}@`
                           : database.username 
                           ? `${database.username}@`
                           : ''
-                        const connectionString = database.type === "redis"
-                          ? `${database.type}://${auth}localhost:${database.port}`
-                          : `${database.type}://${auth}localhost:${database.port}/${database.name}`
+                        const dbType = database.type || "postgresql"
+                        const dbPort = database.port || 5432
+                        const dbName = database.name || ""
+                        const connectionString = dbType === "redis"
+                          ? `${dbType}://${auth}localhost:${dbPort}`
+                          : `${dbType}://${auth}localhost:${dbPort}/${dbName}`
                         navigator.clipboard.writeText(connectionString).then(() => {
                           toast.success("Connection string copied to clipboard")
                           copyConnectionStringRef.current?.startAnimation()
@@ -747,17 +782,22 @@ export function DatabaseSettingsDialog({
                   </div>
                   <code className="text-xs break-all block">
                     {(() => {
+                      if (!database) return ""
+                      
                       const auth = database.username && database.password 
                         ? `${database.username}:${database.password}@`
                         : database.username 
                         ? `${database.username}@`
                         : ''
-                      return database.type === "redis"
-                        ? `${database.type}://${auth}localhost:${database.port}`
-                        : `${database.type}://${auth}localhost:${database.port}/${database.name}`
+                      const dbType = database.type || "postgresql"
+                      const dbPort = database.port || 5432
+                      const dbName = database.name || ""
+                      return dbType === "redis"
+                        ? `${dbType}://${auth}localhost:${dbPort}`
+                        : `${dbType}://${auth}localhost:${dbPort}/${dbName}`
                     })()}
                   </code>
-                  {database.type === "mysql" && (
+                  {database?.type === "mysql" && (
                     <div className="text-[10px] text-muted-foreground mt-1.5 space-y-1">
                       <p>
                         <span className="font-medium text-foreground">Why?</span> MySQL 8.0+ uses <code className="text-xs bg-background/50 px-1 rounded">caching_sha2_password</code> which requires the server&apos;s RSA public key to encrypt passwords. The <code className="text-xs bg-background/50 px-1 rounded">allowPublicKeyRetrieval=true</code> parameter allows clients to request this key during connection.
@@ -791,15 +831,18 @@ export function DatabaseSettingsDialog({
                             <button
                               type="button"
                               onClick={async () => {
-                                const actualPassword = await window.electron?.getPassword?.(database.id) || password || ""
-                                const dbName = database.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)
-                                let paramsText = `Host: localhost\nPort: ${port}\n`
+                                if (!database?.id) return
                                 
-                                if (database.type === "mysql" || database.type === "postgresql") {
+                                const actualPassword = await window.electron?.getPassword?.(database.id) || password || ""
+                                const dbName = (database.name || "").toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)
+                                let paramsText = `Host: localhost\nPort: ${port || database.port || ""}\n`
+                                
+                                const dbType = database.type || ""
+                                if (dbType === "mysql" || dbType === "postgresql") {
                                   paramsText += `Database: ${dbName}\n`
-                                  paramsText += `Username: ${database.username}\n`
+                                  paramsText += `Username: ${database.username || ""}\n`
                                   paramsText += `Password: ${actualPassword || "[Enter your password]"}\n`
-                                } else if (database.type === "mongodb") {
+                                } else if (dbType === "mongodb") {
                                   paramsText += `Database: ${dbName}\n`
                                   if (database.username) {
                                     paramsText += `Username: ${database.username}\n`
@@ -807,7 +850,7 @@ export function DatabaseSettingsDialog({
                                   }
                                 }
                                 
-                                if (database.type === "mysql") {
+                                if (dbType === "mysql") {
                                   paramsText += `\nDriver Property:\nallowPublicKeyRetrieval=true`
                                 }
                                 
@@ -824,24 +867,24 @@ export function DatabaseSettingsDialog({
                           </div>
                           <div className="bg-background/50 rounded p-2 space-y-1 font-mono text-xs">
                             <div><span className="text-muted-foreground">Host:</span> localhost</div>
-                            <div><span className="text-muted-foreground">Port:</span> {port}</div>
-                            {database.type === "mysql" && (
+                            <div><span className="text-muted-foreground">Port:</span> {port || database?.port || ""}</div>
+                            {database?.type === "mysql" && (
                               <>
-                                <div><span className="text-muted-foreground">Database:</span> {database.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)}</div>
-                                <div><span className="text-muted-foreground">Username:</span> {database.username}</div>
+                                <div><span className="text-muted-foreground">Database:</span> {(database.name || "").toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)}</div>
+                                <div><span className="text-muted-foreground">Username:</span> {database.username || ""}</div>
                                 <div><span className="text-muted-foreground">Password:</span> [Check password field above]</div>
                               </>
                             )}
-                            {database.type === "postgresql" && (
+                            {database?.type === "postgresql" && (
                               <>
-                                <div><span className="text-muted-foreground">Database:</span> {database.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)}</div>
-                                <div><span className="text-muted-foreground">Username:</span> {database.username}</div>
+                                <div><span className="text-muted-foreground">Database:</span> {(database.name || "").toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)}</div>
+                                <div><span className="text-muted-foreground">Username:</span> {database.username || ""}</div>
                                 <div><span className="text-muted-foreground">Password:</span> [Check password field above]</div>
                               </>
                             )}
-                            {database.type === "mongodb" && (
+                            {database?.type === "mongodb" && (
                               <>
-                                <div><span className="text-muted-foreground">Database:</span> {database.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)}</div>
+                                <div><span className="text-muted-foreground">Database:</span> {(database.name || "").toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63)}</div>
                                 {database.username && (
                                   <>
                                     <div><span className="text-muted-foreground">Username:</span> {database.username}</div>
@@ -852,7 +895,7 @@ export function DatabaseSettingsDialog({
                             )}
                           </div>
                         </div>
-                        {database.type === "mysql" && (
+                        {database?.type === "mysql" && (
                           <div className="space-y-1.5">
                             <div className="space-y-1">
                               <p className="font-medium text-foreground">Why is this needed?</p>
@@ -875,9 +918,9 @@ export function DatabaseSettingsDialog({
                           <p className="font-medium text-foreground">Steps:</p>
                           <ol className="list-decimal list-inside space-y-1 ml-2">
                             <li>Open DBeaver and click <span className="font-mono bg-background/50 px-1 rounded">New Database Connection</span></li>
-                            <li>Select <span className="font-mono bg-background/50 px-1 rounded">{database.type === "mysql" ? "MySQL" : database.type === "postgresql" ? "PostgreSQL" : database.type === "mongodb" ? "MongoDB" : "Redis"}</span> from the list</li>
+                            <li>Select <span className="font-mono bg-background/50 px-1 rounded">{database?.type === "mysql" ? "MySQL" : database?.type === "postgresql" ? "PostgreSQL" : database?.type === "mongodb" ? "MongoDB" : "Redis"}</span> from the list</li>
                             <li>Enter the connection parameters above</li>
-                            {database.type === "mysql" && <li>Enable <span className="font-mono bg-background/50 px-1 rounded">allowPublicKeyRetrieval</span> as described above</li>}
+                            {database?.type === "mysql" && <li>Enable <span className="font-mono bg-background/50 px-1 rounded">allowPublicKeyRetrieval</span> as described above</li>}
                             <li>Click <span className="font-mono bg-background/50 px-1 rounded">Test Connection</span> to verify</li>
                           </ol>
                         </div>
@@ -890,15 +933,15 @@ export function DatabaseSettingsDialog({
               <TabsContent value="advanced" className="space-y-3 pt-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Container ID</Label>
-                  <Input value={database.containerId} disabled className="h-8 text-sm" />
+                  <Input value={database?.containerId || ""} disabled className="h-8 text-sm" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Version</Label>
-                  <Input value={database.version} disabled className="h-8 text-sm" />
+                  <Input value={database?.version || ""} disabled className="h-8 text-sm" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Created</Label>
-                  <Input value={new Date(database.createdAt).toLocaleString()} disabled className="h-8 text-sm" />
+                  <Input value={database?.createdAt ? new Date(database.createdAt).toLocaleString() : ""} disabled className="h-8 text-sm" />
                 </div>
                 <div className="pt-2">
                   <Button
@@ -973,7 +1016,7 @@ export function DatabaseSettingsDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <span className="font-semibold">{database.name}</span> and remove all of its
+              This will permanently delete <span className="font-semibold">{database?.name || "database"}</span> and remove all of its
               data. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

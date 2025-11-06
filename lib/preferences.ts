@@ -20,7 +20,20 @@ const TOUR_SKIPPED_KEY = "liquidb-tour-skipped"
 // Profile functions
 export function saveProfile(profile: UserProfile): void {
   try {
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
+      } catch (storageError: unknown) {
+        const error = storageError as Error
+        const isSecurityError = error?.name === 'SecurityError' || 
+                                (error?.message && error.message.includes('localStorage') && error.message.includes('denied'))
+        if (isSecurityError) {
+          console.warn("localStorage access denied (SecurityError), cannot save profile")
+        } else {
+          throw storageError
+        }
+      }
+    }
   } catch (error) {
     console.error("Failed to save profile:", error)
   }
@@ -28,8 +41,22 @@ export function saveProfile(profile: UserProfile): void {
 
 export function loadProfile(): UserProfile | null {
   try {
-    const raw = localStorage.getItem(PROFILE_KEY)
-    return raw ? JSON.parse(raw) : null
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const raw = localStorage.getItem(PROFILE_KEY)
+        return raw ? JSON.parse(raw) : null
+      } catch (storageError: unknown) {
+        const error = storageError as Error
+        const isSecurityError = error?.name === 'SecurityError' || 
+                                (error?.message && error.message.includes('localStorage') && error.message.includes('denied'))
+        if (isSecurityError) {
+          console.warn("localStorage access denied (SecurityError), cannot load profile")
+          return null
+        }
+        throw storageError
+      }
+    }
+    return null
   } catch (error) {
     console.error("Failed to load profile:", error)
     return null
@@ -72,21 +99,59 @@ export function loadPreferences(): AppPreferences {
       }
     }
 
-    const raw = localStorage.getItem(PREFS_KEY)
-    if (raw) return JSON.parse(raw) as AppPreferences
+    if (!window.localStorage) {
+      return {
+        theme: "system",
+        notificationsEnabled: true,
+        autoStartOnBoot: false,
+        bannedPorts: [],
+        colorScheme: "mono",
+      }
+    }
 
-    // Build defaults from scattered keys for backward compatibility
-    const notificationsEnabled = (() => {
-      const v = localStorage.getItem("notifications-enabled")
-      return v !== null ? JSON.parse(v) : true
-    })()
-    const colorScheme = localStorage.getItem("color-scheme") || "mono"
-    return {
-      theme: "system",
-      notificationsEnabled,
-      autoStartOnBoot: false,
-      bannedPorts: [],
-      colorScheme,
+    try {
+      const raw = localStorage.getItem(PREFS_KEY)
+      if (raw) return JSON.parse(raw) as AppPreferences
+
+      // Build defaults from scattered keys for backward compatibility
+      const notificationsEnabled = (() => {
+        try {
+          const v = localStorage.getItem("notifications-enabled")
+          return v !== null ? JSON.parse(v) : true
+        } catch {
+          return true
+        }
+      })()
+      const colorScheme = (() => {
+        try {
+          return localStorage.getItem("color-scheme") || "mono"
+        } catch {
+          return "mono"
+        }
+      })()
+      return {
+        theme: "system",
+        notificationsEnabled,
+        autoStartOnBoot: false,
+        bannedPorts: [],
+        colorScheme,
+      }
+    } catch (storageError: unknown) {
+      // Handle SecurityError specifically (access denied)
+      const error = storageError as Error
+      const isSecurityError = error?.name === 'SecurityError' || 
+                              (error?.message && error.message.includes('localStorage') && error.message.includes('denied'))
+      if (isSecurityError) {
+        console.warn("localStorage access denied (SecurityError), using default preferences")
+        return {
+          theme: "system",
+          notificationsEnabled: true,
+          autoStartOnBoot: false,
+          bannedPorts: [],
+          colorScheme: "mono",
+        }
+      }
+      throw storageError // Re-throw if it's not a SecurityError
     }
   } catch {
     return {
@@ -157,7 +222,21 @@ export async function setBannedPorts(ports: number[]): Promise<void> {
 // Onboarding functions
 export function markOnboardingComplete(): void {
   try {
-    localStorage.setItem(ONBOARDING_KEY, "true")
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(ONBOARDING_KEY, "true")
+      } catch (storageError: unknown) {
+        // Handle SecurityError specifically (access denied)
+        const error = storageError as Error
+        const isSecurityError = error?.name === 'SecurityError' || 
+                                (error?.message && error.message.includes('localStorage') && error.message.includes('denied'))
+        if (isSecurityError) {
+          console.warn("localStorage access denied (SecurityError), cannot persist onboarding completion")
+        } else {
+          throw storageError // Re-throw if it's not a SecurityError
+        }
+      }
+    }
   } catch (error) {
     console.error("Failed to mark onboarding complete:", error)
   }
@@ -165,10 +244,26 @@ export function markOnboardingComplete(): void {
 
 export function isOnboardingComplete(): boolean {
   try {
-    return localStorage.getItem(ONBOARDING_KEY) === "true"
+    // Fallback to localStorage (synchronous access)
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        return localStorage.getItem(ONBOARDING_KEY) === "true"
+      } catch (storageError: unknown) {
+        // Handle SecurityError specifically (access denied)
+        const error = storageError as Error
+        const isSecurityError = error?.name === 'SecurityError' || 
+                                (error?.message && error.message.includes('localStorage') && error.message.includes('denied'))
+        if (isSecurityError) {
+          console.warn("localStorage access denied (SecurityError), defaulting to onboarding incomplete")
+          return false // Default to showing onboarding if localStorage is blocked
+        }
+        throw storageError // Re-throw if it's not a SecurityError
+      }
+    }
+    return false // Default to showing onboarding if localStorage is not available
   } catch (error) {
     console.error("Failed to check onboarding status:", error)
-    return false
+    return false // Default to showing onboarding on error
   }
 }
 

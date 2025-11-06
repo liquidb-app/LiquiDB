@@ -1274,7 +1274,7 @@ export default function DatabaseManager() {
               console.log(`[Auto-start] Port conflicts detected:`, data.conflicts)
               
               // Show individual conflict notifications
-              data.conflicts.forEach((conflict: { databaseName: string, originalPort: number, newPort: number, conflictingDatabase: string }) => {
+              data.conflicts.forEach((conflict) => {
                 notifyWarning("Auto-start Port Conflict Resolved", {
                   description: `${conflict.databaseName} port changed from ${conflict.originalPort} to ${conflict.newPort} due to conflict with ${conflict.conflictingDatabase}`,
                   duration: 8000,
@@ -1290,7 +1290,7 @@ export default function DatabaseManager() {
               console.log(`[Auto-start] Completed:`, data)
               
               // Show summary notification
-              if (data.portConflicts && data.portConflicts > 0) {
+              if (data.portConflicts > 0) {
                 notifyInfo("Auto-start Completed with Port Conflicts", {
                   description: `${data.successful} databases started, ${data.failed} failed, ${data.portConflicts} port conflicts resolved`,
                   duration: 6000,
@@ -2113,7 +2113,7 @@ export default function DatabaseManager() {
         console.log(`[Auto-start] Port conflicts detected:`, data.conflicts)
         
         // Show notification for each port conflict
-        data.conflicts.forEach((conflict: { databaseName: string, originalPort: number, newPort: number, conflictingDatabase: string }) => {
+        data.conflicts.forEach((conflict) => {
           notifyWarning("Auto-start Port Conflict Resolved", {
             description: `${conflict.databaseName} port changed from ${conflict.originalPort} to ${conflict.newPort} due to conflict with ${conflict.conflictingDatabase}`,
             duration: 8000,

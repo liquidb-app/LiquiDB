@@ -23,13 +23,22 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
   const checkHealth = async () => {
     setIsChecking(true)
     try {
-      const result = await window.electron?.getHelperHealth?.()
+      if (!window?.electron?.getHelperHealth) {
+        setIsHealthy(false)
+        return
+      }
+      
+      const result = await window.electron.getHelperHealth()
       if (result?.success) {
-        const isMainAppRunning = window.electron?.isElectron
+        const isMainAppRunning = window?.electron?.isElectron
         if (isMainAppRunning) {
           setIsHealthy(true)
         } else {
-          setIsHealthy(result.data.isHealthy)
+          if (result?.data) {
+            setIsHealthy(result.data.isHealthy ?? false)
+          } else {
+            setIsHealthy(false)
+          }
         }
       } else {
         setIsHealthy(false)
@@ -45,11 +54,25 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
   const handleReinstall = async () => {
     setIsReinstalling(true)
     try {
-      await window.electron?.uninstallHelper?.()
+      if (!window?.electron?.uninstallHelper) {
+        notifyError("Failed to reinstall helper service", {
+          description: "Electron API not available",
+        })
+        return
+      }
+      
+      await window.electron.uninstallHelper()
       
       await new Promise(resolve => setTimeout(resolve, 1000))
       
-      const installResult = await window.electron?.startHelper?.()
+      if (!window?.electron?.startHelper) {
+        notifyError("Failed to reinstall helper service", {
+          description: "Start helper API not available",
+        })
+        return
+      }
+      
+      const installResult = await window.electron.startHelper()
       
       if (installResult?.success) {
         notifySuccess("Helper service reinstalled successfully")
@@ -59,9 +82,10 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
           description: installResult?.error || "Unknown error occurred",
         })
       }
-    } catch {
+    } catch (error) {
+      console.error("Error reinstalling helper service:", error)
       notifyError("Failed to reinstall helper service", {
-        description: "Could not connect to helper service",
+        description: error instanceof Error ? error.message : "Could not connect to helper service",
       })
     } finally {
       setIsReinstalling(false)
@@ -84,7 +108,7 @@ export function HelperHealthMonitor({ className }: HelperHealthMonitorProps) {
     return null
   }
 
-  const isMainAppRunning = typeof window !== 'undefined' && window.electron?.isElectron
+  const isMainAppRunning = typeof window !== 'undefined' && window?.electron?.isElectron
   if (isMainAppRunning) {
     return null
   }

@@ -1,8 +1,8 @@
 'use client';
 
-import { motion, useAnimation, useMotionValue, useTransform, animate } from 'motion/react';
-import type { HTMLAttributes, Variants } from 'react';
-import { forwardRef, useCallback, useImperativeHandle, useRef, useEffect, useId } from 'react';
+import { motion, useAnimation, useMotionValue, useTransform, animate, type Variants, useMotionValueEvent } from 'framer-motion';
+import type { HTMLAttributes } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useRef, useEffect, useId, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export interface SparklesIconHandle {
@@ -58,7 +58,12 @@ const SparklesIcon = forwardRef<SparklesIconHandle, SparklesIconProps>(
     const isControlledRef = useRef(false);
     const gradientId = useId();
     const rotation = useMotionValue(0);
-    const gradientTransform = useTransform(rotation, (r) => `rotate(${r} 0.5 0.5)`);
+    const gradientTransformValue = useTransform(rotation, (r) => `rotate(${r} 0.5 0.5)`);
+    const [gradientTransform, setGradientTransform] = useState('rotate(0 0.5 0.5)');
+
+    useMotionValueEvent(gradientTransformValue, 'change', (latest) => {
+      setGradientTransform(latest);
+    });
 
     useEffect(() => {
       controls.start('animate');
@@ -141,7 +146,7 @@ const SparklesIcon = forwardRef<SparklesIconHandle, SparklesIconProps>(
             strokeLinejoin="round"
           >
             <defs>
-              <motion.linearGradient
+              <linearGradient
                 id={gradientId}
                 gradientUnits="objectBoundingBox"
                 x1="0%"
@@ -153,7 +158,7 @@ const SparklesIcon = forwardRef<SparklesIconHandle, SparklesIconProps>(
                 <stop offset="0%" stopColor="var(--primary)" />
                 <stop offset="50%" stopColor="var(--ring)" />
                 <stop offset="100%" stopColor="var(--primary)" />
-              </motion.linearGradient>
+              </linearGradient>
             </defs>
             <motion.path
               d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"

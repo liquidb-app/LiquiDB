@@ -11,7 +11,10 @@ class Logger {
 
   constructor() {
     // Get log level from environment variable or default to ERROR (minimal)
-    const envLevel = process.env.LOG_LEVEL?.toUpperCase()
+    // Check if process is available (Node.js environment)
+    const envLevel = typeof process !== 'undefined' && process.env?.LOG_LEVEL
+      ? process.env.LOG_LEVEL.toUpperCase()
+      : undefined
     this.level = envLevel ? LogLevel[envLevel as keyof typeof LogLevel] : LogLevel.ERROR
   }
 

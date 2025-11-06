@@ -54,17 +54,8 @@ contextBridge.exposeInMainWorld("electron", {
   openExternalLink: (url) => ipcRenderer.invoke("open-external-link", url),
   quitApp: () => ipcRenderer.invoke("app:quit"),
   
-  // Onboarding status check
-  isOnboardingComplete: () => {
-    try {
-      // Check for both keys for backward compatibility
-      const liquidbKey = localStorage.getItem('liquidb-onboarding-complete')
-      const legacyKey = localStorage.getItem('onboarding-complete')
-      return liquidbKey === 'true' || legacyKey === 'true'
-    } catch (error) {
-      return false
-    }
-  },
+  // Onboarding status check - use IPC instead of direct localStorage access
+  isOnboardingComplete: () => ipcRenderer.invoke("is-onboarding-complete"),
   
   // Dashboard ready signal - notify main process that dashboard is loaded
   notifyDashboardReady: () => ipcRenderer.invoke("dashboard-ready"),

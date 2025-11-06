@@ -710,7 +710,7 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
                                         <strong>Cursor:</strong> Go to <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono break-all">Settings → Features → MCP</code>
                                       </li>
                                       <li className="min-w-0">
-                                        <strong>Other tools:</strong> Check your tool's MCP settings or configuration file
+                                        <strong>Other tools:</strong> Check your tool&apos;s MCP settings or configuration file
                                       </li>
                                     </ul>
                                   </div>
