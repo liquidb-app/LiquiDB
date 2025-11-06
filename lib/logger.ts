@@ -1,4 +1,4 @@
-export enum LogLevel {
+enum LogLevel {
   ERROR = 0,
   WARN = 1,
   INFO = 2,
@@ -67,7 +67,7 @@ class Logger {
 }
 
 // Create singleton instance
-export const logger = new Logger()
+const logger = new Logger()
 
 // Helper functions for easier usage
 export const log = {
