@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, AnimatePresence, type TargetAndTransition } from "framer-motion"
 import { TabHeader } from "../tab-header"
 import { DatabaseGrid } from "../database-grid"
 import type { DatabaseContainer } from "@/lib/types"
@@ -16,7 +16,7 @@ interface InactiveTabContentProps {
   copiedId: string | null
   cardRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
   cardInitialPositions: Map<string, { x: number; y: number; left: number; top: number; width: number; height: number }>
-  getCardAnimationProps: (dbId: string, index: number) => Record<string, unknown>
+  getCardAnimationProps: (dbId: string, index: number) => TargetAndTransition | undefined
   getVisibleDatabases: () => DatabaseContainer[]
   toggleSelectAll: () => void
   getSelectAllButtonText: () => string

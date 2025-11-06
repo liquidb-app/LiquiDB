@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react"
 import { notifyError } from "@/lib/notifications"
 import type { DatabaseContainer } from "@/lib/types"
+import type { TargetAndTransition } from "framer-motion"
 
 export const useUiUtilities = (
   databases: DatabaseContainer[],
@@ -62,14 +63,14 @@ export const useUiUtilities = (
   }, [deleteAnimationPhase, cardInitialPositions.size, centerPosition, cardRefs, setCardInitialPositions])
 
   // Helper to get card animation props using Motion.dev
-  const getCardAnimationProps = useCallback((dbId: string, index: number): Record<string, unknown> => {
+  const getCardAnimationProps = useCallback((dbId: string, index: number): TargetAndTransition | undefined => {
     if (deleteAnimationPhase === 'idle' || !isDeletingAll || !centerPosition.current) {
-      return {}
+      return undefined
     }
     
     const initialPos = cardInitialPositions.get(dbId)
     if (!initialPos) {
-      return {}
+      return undefined
     }
     
     // Calculate delta from initial position to center
@@ -133,7 +134,7 @@ export const useUiUtilities = (
       }
     }
     
-    return {}
+    return undefined
   }, [deleteAnimationPhase, isDeletingAll, centerPosition, cardInitialPositions, databases.length])
 
   const getVisibleDatabases = useCallback(() => {

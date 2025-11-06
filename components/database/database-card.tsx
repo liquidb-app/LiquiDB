@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { motion } from "framer-motion"
+import { motion, type TargetAndTransition } from "framer-motion"
 import { Square, RotateCw } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -28,7 +28,7 @@ interface DatabaseCardProps {
   cardRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
   cardInitialPositions: Map<string, { x: number; y: number; left: number; top: number; width: number; height: number }>
   databases: DatabaseContainer[]
-  getCardAnimationProps: (dbId: string, index: number) => Record<string, unknown>
+  getCardAnimationProps: (dbId: string, index: number) => TargetAndTransition | undefined
   toggleDatabaseSelection: (id: string) => void
   handleStartStop: (id: string) => void
   handleRefreshStatus: (id: string) => void

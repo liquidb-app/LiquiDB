@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { AnimatePresence } from "framer-motion"
+import { AnimatePresence, type TargetAndTransition } from "framer-motion"
 import { DatabaseCard } from "./database-card"
 import type { DatabaseContainer } from "@/lib/types"
 
@@ -15,7 +15,7 @@ interface DatabaseGridProps {
   copiedId: string | null
   cardRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
   cardInitialPositions: Map<string, { x: number; y: number; left: number; top: number; width: number; height: number }>
-  getCardAnimationProps: (dbId: string, index: number) => Record<string, unknown>
+  getCardAnimationProps: (dbId: string, index: number) => TargetAndTransition | undefined
   toggleDatabaseSelection: (id: string) => void
   handleStartStop: (id: string) => void
   handleRefreshStatus: (id: string) => void
