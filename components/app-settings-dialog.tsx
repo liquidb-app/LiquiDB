@@ -403,7 +403,7 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
           </DialogHeader>
 
           <Tabs defaultValue="appearance" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-5 [display:grid!important] [&>*]:min-w-0 [&>*]:text-center">
               <TabsTrigger value="appearance">Appearance</TabsTrigger>
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="helper">Helper</TabsTrigger>
@@ -414,7 +414,7 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
             <div className="min-h-[200px] max-h-[500px] overflow-y-auto">
               <TabsContent value="appearance" className="space-y-4 pt-4 mt-0">
                 <div className="space-y-2">
-                  <Label>Theme</Label>
+                  <Label className="text-sm font-medium">Theme</Label>
                   <div className="space-y-1">
                     <div
                       className="flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent rounded-sm"
@@ -465,7 +465,7 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Color Scheme</Label>
+                  <Label className="text-sm font-medium">Color Scheme</Label>
                   <div className="grid grid-cols-5 gap-2">
                     {colorSchemes.map((scheme) => (
                       <button
