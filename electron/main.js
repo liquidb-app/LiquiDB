@@ -2527,23 +2527,231 @@ function createWindow() {
     // 2. app.asar.unpacked (when unpacked from asar)
     // 3. app directory (when asar is disabled)
     
+    /**
+     * Validates that the out directory contains a complete Next.js static export
+     * @param {string} outDir - Path to the out directory
+     * @returns {{valid: boolean, errors: string[], warnings: string[]}}
+     */
+    function validateNextJsStaticExport(outDir) {
+      const errors = [];
+      const warnings = [];
+      
+      // Check if out directory exists
+      if (!fs.existsSync(outDir)) {
+        errors.push(`Out directory does not exist: ${outDir}`);
+        return { valid: false, errors, warnings };
+      }
+      
+      // Check if out directory is actually a directory
+      try {
+        const stats = fs.statSync(outDir);
+        if (!stats.isDirectory()) {
+          errors.push(`Out path exists but is not a directory: ${outDir}`);
+          return { valid: false, errors, warnings };
+        }
+      } catch (err) {
+        errors.push(`Cannot access out directory: ${outDir} - ${err.message}`);
+        return { valid: false, errors, warnings };
+      }
+      
+      // Check for index.html (required)
+      const indexPath = path.join(outDir, 'index.html');
+      if (!fs.existsSync(indexPath)) {
+        errors.push(`index.html not found in out directory: ${indexPath}`);
+      } else {
+        try {
+          const indexStats = fs.statSync(indexPath);
+          if (!indexStats.isFile()) {
+            errors.push(`index.html exists but is not a file: ${indexPath}`);
+          }
+        } catch (err) {
+          errors.push(`Cannot access index.html: ${indexPath} - ${err.message}`);
+        }
+      }
+      
+      // Check for _next directory (critical for Next.js static exports)
+      const nextDir = path.join(outDir, '_next');
+      if (!fs.existsSync(nextDir)) {
+        errors.push(`_next directory not found in out directory: ${nextDir}`);
+      } else {
+        try {
+          const nextStats = fs.statSync(nextDir);
+          if (!nextStats.isDirectory()) {
+            errors.push(`_next exists but is not a directory: ${nextDir}`);
+          } else {
+            // Check for _next/static directory (contains CSS, JS, and other assets)
+            const staticDir = path.join(nextDir, 'static');
+            if (!fs.existsSync(staticDir)) {
+              warnings.push(`_next/static directory not found: ${staticDir} (may indicate incomplete build)`);
+            } else {
+              try {
+                const staticStats = fs.statSync(staticDir);
+                if (!staticStats.isDirectory()) {
+                  warnings.push(`_next/static exists but is not a directory: ${staticDir}`);
+                }
+              } catch (err) {
+                warnings.push(`Cannot access _next/static: ${staticDir} - ${err.message}`);
+              }
+            }
+          }
+        } catch (err) {
+          errors.push(`Cannot access _next directory: ${nextDir} - ${err.message}`);
+        }
+      }
+      
+      return {
+        valid: errors.length === 0,
+        errors,
+        warnings
+      };
+    }
+    
     const appPath = app.getAppPath();
+    let outDir = path.join(appPath, 'out');
     let indexPath = path.join(appPath, 'out', 'index.html');
     
     // Check if appPath points to app.asar, and if so, check for unpacked files
     if (appPath.endsWith('.asar')) {
       // Files are unpacked, so they're in app.asar.unpacked directory
       const unpackedPath = appPath.replace('.asar', '.asar.unpacked');
-      indexPath = path.join(unpackedPath, 'out', 'index.html');
+      const unpackedOutDir = path.join(unpackedPath, 'out');
+      const unpackedIndexPath = path.join(unpackedOutDir, 'index.html');
       
       // Verify unpacked path exists
-      if (!fs.existsSync(indexPath)) {
+      if (fs.existsSync(unpackedIndexPath)) {
+        outDir = unpackedOutDir;
+        indexPath = unpackedIndexPath;
+      } else {
         // Fallback: try inside asar (if files weren't unpacked)
         indexPath = path.join(appPath, 'out', 'index.html');
       }
     }
     
-    // Verify the file exists before loading
+    // Validate the Next.js static export before loading
+    const validation = validateNextJsStaticExport(outDir);
+    
+    if (!validation.valid) {
+      // Log all errors and warnings
+      log.error(`[Window] Next.js static export validation failed:`);
+      validation.errors.forEach(error => log.error(`[Window] ERROR: ${error}`));
+      validation.warnings.forEach(warning => log.warn(`[Window] WARNING: ${warning}`));
+      
+      // Build detailed error message for user
+      const errorDetails = validation.errors.map(e => `  • ${e}`).join('\n');
+      const warningDetails = validation.warnings.length > 0 
+        ? '\n\nWarnings:\n' + validation.warnings.map(w => `  • ${w}`).join('\n')
+        : '';
+      
+      const errorMessage = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Invalid Next.js Static Export</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .container {
+      max-width: 600px;
+      background: #2a2a2a;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+    h1 {
+      margin-top: 0;
+      color: #ff6b6b;
+      font-size: 24px;
+    }
+    .error-section {
+      background: #3a1f1f;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 15px 0;
+      border-left: 3px solid #ff6b6b;
+    }
+    .warning-section {
+      background: #3a3a1f;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 15px 0;
+      border-left: 3px solid #ffd93d;
+    }
+    pre {
+      background: #1a1a1a;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.5;
+      margin: 10px 0;
+    }
+    .solution {
+      margin-top: 20px;
+      padding: 15px;
+      background: #1f3a3a;
+      border-radius: 4px;
+      border-left: 3px solid #4ecdc4;
+    }
+    .solution h2 {
+      margin-top: 0;
+      color: #4ecdc4;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>❌ Invalid Next.js Static Export</h1>
+    <p>The application files are missing or incomplete. The static export validation failed.</p>
+    
+    <div class="error-section">
+      <strong>Errors:</strong>
+      <pre>${errorDetails}</pre>
+    </div>
+    
+    ${validation.warnings.length > 0 ? `
+    <div class="warning-section">
+      <strong>Warnings:</strong>
+      <pre>${validation.warnings.map(w => `  • ${w}`).join('\n')}</pre>
+    </div>
+    ` : ''}
+    
+    <div class="solution">
+      <h2>🔧 Solution</h2>
+      <p>Please ensure the Next.js application was built with <code>output: 'export'</code> in <code>next.config.ts</code>:</p>
+      <pre>const nextConfig = {
+  output: 'export',
+  // ... other config
+}</pre>
+      <p>Then rebuild the application:</p>
+      <pre>npm run build</pre>
+      <p><strong>Expected location:</strong> <code>${outDir}</code></p>
+    </div>
+  </div>
+</body>
+</html>`;
+      
+      mainWindow.loadURL(`data:text/html,${encodeURIComponent(errorMessage)}`);
+      return;
+    }
+    
+    // Log warnings if any (but continue loading since validation passed)
+    if (validation.warnings.length > 0) {
+      log.warn(`[Window] Next.js static export validation warnings:`);
+      validation.warnings.forEach(warning => log.warn(`[Window] WARNING: ${warning}`));
+    }
+    
+    // Verify the file exists before loading (double-check)
     if (fs.existsSync(indexPath)) {
       log.info(`[Window] Loading static file from: ${indexPath}`);
       // Use app:// protocol to support assetPrefix: '/' with next/font
@@ -2551,17 +2759,74 @@ function createWindow() {
     } else {
       // Fallback: try relative path from __dirname (for development builds or different structures)
       const fallbackPath = path.join(__dirname, '..', 'out', 'index.html');
-      if (fs.existsSync(fallbackPath)) {
+      const fallbackOutDir = path.join(__dirname, '..', 'out');
+      
+      // Validate fallback path as well
+      const fallbackValidation = validateNextJsStaticExport(fallbackOutDir);
+      
+      if (fs.existsSync(fallbackPath) && fallbackValidation.valid) {
         log.info(`[Window] Loading static file from fallback: ${fallbackPath}`);
         mainWindow.loadFile(fallbackPath);
       } else {
-        log.error(`[Window] Cannot find index.html. Checked locations:
-          - ${indexPath}
-          - ${fallbackPath}
+        log.error(`[Window] Cannot find valid Next.js static export. Checked locations:
+          - ${outDir} (validation: ${validation.valid ? 'PASSED' : 'FAILED'})
+          - ${fallbackOutDir} (validation: ${fallbackValidation.valid ? 'PASSED' : 'FAILED'})
           - app.getAppPath(): ${appPath}
         `);
-        // Show error to user
-        mainWindow.loadURL('data:text/html,<h1>Error: Application files not found</h1><p>Please rebuild the application.</p>');
+        
+        // Show comprehensive error message
+        const errorMessage = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Application Files Not Found</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .container {
+      max-width: 600px;
+      background: #2a2a2a;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+    h1 {
+      margin-top: 0;
+      color: #ff6b6b;
+    }
+    pre {
+      background: #1a1a1a;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>❌ Application Files Not Found</h1>
+    <p>Could not locate a valid Next.js static export in any of the expected locations.</p>
+    <p><strong>Checked locations:</strong></p>
+    <pre>• ${outDir}
+• ${fallbackOutDir}
+• ${appPath}</pre>
+    <p>Please rebuild the application with <code>npm run build</code>.</p>
+  </div>
+</body>
+</html>`;
+        
+        mainWindow.loadURL(`data:text/html,${encodeURIComponent(errorMessage)}`);
       }
     }
   }
