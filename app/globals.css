@@ -257,16 +257,6 @@
   }
 }
 
-/* Custom animations */
-@keyframes spin-360 {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
 /* Gradient animation keyframes */
 @keyframes gradient-shift {
   0% {
@@ -324,73 +314,6 @@
   animation: gradient-pulse 2s ease-in-out infinite;
 }
 
-/* Loading screen animations */
-@keyframes loading-glow {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 30px rgba(59, 130, 246, 0.5), 0 0 40px rgba(59, 130, 246, 0.3);
-  }
-}
-
-@keyframes loading-pulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.05);
-    opacity: 0.8;
-  }
-}
-
-@keyframes loading-shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.loading-glow {
-  animation: loading-glow 2s ease-in-out infinite;
-}
-
-.loading-pulse {
-  animation: loading-pulse 1.5s ease-in-out infinite;
-}
-
-.loading-shimmer {
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.2),
-    transparent
-  );
-  background-size: 200% 100%;
-  animation: loading-shimmer 2s ease-in-out infinite;
-}
-
-/* Tour overlay - ensure it's always on top */
-.tour-overlay {
-  z-index: 9999 !important;
-  position: fixed !important;
-}
-
-.tour-card {
-  z-index: 10000 !important;
-  position: absolute !important;
-}
-
-.settings-cog {
-  transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
-.settings-cog:hover {
-  animation: spin-360 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
 
 /* Chart styling for better visibility */
 [data-chart] .recharts-cartesian-axis-tick-text {
@@ -413,12 +336,6 @@
 
 [data-chart] .recharts-line {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
-}
-
-/* Enhanced tooltip styling */
-[data-chart] .recharts-tooltip-wrapper {
-  outline: none;
-  z-index: 1000;
 }
 
 [data-chart] .recharts-tooltip-content {
@@ -501,5 +418,3 @@ body[data-tour-mode="true"] .tour-mode\:ml-80 {
   background-size: 24px 24px;
   background-position: 0 0;
 }
-
-
