@@ -412,7 +412,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       setPortStatus("checking")
       
       try {
-        const allDatabases = await window.electron?.getAllDatabases?.() || []
+        const allDatabases = await window.electron?.getDatabases?.() || []
         const internalConflict = allDatabases.find((db: DatabaseContainer) => db.port === portNum)
         
         if (internalConflict) {
@@ -481,7 +481,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
           const conflictChecks = await Promise.all(
             portsToCheck.map(async (p) => {
               try {
-                const allDatabases = await window.electron?.getAllDatabases?.() || []
+                const allDatabases = await window.electron?.getDatabases?.() || []
                 console.log(`[Port Check] Checking port ${p} against ${allDatabases.length} existing databases`)
                 const internalConflict = allDatabases.some((db: DatabaseContainer) => {
                   const isConflict = db.port === p
@@ -513,7 +513,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
           const portChecks = await Promise.all(
             portsToCheck.map(async (p) => {
               try {
-                const allDatabases = await window.electron?.getAllDatabases?.() || []
+                const allDatabases = await window.electron?.getDatabases?.() || []
                 console.log(`[Port Check] Checking port ${p} against ${allDatabases.length} existing databases`)
                 const internalConflict = allDatabases.some((db: DatabaseContainer) => {
                   const isConflict = db.port === p
@@ -570,7 +570,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
     try {
       setCheckingPort(true)
       
-      const allDatabases = await window.electron?.getAllDatabases?.() || []
+      const allDatabases = await window.electron?.getDatabases?.() || []
       const internalConflict = allDatabases.find((db: DatabaseContainer) => db.port === portNum)
       
       if (internalConflict) {

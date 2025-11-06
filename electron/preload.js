@@ -8,7 +8,6 @@ contextBridge.exposeInMainWorld("electron", {
   checkDatabaseStatus: (id) => ipcRenderer.invoke("check-database-status", id),
   checkPort: (port) => ipcRenderer.invoke("check-port", port),
   getDatabases: () => ipcRenderer.invoke("get-databases"),
-  getAllDatabases: () => ipcRenderer.invoke("get-databases"),
   saveDatabase: (db) => ipcRenderer.invoke("db:save", db),
   deleteDatabase: (id) => ipcRenderer.invoke("db:delete", id),
   deleteAllDatabases: () => ipcRenderer.invoke("db:deleteAll"),

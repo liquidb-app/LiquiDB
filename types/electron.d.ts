@@ -49,7 +49,6 @@ declare global {
       getStableVersions?: (databaseType: string) => Promise<string[]>
       getBrewVersions?: (packageName: string) => Promise<Array<{ majorVersion: string; fullVersion: string; packageName: string }>>
       checkPort?: (port: number) => Promise<{ available: boolean; reason?: string; details?: string }>
-      getAllDatabases?: () => Promise<DatabaseContainer[]>
       getDatabases?: () => Promise<DatabaseContainer[]>
       checkPermissions?: () => Promise<{ success: boolean; data?: { permissions: Record<string, boolean>; allGranted: boolean; results: Array<{ permission: string; granted: boolean; error: string | null }> }; error?: string }>
       getPermissionDescriptions?: () => Promise<{ success: boolean; data?: Record<string, { name: string; description: string; why: string; icon: string; critical: boolean }>; error?: string }>
