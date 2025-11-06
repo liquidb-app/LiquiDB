@@ -15,7 +15,6 @@ const PROFILE_KEY = "liquidb-profile"
 const PREFS_KEY = "liquidb-preferences"
 const ONBOARDING_KEY = "liquidb-onboarding-complete"
 const TOUR_KEY = "liquidb-tour-requested"
-const TOUR_SKIPPED_KEY = "liquidb-tour-skipped"
 
 // Profile functions
 export function saveProfile(profile: UserProfile): void {
@@ -164,29 +163,6 @@ export function loadPreferences(): AppPreferences {
   }
 }
 
-// Auto-launch functions
-export async function setAutoLaunch(enabled: boolean): Promise<void> {
-  try {
-    // Check if auto-launch functions are available
-    if (!window.electron?.enableAutoLaunch || !window.electron?.disableAutoLaunch) {
-      console.warn("Auto-launch functions not available, skipping auto-launch setup")
-      return
-    }
-
-    const result = enabled 
-      ? await window.electron?.enableAutoLaunch?.()
-      : await window.electron?.disableAutoLaunch?.()
-    
-    if (!result?.success) {
-      console.error("Failed to set auto-launch:", result?.error)
-    } else {
-      console.log(`Auto-launch ${enabled ? 'enabled' : 'disabled'} successfully`)
-    }
-  } catch (error) {
-    console.error("Failed to set auto-launch:", error)
-    // Don't throw the error to prevent onboarding from failing
-  }
-}
 
 // Banned ports functions
 export async function getBannedPorts(): Promise<number[]> {
@@ -285,20 +261,4 @@ export function wasTourRequested(): boolean {
   }
 }
 
-export function setTourSkipped(skipped: boolean): void {
-  try {
-    localStorage.setItem(TOUR_SKIPPED_KEY, skipped.toString())
-  } catch (error) {
-    console.error("Failed to set tour skipped:", error)
-  }
-}
-
-export function wasTourSkipped(): boolean {
-  try {
-    return localStorage.getItem(TOUR_SKIPPED_KEY) === "true"
-  } catch (error) {
-    console.error("Failed to check tour skipped status:", error)
-    return false
-  }
-}
 
