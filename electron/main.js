@@ -30,7 +30,18 @@ const brew = require("./brew")
 const storage = require("./storage")
 const HelperServiceManager = require("./helper-service")
 const PermissionsManager = require("./permissions")
-const { initializeMCPServer, getMCPServerStatus, getMCPConnectionInfo } = require("./mcp-server")
+// MCP server is optional - only load if available
+let mcpServerModule = null
+try {
+  mcpServerModule = require("./mcp-server")
+} catch (error) {
+  log.warn("MCP server module not available:", error.message)
+}
+const { initializeMCPServer, getMCPServerStatus, getMCPConnectionInfo } = mcpServerModule || {
+  initializeMCPServer: async () => false,
+  getMCPServerStatus: () => ({ running: false }),
+  getMCPConnectionInfo: () => null
+}
 const https = require("https")
 const http = require("http")
 const AutoLaunch = require("auto-launch")
