@@ -80,6 +80,3 @@ module.exports = {
   recreateDatabasesFile,
   getDatabaseDataDir,
 }
-
-
-

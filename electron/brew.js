@@ -1,5 +1,4 @@
 const fs = require("fs")
-// const path = require("path")
 const { spawn } = require("child_process")
 
 function findBrewPath() {
@@ -251,12 +250,9 @@ async function installDatabase({ dbType, version, onStdout, onStderr }) {
 }
 
 module.exports = {
-  findBrewPath,
   isHomebrewInstalled,
   installHomebrew,
   getDatabaseVersions,
   installDatabase,
 }
-
-
 
