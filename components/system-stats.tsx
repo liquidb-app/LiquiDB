@@ -144,9 +144,15 @@ export function SystemStats() {
       if (data) {
         setStats(data)
         setIsLoading(false)
+      } else {
+        // If data is null/undefined, preserve previous stats instead of clearing
+        console.warn('[System Stats] No data received, preserving previous stats')
+        setIsLoading(false)
       }
     } catch (error) {
-      console.error('Error fetching app stats:', error)
+      // Log error but preserve previous stats instead of clearing
+      console.error('[System Stats] Error fetching app stats:', error)
+      // Don't clear stats on error - preserve previous values
       setIsLoading(false)
     }
   }
@@ -178,6 +184,7 @@ export function SystemStats() {
     
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
+    // Start with default interval
     intervalRef.current = setInterval(() => {
       if (isVisible) {
       fetchStats()
@@ -192,6 +199,35 @@ export function SystemStats() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
+
+  // Update interval when MCP status changes to reduce load when MCP is running
+  useEffect(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      
+      let isVisible = !document.hidden
+      const handleVisibilityChange = () => {
+        isVisible = !document.hidden
+      }
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+      
+      // Increase interval when MCP server is running to reduce load
+      const interval = mcpStatus?.running ? 15000 : 8000
+      intervalRef.current = setInterval(() => {
+        if (isVisible) {
+          fetchStats()
+          fetchMCPStatus()
+        }
+      }, interval)
+      
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+        }
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+      }
+    }
+  }, [mcpStatus?.running])
 
   useEffect(() => {
     const handleResize = () => {
