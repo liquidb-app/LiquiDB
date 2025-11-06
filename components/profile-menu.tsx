@@ -61,21 +61,10 @@ export function ProfileMenuTrigger() {
           variant="ghost"
           size="sm"
           className="h-9 w-9 rounded-full p-0 hover:bg-accent/50 transition-colors relative cursor-pointer select-none"
-          style={{ 
-            userSelect: 'none',
-            MozUserSelect: 'none',
-            msUserSelect: 'none',
-            cursor: 'pointer'
-          }}
           aria-label="Open profile menu"
         >
           <Avatar 
             className="h-8 w-8 select-none"
-            style={{ 
-              userSelect: 'none',
-              MozUserSelect: 'none',
-              msUserSelect: 'none'
-            }}
           >
             {hasValidAvatar && (
               <AvatarImage 
@@ -83,18 +72,10 @@ export function ProfileMenuTrigger() {
                 alt={`${username || "User"}'s avatar`}
                 className="object-cover pointer-events-none select-none"
                 draggable={false}
-                style={{ 
-                  userSelect: 'none',
-                  pointerEvents: 'none',
-                }}
               />
             )}
             <AvatarFallback 
               className="text-[10px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors pointer-events-none select-none"
-              style={{ 
-                userSelect: 'none',
-                pointerEvents: 'none'
-              }}
             >
               {initials}
             </AvatarFallback>
@@ -102,10 +83,6 @@ export function ProfileMenuTrigger() {
           <ChevronDown 
             className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-background rounded-full p-0.5 border border-border/50 shadow-sm text-muted-foreground pointer-events-none select-none" 
             aria-hidden="true"
-            style={{ 
-              userSelect: 'none',
-              pointerEvents: 'none'
-            }}
           />
         </Button>
       </DropdownMenuTrigger>
