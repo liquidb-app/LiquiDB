@@ -255,7 +255,8 @@ export function CustomTour() {
 
   const triggerConfetti = () => {
     const end = Date.now() + 3 * 1000
-    const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1"]
+    // Use fixed colorful colors regardless of theme
+    const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1", "#4ade80", "#60a5fa", "#fbbf24", "#f472b6"]
 
     const frame = () => {
       if (Date.now() > end) return

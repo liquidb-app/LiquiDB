@@ -45,7 +45,7 @@ const FALLBACK_QUOTES: Quote[] = [
     author: "John Johnson"
   },
   {
-    quote: "Code is like humor. When you have to explain it, it&apos;s bad.",
+    quote: "Code is like humor. When you have to explain it, it's bad.",
     author: "Cory House"
   },
   {
@@ -61,7 +61,7 @@ const FALLBACK_QUOTES: Quote[] = [
     author: "Dennis Ritchie"
   },
   {
-    quote: "Programming isn&apos;t about what you know; it&apos;s about what you can figure out.",
+    quote: "Programming isn't about what you know; it's about what you can figure out.",
     author: "Chris Pine"
   }
 ]
@@ -310,12 +310,8 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
 
   const handleComplete = useCallback(() => {
     const end = Date.now() + 3 * 1000
-    const root = document.documentElement
-    const primaryColor = getComputedStyle(root).getPropertyValue('--primary').trim()
-    const mutedColor = getComputedStyle(root).getPropertyValue('--muted-foreground').trim()
-    const borderColor = getComputedStyle(root).getPropertyValue('--border').trim()
-    
-    const colors = [primaryColor, mutedColor, borderColor].filter(Boolean)
+    // Use fixed colorful colors regardless of theme
+    const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1", "#4ade80", "#60a5fa", "#fbbf24", "#f472b6"]
     
     const frame = () => {
       confetti({
@@ -323,14 +319,14 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
         angle: 60,
         spread: 55,
         origin: { x: 0 },
-        colors: colors.length > 0 ? colors : undefined
+        colors: colors
       })
       confetti({
         particleCount: 2,
         angle: 120,
         spread: 55,
         origin: { x: 1 },
-        colors: colors.length > 0 ? colors : undefined
+        colors: colors
       })
       
       if (Date.now() < end) {
