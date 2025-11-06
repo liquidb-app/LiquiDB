@@ -328,6 +328,7 @@
 
 [data-chart] .recharts-tooltip-wrapper {
   outline: none;
+  z-index: 1000;
 }
 
 [data-chart] .recharts-area {
