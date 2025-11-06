@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage } = require("electron")
+const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage, protocol } = require("electron")
 const archiver = require("archiver")
 
 // Import logging system
@@ -2675,9 +2675,165 @@ ipcMain.handle("dashboard-ready", async () => {
   }
 })
 
+// Register custom protocol scheme BEFORE app is ready (required for registerSchemesAsPrivileged)
+if (!process.argv.includes('--mcp')) {
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: 'app',
+      privileges: {
+        standard: true,
+        secure: true,
+        corsEnabled: true,
+        supportFetchAPI: true,
+        stream: true
+      }
+    }
+  ])
+  log.info("[Protocol] Registered app:// scheme as privileged")
+}
+
 app.whenReady().then(async () => {
   log.info("App is ready, initializing...")
   log.debug("Auto-launcher available:", !!autoLauncher)
+  
+  // Register custom protocol handler for static files (required for assetPrefix: '/')
+  // Must be registered before creating window
+  // Register for both dev and production builds to support static file testing
+  if (!process.argv.includes('--mcp')) {
+    const isDev = !app.isPackaged
+    const useDevServer = isDev && process.env.USE_DEV_SERVER === 'true'
+    
+    // Always register protocol handler, even in dev mode (for testing static builds)
+    if (!useDevServer) {
+      // Register app:// protocol for production builds
+      protocol.registerFileProtocol('app', (request, callback) => {
+        try {
+          let url = request.url.replace('app://', '').replace('app:///', '')
+          
+          // Remove leading slash if present
+          if (url.startsWith('/')) {
+            url = url.substring(1)
+          }
+          
+          // Critical: Strip out index.html/ prefix if present (browser resolves relative paths incorrectly)
+          // When browser loads app://index.html, relative paths like /_next/... become app://index.html/_next/...
+          // This must happen BEFORE checking for root/index
+          while (url.startsWith('index.html/')) {
+            url = url.substring('index.html/'.length)
+          }
+          
+          // Handle root/index (only if no path after stripping index.html)
+          if (!url || url === '' || url === '/') {
+            url = 'index.html'
+          }
+          
+          // Fix common path issues: next/ should be _next/ (browser may strip underscore)
+          if (url.startsWith('next/') && !url.startsWith('_next/')) {
+            url = '_next/' + url.substring('next/'.length)
+          }
+          
+          // Normalize path separators (handle both forward and backslashes)
+          url = url.replace(/\\/g, '/')
+          
+          const appPath = app.getAppPath()
+          let filePath = path.join(appPath, 'out', url)
+          
+          // Normalize the file path for the current platform
+          filePath = path.normalize(filePath)
+          
+          // Check if appPath points to app.asar, and if so, check for unpacked files
+          if (appPath.endsWith('.asar')) {
+            const unpackedPath = appPath.replace('.asar', '.asar.unpacked')
+            const unpackedFilePath = path.join(unpackedPath, 'out', url)
+            const normalizedUnpackedPath = path.normalize(unpackedFilePath)
+            
+            // Check unpacked first
+            if (fs.existsSync(normalizedUnpackedPath)) {
+              filePath = normalizedUnpackedPath
+            } else if (fs.existsSync(filePath)) {
+              // Use asar path if it exists
+              filePath = filePath
+            } else {
+              // Fallback to unpacked even if it doesn't exist yet
+              filePath = normalizedUnpackedPath
+            }
+          }
+          
+          // Verify file exists before returning
+          if (!fs.existsSync(filePath)) {
+            log.warn(`[Protocol] File not found: ${filePath} (from URL: ${request.url})`)
+            
+            let found = false
+            
+            // Try case-insensitive match first
+            const dir = path.dirname(filePath)
+            const fileName = path.basename(filePath)
+            if (fs.existsSync(dir)) {
+              const files = fs.readdirSync(dir)
+              const caseMatch = files.find(f => f.toLowerCase() === fileName.toLowerCase())
+              if (caseMatch) {
+                filePath = path.join(dir, caseMatch)
+                log.info(`[Protocol] Found file with different case: ${filePath}`)
+                found = true
+              }
+            }
+            
+            // If still not found, try path variations (e.g., next vs _next)
+            if (!found) {
+              let altUrl = null
+              // Check if we're looking for /next/ but should be /_next/
+              if (url.includes('/next/') && !url.includes('/_next/')) {
+                altUrl = url.replace('/next/', '/_next/')
+              }
+              // Also try the reverse (/_next/ -> /next/) in case files are in wrong location
+              else if (url.includes('/_next/')) {
+                altUrl = url.replace('/_next/', '/next/')
+              }
+              
+              if (altUrl) {
+                const altPath = path.join(appPath, 'out', altUrl)
+                let altFilePath = path.normalize(altPath)
+                
+                if (appPath.endsWith('.asar')) {
+                  const unpackedPath = appPath.replace('.asar', '.asar.unpacked')
+                  const altUnpackedPath = path.join(unpackedPath, 'out', altUrl)
+                  altFilePath = path.normalize(altUnpackedPath)
+                  if (fs.existsSync(altUnpackedPath)) {
+                    filePath = altUnpackedPath
+                    log.info(`[Protocol] Found file with corrected path (unpacked): ${filePath}`)
+                    found = true
+                  } else if (fs.existsSync(altPath)) {
+                    filePath = path.normalize(altPath)
+                    log.info(`[Protocol] Found file with corrected path: ${filePath}`)
+                    found = true
+                  }
+                } else if (fs.existsSync(altPath)) {
+                  filePath = path.normalize(altPath)
+                  log.info(`[Protocol] Found file with corrected path: ${filePath}`)
+                  found = true
+                }
+              }
+            }
+            
+            // If still not found, return error
+            if (!found && !fs.existsSync(filePath)) {
+              log.error(`[Protocol] File not found after all attempts: ${filePath} (from URL: ${request.url})`)
+              callback({ error: -6 }) // FILE_NOT_FOUND
+              return
+            }
+          }
+          
+          log.debug(`[Protocol] Serving file: ${filePath} (from URL: ${request.url}, parsed: ${url})`)
+          callback({ path: filePath })
+        } catch (error) {
+          log.error(`[Protocol] Error handling request ${request.url}:`, error)
+          callback({ error: -6 }) // FILE_NOT_FOUND
+        }
+      })
+      
+      log.info("[Protocol] Registered app:// protocol handler")
+    }
+  }
   
   // Check if running in MCP mode
   if (process.argv.includes('--mcp')) {
