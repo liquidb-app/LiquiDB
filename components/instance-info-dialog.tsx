@@ -37,8 +37,8 @@ interface SystemInfo {
 interface InstanceInfoDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  databaseId: string
-  databaseName: string
+  databaseId?: string
+  databaseName?: string
 }
 
 export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseName }: InstanceInfoDialogProps) {
@@ -51,19 +51,26 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
   const lastCpuValue = useRef(1.5)
 
   const fetchSystemInfo = useCallback(async () => {
-    if (!databaseId) return
+    if (!databaseId) {
+      setError("Database ID is required")
+      return
+    }
     
     setLoading(true)
     setError(null)
     
     try {
-      const info = await window.electron?.getDatabaseSystemInfo?.(databaseId)
-      if (info) {
-        setSystemInfo(info)
+      if (!window?.electron?.getDatabaseSystemInfo) {
+        setError("Electron API not available")
+        return
       }
+      
+      const info = await window.electron.getDatabaseSystemInfo(databaseId)
+      setSystemInfo(info ?? null)
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch system info')
+      setSystemInfo(null)
     } finally {
       setLoading(false)
     }
@@ -89,97 +96,102 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
   }, [])
 
   useEffect(() => {
-    if (open && databaseId) {
-      const now = new Date()
-      const sampleMemoryData = []
-      const sampleCpuData = []
+    if (!open || !databaseId) {
+      setMemoryHistory([])
+      setCpuHistory([])
+      return
+    }
+    
+    const now = new Date()
+    const sampleMemoryData: Array<{ time: string, rss: number, vsz: number }> = []
+    const sampleCpuData: Array<{ time: string, cpu: number }> = []
+    
+    let currentRss = 120000000
+    let currentVsz = 250000000
+    let currentCpu = 1.5
+    
+    for (let i = 0; i < 20; i++) {
+      const time = new Date(now.getTime() - (19 - i) * 1000).toLocaleTimeString()
       
-      let currentRss = 120000000
-      let currentVsz = 250000000
-      let currentCpu = 1.5
+      currentRss += (Math.random() - 0.5) * 2000000
+      currentVsz += (Math.random() - 0.5) * 5000000
+      currentCpu += (Math.random() - 0.5) * 0.5
       
-      for (let i = 0; i < 20; i++) {
-        const time = new Date(now.getTime() - (19 - i) * 1000).toLocaleTimeString()
+      currentRss = Math.max(80000000, Math.min(200000000, currentRss))
+      currentVsz = Math.max(150000000, Math.min(400000000, currentVsz))
+      currentCpu = Math.max(0, Math.min(8, currentCpu))
+      
+      sampleMemoryData.push({
+        time,
+        rss: currentRss,
+        vsz: currentVsz
+      })
+      sampleCpuData.push({
+        time,
+        cpu: currentCpu
+      })
+    }
+    
+    lastMemoryValues.current = { rss: currentRss, vsz: currentVsz }
+    lastCpuValue.current = currentCpu
+    
+    setMemoryHistory(sampleMemoryData)
+    setCpuHistory(sampleCpuData)
+    
+    fetchSystemInfo()
+    
+    const interval = setInterval(() => {
+      try {
+        const now = new Date()
+        const time = now.toLocaleTimeString()
         
-        currentRss += (Math.random() - 0.5) * 2000000
-        currentVsz += (Math.random() - 0.5) * 5000000
-        currentCpu += (Math.random() - 0.5) * 0.5
+        const memoryData = generateSmoothMemoryData()
         
-        currentRss = Math.max(80000000, Math.min(200000000, currentRss))
-        currentVsz = Math.max(150000000, Math.min(400000000, currentVsz))
-        currentCpu = Math.max(0, Math.min(8, currentCpu))
-        
-        sampleMemoryData.push({
-          time,
-          rss: currentRss,
-          vsz: currentVsz
+        setMemoryHistory(prev => {
+          const newData = [...prev, {
+            time,
+            rss: memoryData.rss ?? 0,
+            vsz: memoryData.vsz ?? 0
+          }]
+          return newData.slice(-15)
         })
-        sampleCpuData.push({
-          time,
-          cpu: currentCpu
+        
+        const cpuData = generateSmoothCpuData()
+        
+        setCpuHistory(prev => {
+          const newData = [...prev, {
+            time,
+            cpu: cpuData ?? 0
+          }]
+          return newData.slice(-15)
         })
-      }
-      
-      lastMemoryValues.current = { rss: currentRss, vsz: currentVsz }
-      lastCpuValue.current = currentCpu
-      
-      setMemoryHistory(sampleMemoryData)
-      setCpuHistory(sampleCpuData)
-      
-      fetchSystemInfo()
-      
-      const interval = setInterval(() => {
-        try {
-          const now = new Date()
-          const time = now.toLocaleTimeString()
-          
-          const memoryData = generateSmoothMemoryData()
-          
-          setMemoryHistory(prev => {
-            const newData = [...prev, {
-              time,
-              rss: memoryData.rss,
-              vsz: memoryData.vsz
-            }]
-            return newData.slice(-15)
-          })
-          
-          const cpuData = generateSmoothCpuData()
-          
-          setCpuHistory(prev => {
-            const newData = [...prev, {
-              time,
-              cpu: cpuData
-            }]
-            return newData.slice(-15)
-          })
-          
-          if (Math.floor(Date.now() / 1000) % 15 === 0) {
-            fetchSystemInfo()
-          }
-        } catch (error) {
-          console.error('Error updating chart data:', error)
+        
+        if (Math.floor(Date.now() / 1000) % 15 === 0) {
+          fetchSystemInfo()
         }
-      }, 5000)
-      
-      return () => {
-        clearInterval(interval)
-        setMemoryHistory([])
-        setCpuHistory([])
+      } catch (error) {
+        console.error('Error updating chart data:', error)
       }
+    }, 5000)
+    
+    return () => {
+      clearInterval(interval)
+      setMemoryHistory([])
+      setCpuHistory([])
     }
   }, [open, databaseId, fetchSystemInfo, generateSmoothCpuData, generateSmoothMemoryData])
 
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B'
+  const formatBytes = (bytes: number | null | undefined) => {
+    const value = bytes ?? 0
+    if (value === 0) return '0 B'
     const k = 1024
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+    const i = Math.floor(Math.log(value) / Math.log(k))
+    return parseFloat((value / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  const formatPercentage = (value: number) => {
-    return value.toFixed(1) + '%'
+  const formatPercentage = (value: number | null | undefined) => {
+    return (value ?? 0).toFixed(1) + '%'
   }
 
   return (
@@ -188,7 +200,7 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <SquareActivityIcon size={20} />
-            Instance Information - {databaseName}
+            Instance Information - {databaseName ?? "Unknown Database"}
           </DialogTitle>
           <DialogDescription>
             Real-time monitoring and performance metrics for this database instance
@@ -227,17 +239,17 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                     <div>
                       <span className="text-muted-foreground">Status:</span>
                       <Badge 
-                        variant={systemInfo.isRunning ? "default" : "destructive"}
+                        variant={(systemInfo.isRunning ?? false) ? "default" : "destructive"}
                         className="ml-2"
                       >
-                        {systemInfo.isRunning ? "Running" : "Stopped"}
+                        {(systemInfo.isRunning ?? false) ? "Running" : "Stopped"}
                       </Badge>
                     </div>
                     <div>
                       <span className="text-muted-foreground">PID:</span>
-                      <span className="ml-2 font-mono">{systemInfo.pid || 'N/A'}</span>
+                      <span className="ml-2 font-mono">{systemInfo.pid ?? 'N/A'}</span>
                     </div>
-                    {systemInfo.exitCode !== null && (
+                    {systemInfo.exitCode !== null && systemInfo.exitCode !== undefined && (
                       <div>
                         <span className="text-muted-foreground">Exit Code:</span>
                         <span className="ml-2 font-mono">{systemInfo.exitCode}</span>
@@ -266,26 +278,28 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-muted-foreground">RSS (Resident Set Size):</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.memory.rss ?? 0)}</div>
+                        <div className="font-mono text-lg">{formatBytes(systemInfo.memory?.rss)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">VSZ (Virtual Size):</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.memory.vsz ?? 0)}</div>
+                        <div className="font-mono text-lg">{formatBytes(systemInfo.memory?.vsz)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">CPU Usage:</span>
-                        <div className="font-mono text-lg">{formatPercentage(systemInfo.memory.cpu ?? 0)}</div>
+                        <div className="font-mono text-lg">{formatPercentage(systemInfo.memory?.cpu)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Memory %:</span>
-                        <div className="font-mono text-lg">{formatPercentage(systemInfo.memory.pmem ?? 0)}</div>
+                        <div className="font-mono text-lg">{formatPercentage(systemInfo.memory?.pmem)}</div>
                       </div>
                     </div>
                     <Separator />
-                    <div>
-                      <span className="text-muted-foreground">CPU Time:</span>
-                      <div className="font-mono text-sm">{systemInfo.memory.time}</div>
-                    </div>
+                    {systemInfo.memory?.time && (
+                      <div>
+                        <span className="text-muted-foreground">CPU Time:</span>
+                        <div className="font-mono text-sm">{systemInfo.memory.time}</div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
@@ -303,19 +317,19 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-muted-foreground">Total Memory:</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory.total ?? 0)}</div>
+                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory?.total)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Free Memory:</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory.free ?? 0)}</div>
+                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory?.free)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Active Memory:</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory.active ?? 0)}</div>
+                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory?.active)}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Inactive Memory:</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory.inactive ?? 0)}</div>
+                        <div className="font-mono text-lg">{formatBytes(systemInfo.systemMemory?.inactive)}</div>
                       </div>
                     </div>
                     <Separator />
@@ -325,12 +339,12 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                         <div 
                           className="bg-primary h-2 rounded-full transition-all duration-300"
                           style={{ 
-                            width: `${((systemInfo.systemMemory.active ?? 0) / (systemInfo.systemMemory.total ?? 1) * 100).toFixed(1)}%` 
+                            width: `${((systemInfo.systemMemory?.active ?? 0) / (systemInfo.systemMemory?.total ?? 1) * 100).toFixed(1)}%` 
                           }}
                         />
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        {((systemInfo.systemMemory.active ?? 0) / (systemInfo.systemMemory.total ?? 1) * 100).toFixed(1)}% used
+                        {((systemInfo.systemMemory?.active ?? 0) / (systemInfo.systemMemory?.total ?? 1) * 100).toFixed(1)}% used
                       </div>
                     </div>
                   </CardContent>
@@ -484,8 +498,8 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                           <PieChart>
                             <Pie
                               data={[
-                                { name: "RSS Memory", value: systemInfo.memory.rss ?? 0, fill: "#3b82f6" },
-                                { name: "Virtual Memory", value: (systemInfo.memory.vsz ?? 0) - (systemInfo.memory.rss ?? 0), fill: "#10b981" },
+                                { name: "RSS Memory", value: systemInfo.memory?.rss ?? 0, fill: "#3b82f6" },
+                                { name: "Virtual Memory", value: (systemInfo.memory?.vsz ?? 0) - (systemInfo.memory?.rss ?? 0), fill: "#10b981" },
                               ]}
                               cx="50%"
                               cy="50%"
@@ -497,10 +511,10 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                               strokeWidth={2}
                             >
                               {[
-                                { name: "RSS Memory", value: systemInfo.memory.rss ?? 0, fill: "#3b82f6" },
-                                { name: "Virtual Memory", value: (systemInfo.memory.vsz ?? 0) - (systemInfo.memory.rss ?? 0), fill: "#10b981" },
+                                { name: "RSS Memory", value: systemInfo.memory?.rss ?? 0, fill: "#3b82f6" },
+                                { name: "Virtual Memory", value: (systemInfo.memory?.vsz ?? 0) - (systemInfo.memory?.rss ?? 0), fill: "#10b981" },
                               ].map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                                <Cell key={`cell-${index}`} fill={entry.fill ?? "#3b82f6"} />
                               ))}
                             </Pie>
                             <ChartTooltip 
