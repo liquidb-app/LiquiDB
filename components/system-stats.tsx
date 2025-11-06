@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Cpu, MemoryStick, HardDrive, Clock, Database, Activity, Terminal as TerminalIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface SystemStats {
   success: boolean
@@ -51,12 +52,91 @@ const formatUptime = (seconds: number) => {
   return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`
 }
 
+// Custom hook to safely get sidebar state
+function useSidebarState() {
+  const [sidebarState, setSidebarState] = useState<{
+    state: "expanded" | "collapsed"
+    collapsible: "offcanvas" | "icon" | "none"
+  }>({ state: "collapsed", collapsible: "offcanvas" })
+
+  useEffect(() => {
+    // Detect sidebar state from DOM
+    const detectSidebarState = () => {
+      if (typeof window === 'undefined') return
+      
+      const sidebarElement = document.querySelector('[data-slot="sidebar-container"]')
+      if (sidebarElement) {
+        const state = sidebarElement.getAttribute('data-state') as "expanded" | "collapsed" | null
+        const collapsible = sidebarElement.getAttribute('data-collapsible') as "offcanvas" | "icon" | "none" | null
+        
+        setSidebarState({
+          state: state || "collapsed",
+          collapsible: collapsible || "offcanvas"
+        })
+        return
+      }
+      
+      // Check if sidebar wrapper exists
+      const sidebarWrapper = document.querySelector('[data-slot="sidebar-wrapper"]')
+      if (sidebarWrapper) {
+        // Look for sidebar state in the wrapper's children
+        const sidebarGroup = sidebarWrapper.querySelector('[data-state]')
+        if (sidebarGroup) {
+          const state = sidebarGroup.getAttribute('data-state') as "expanded" | "collapsed" | null
+          const collapsible = sidebarGroup.getAttribute('data-collapsible') as "offcanvas" | "icon" | "none" | null
+          
+          setSidebarState({
+            state: state || "collapsed",
+            collapsible: collapsible || "offcanvas"
+          })
+          return
+        }
+      }
+      
+      // Default: no sidebar visible
+      setSidebarState({ state: "collapsed", collapsible: "offcanvas" })
+    }
+
+    // Initial detection
+    detectSidebarState()
+
+    // Watch for changes in sidebar state
+    const observer = new MutationObserver(detectSidebarState)
+    const sidebarWrapper = document.querySelector('[data-slot="sidebar-wrapper"]')
+    if (sidebarWrapper) {
+      observer.observe(sidebarWrapper, {
+        attributes: true,
+        attributeFilter: ['data-state', 'data-collapsible'],
+        subtree: true,
+        childList: true
+      })
+    }
+
+    // Also watch for changes on the document body in case sidebar is added/removed
+    const bodyObserver = new MutationObserver(detectSidebarState)
+    if (typeof document !== 'undefined') {
+      bodyObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+      })
+    }
+
+    return () => {
+      observer.disconnect()
+      bodyObserver.disconnect()
+    }
+  }, [])
+
+  return sidebarState
+}
+
 export function SystemStats() {
   const [stats, setStats] = useState<SystemStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1024)
   const [mcpStatus, setMcpStatus] = useState<{ running: boolean; name: string } | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const sidebarState = useSidebarState()
 
   const fetchStats = async () => {
     try {
@@ -141,8 +221,25 @@ export function SystemStats() {
   const diskTotal = stats.disk?.total || 0
   const loadAvg = stats.loadAverage?.[0] || 0
 
+  // Calculate footer left offset based on sidebar state
+  // When sidebar is expanded: shift by 16rem (256px)
+  // When sidebar is collapsed with icon: shift by 3rem (48px)
+  // When sidebar is collapsed with offcanvas: no shift (0)
+  const getFooterLeftOffset = () => {
+    if (sidebarState.state === "expanded") {
+      return "md:left-[16rem]"
+    }
+    if (sidebarState.collapsible === "icon") {
+      return "md:left-[3rem]"
+    }
+    return "md:left-0"
+  }
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border/50 px-6 py-1.5">
+    <div className={cn(
+      "fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border/50 px-6 py-1.5 transition-all duration-200 ease-linear",
+      getFooterLeftOffset()
+    )}>
       <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
         <div className="flex items-center justify-start gap-4">
         {/* MCP Icon - Very Left */}
