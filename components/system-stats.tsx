@@ -184,13 +184,13 @@ export function SystemStats() {
     
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    // Start with default interval
+    // Start with default interval (increased to reduce load)
     intervalRef.current = setInterval(() => {
       if (isVisible) {
       fetchStats()
       fetchMCPStatus()
       }
-    }, 8000)
+    }, 10000) // Increased from 8s to 10s
 
     return () => {
       if (intervalRef.current) {
@@ -212,7 +212,7 @@ export function SystemStats() {
       document.addEventListener('visibilitychange', handleVisibilityChange)
       
       // Increase interval when MCP server is running to reduce load
-      const interval = mcpStatus?.running ? 15000 : 8000
+      const interval = mcpStatus?.running ? 20000 : 10000 // Increased intervals
       intervalRef.current = setInterval(() => {
         if (isVisible) {
           fetchStats()
@@ -273,10 +273,10 @@ export function SystemStats() {
 
   return (
     <div className={cn(
-      "fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border/50 px-6 py-1.5 transition-all duration-200 ease-linear",
+      "fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border/50 px-5 py-1 transition-all duration-200 ease-linear",
       getFooterLeftOffset()
     )}>
-      <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+      <div className="flex items-center justify-between gap-4 text-[10px] text-muted-foreground">
         <div className="flex items-center justify-start gap-4">
         {/* MCP Icon - Very Left */}
         {mcpStatus !== null && (
@@ -285,13 +285,13 @@ export function SystemStats() {
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-1.5 cursor-default">
                   {mcpStatus.running && (
-                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
+                    <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
                   )}
                   <svg
                     fill="currentColor"
                     fillRule="evenodd"
-                    height="12"
-                    width="12"
+                    height="10"
+                    width="10"
                     viewBox="0 0 24 24"
                     xmlns="http://www.w3.org/2000/svg"
                     className="opacity-60 flex-shrink-0"
@@ -320,9 +320,9 @@ export function SystemStats() {
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-1.5 cursor-default">
                   {stats.runningDatabases > 0 && (
-                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
+                    <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
                   )}
-                  <Database className="h-3 w-3 opacity-60 flex-shrink-0" />
+                  <Database className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
                   {showText && (
                     <span className="font-mono tabular-nums">{stats.runningDatabases}</span>
                   )}
@@ -343,7 +343,7 @@ export function SystemStats() {
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex items-center gap-1.5 cursor-default">
-              <MemoryStick className="h-3 w-3 opacity-60 flex-shrink-0" />
+              <MemoryStick className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
               {showText && (
                 <span className="font-mono tabular-nums whitespace-nowrap">RAM {formatBytes(stats.memory.used)}</span>
               )}
@@ -364,7 +364,7 @@ export function SystemStats() {
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex items-center gap-1.5 cursor-default">
-              <Cpu className="h-3 w-3 opacity-60 flex-shrink-0" />
+              <Cpu className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
               {showText && (
                 <span className="font-mono tabular-nums whitespace-nowrap">CPU {formatCompactNumber(cpuPercentage, 1)}%</span>
               )}
@@ -387,7 +387,7 @@ export function SystemStats() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-1.5 cursor-default">
-                  <Activity className="h-3 w-3 opacity-60 flex-shrink-0" />
+                  <Activity className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
                   {showText && (
                     <span className="font-mono tabular-nums whitespace-nowrap">Load {formatCompactNumber(loadAvg, 2)}</span>
                   )}
@@ -411,7 +411,7 @@ export function SystemStats() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-1.5 cursor-default">
-                  <HardDrive className="h-3 w-3 opacity-60 flex-shrink-0" />
+                  <HardDrive className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
                   {showText && (
                     <span className="font-mono tabular-nums whitespace-nowrap">
                       {formatBytes(diskUsed)} / {formatBytes(diskTotal)}
@@ -438,7 +438,7 @@ export function SystemStats() {
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="flex items-center gap-1.5 cursor-default">
-                <Clock className="h-3 w-3 opacity-60 flex-shrink-0" />
+                <Clock className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
                 {showText && (
                   <span className="font-mono tabular-nums whitespace-nowrap">{formatUptime(stats.uptime)}</span>
                 )}
@@ -461,9 +461,9 @@ export function SystemStats() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 px-2 text-muted-foreground hover:text-foreground"
+              className="h-[22px] px-2 text-muted-foreground hover:text-foreground"
             >
-              <TerminalIcon className="h-3 w-3" />
+              <TerminalIcon className="h-2.5 w-2.5" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>
