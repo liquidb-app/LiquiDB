@@ -12,8 +12,6 @@ class Logger {
   private level: LogLevelType
 
   constructor() {
-    // Get log level from environment variable or default to ERROR (minimal)
-    // Check if process is available (Node.js/Electron environment)
     const envLevel = typeof process !== 'undefined' && process.env?.LOG_LEVEL
       ? process.env.LOG_LEVEL.toUpperCase()
       : undefined
@@ -73,10 +71,8 @@ class Logger {
   }
 }
 
-// Create singleton instance
 const logger = new Logger()
 
-// Helper functions for easier usage
 const log = {
   error: (message: string, ...args: unknown[]) => logger.error(message, ...args),
   warn: (message: string, ...args: unknown[]) => logger.warn(message, ...args),
