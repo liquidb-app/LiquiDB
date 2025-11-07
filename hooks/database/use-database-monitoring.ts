@@ -443,6 +443,11 @@ export const useDatabaseMonitoring = (
           systemInfoInterval = startSystemInfoMonitoring()
           
           // Set up real-time status change listener from electron main process
+          // Remove existing listener first to prevent duplicates
+          if (window.electron?.removeAllListeners) {
+            window.electron.removeAllListeners('database-status-changed')
+          }
+          
           if (window.electron?.onDatabaseStatusChanged) {
             console.log(`[Status Listener] Setting up database status listener`)
             window.electron.onDatabaseStatusChanged((data: { id: string, status: DatabaseStatus, error?: string, exitCode?: number, ready?: boolean, pid?: number }) => {
@@ -673,7 +678,7 @@ export const useDatabaseMonitoring = (
           window.electron.removeAllListeners('auto-start-completed')
         }
       }
-  }, [databases, databasesRef, lastStatusCheckRef, lastSystemInfoCheckRef, setDatabases, setLastSystemInfoCheck, startDatabaseWithErrorHandlingRef, checkDatabasesFileExistsRef])
+  }, [databasesRef, lastStatusCheckRef, lastSystemInfoCheckRef, setDatabases, setLastSystemInfoCheck, startDatabaseWithErrorHandlingRef, checkDatabasesFileExistsRef])
 
   return {
     fetchSystemInfo
