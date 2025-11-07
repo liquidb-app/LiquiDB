@@ -55,6 +55,7 @@ export function EmptyState({
             onClick={handleAddClick} 
             size="sm"
             data-testid="add-first-database-button"
+            data-tour="add-first-database-button"
             onMouseEnter={plusIconHover.onMouseEnter}
             onMouseLeave={plusIconHover.onMouseLeave}
           >
@@ -65,6 +66,8 @@ export function EmptyState({
             variant="outline"
             size="sm"
             onClick={onOpenDocs}
+            data-testid="docs-link"
+            data-tour="docs-link"
             onMouseEnter={fileTextIconHover.onMouseEnter}
             onMouseLeave={fileTextIconHover.onMouseLeave}
           >
