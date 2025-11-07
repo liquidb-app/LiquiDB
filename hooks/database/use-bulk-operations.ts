@@ -43,7 +43,6 @@ export const useBulkOperations = (
       return
     }
 
-    // Check for port conflicts before starting any databases (only on stopped databases)
     const conflictChecks = await Promise.all(
       stoppedDatabases.map(async (targetDb) => {
         // Check for external port conflicts
