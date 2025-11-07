@@ -462,14 +462,26 @@ export default function DatabaseManager() {
             />
           )}
 
-          {conflictingPort && (
+          {/* Show PortConflictSelectionDialog if there are multiple conflicts, otherwise show PortConflictDialog for single conflict */}
+          {portConflicts.length > 0 ? (
+            <PortConflictSelectionDialog
+              open={portConflictDialogOpen}
+              onOpenChange={setPortConflictDialogOpen}
+              portConflicts={portConflicts}
+              onConflictDatabaseSelect={handleConflictDatabaseSelect}
+              onCancel={() => {
+                setPortConflictDialogOpen(false)
+                setPortConflicts([])
+              }}
+            />
+          ) : conflictingPort ? (
             <PortConflictDialog
               open={portConflictDialogOpen}
               onOpenChange={setPortConflictDialogOpen}
               port={conflictingPort}
               onResolve={handleResolvePortConflict}
             />
-          )}
+          ) : null}
 
           <AppSettingsDialog 
             open={appSettingsOpen} 
@@ -496,17 +508,6 @@ export default function DatabaseManager() {
               databaseName={selectedDatabase.name}
             />
           )}
-
-          <PortConflictSelectionDialog
-            open={portConflictDialogOpen}
-            onOpenChange={setPortConflictDialogOpen}
-            portConflicts={portConflicts}
-            onConflictDatabaseSelect={handleConflictDatabaseSelect}
-            onCancel={() => {
-              setPortConflictDialogOpen(false)
-              setPortConflicts([])
-            }}
-          />
           
           {/* Fixed Footer with System Stats */}
           <SystemStats />
