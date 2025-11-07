@@ -1,5 +1,4 @@
 import { ipcMain } from "electron"
-import { exec } from "child_process"
 import { log } from "../logger"
 import sharedState from "./shared-state"
 import storage from "../storage"
@@ -208,27 +207,53 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
     const databases = storage.loadDatabases(app)
     const orphanedPids: Array<{ pid: number, id: string }> = []
     
+    // Helper function to check if a process exists using process.kill(pid, 0)
+    // This is safer than using exec() and doesn't require shell commands
+    const isProcessRunning = (pid: number): boolean => {
+      try {
+        // Signal 0 doesn't actually kill the process, it just checks if it exists
+        process.kill(pid, 0)
+        return true
+      } catch (error: any) {
+        // ESRCH means process doesn't exist
+        if (error.code === 'ESRCH') {
+          return false
+        }
+        // Other errors (like EPERM) mean process exists but we can't signal it
+        // In that case, assume it's running
+        return true
+      }
+    }
+    
     for (const db of databases) {
-      if (db.pid !== null) {
-        // Check if process is actually running
+      // Validate PID before using it
+      if (db.pid !== null && db.pid !== undefined) {
+        const pid = typeof db.pid === 'number' ? db.pid : parseInt(String(db.pid), 10)
+        
+        // Skip if PID is invalid
+        if (isNaN(pid) || pid <= 0) {
+          console.log(`[App Start] Invalid PID ${db.pid} for database ${db.id}, clearing from storage`)
+          db.status = 'stopped'
+          db.pid = null
+          continue
+        }
+        
+        // Check if process is actually running using safer method
         try {
-          await new Promise<void>((resolve) => {
-            exec(`ps -p ${db.pid}`, (error) => {
-              if (error) {
-                // Process doesn't exist, mark as orphaned in storage
-                console.log(`[App Start] Process ${db.pid} for database ${db.id} doesn't exist, clearing from storage`)
-                db.status = 'stopped'
-                db.pid = null
-              } else {
-                // Process exists but app isn't tracking it - it's orphaned
-                console.log(`[App Start] Found orphaned database process ${db.pid} for database ${db.id}, will kill it`)
-                orphanedPids.push({ pid: db.pid, id: db.id })
-              }
-              resolve()
-            })
-          })
+          const isRunning = isProcessRunning(pid)
+          if (!isRunning) {
+            // Process doesn't exist, mark as orphaned in storage
+            console.log(`[App Start] Process ${pid} for database ${db.id} doesn't exist, clearing from storage`)
+            db.status = 'stopped'
+            db.pid = null
+          } else {
+            // Process exists but app isn't tracking it - it's orphaned
+            console.log(`[App Start] Found orphaned database process ${pid} for database ${db.id}, will kill it`)
+            orphanedPids.push({ pid, id: db.id })
+          }
         } catch (_error) {
           // Assume process doesn't exist if check fails
+          console.log(`[App Start] Error checking process ${pid} for database ${db.id}, clearing from storage`)
           db.status = 'stopped'
           db.pid = null
         }
@@ -239,23 +264,25 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
     if (orphanedPids.length > 0) {
       console.log(`[App Start] Killing ${orphanedPids.length} orphaned database processes...`)
       for (const { pid, id } of orphanedPids) {
-        console.log(`[App Start] Killing orphaned process ${pid} for database ${id}`)
-        await killProcessByPid(pid, "SIGTERM")
-        await new Promise(resolve => setTimeout(resolve, 500))
-        // Check if still running and force kill
         try {
-          await new Promise<void>((resolve) => {
-            exec(`ps -p ${pid}`, (error) => {
-              if (!error) {
-                // Still running, force kill
-                console.log(`[App Start] Process ${pid} still running, force killing with SIGKILL`)
-                killProcessByPid(pid, "SIGKILL")
-              }
-              resolve()
-            })
-          })
-        } catch (_error) {
-          // Process already dead
+          console.log(`[App Start] Killing orphaned process ${pid} for database ${id}`)
+          await killProcessByPid(pid, "SIGTERM")
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // Check if still running using safer method
+          try {
+            const stillRunning = isProcessRunning(pid)
+            if (stillRunning) {
+              // Still running, force kill
+              console.log(`[App Start] Process ${pid} still running, force killing with SIGKILL`)
+              await killProcessByPid(pid, "SIGKILL")
+            }
+          } catch (_error) {
+            // Process already dead or error checking
+            console.log(`[App Start] Error checking if process ${pid} is still running:`, _error)
+          }
+        } catch (killError) {
+          console.error(`[App Start] Error killing orphaned process ${pid} for database ${id}:`, killError)
         }
         
         // Update storage
