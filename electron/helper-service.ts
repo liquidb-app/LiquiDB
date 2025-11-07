@@ -4,13 +4,62 @@
  * Manages the background helper service that monitors database processes and port conflicts
  */
 
-const { exec } = require('child_process')
-const fs = require('fs')
-const path = require('path')
-const os = require('os')
+import { exec, ExecException } from 'child_process'
+import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
+import { App } from 'electron'
+
+interface ServiceStatus {
+  installed: boolean
+  running: boolean
+  isRunning: boolean
+}
+
+interface CleanupResult {
+  success: boolean
+  data?: {
+    cleanedCount: number
+    method: string
+    timestamp: number
+  }
+  error?: string
+  method?: string
+}
+
+interface PortCheckResult {
+  success: boolean
+  data?: {
+    port: number
+    available: boolean
+    reason: string | null
+    method: string
+  }
+  error?: string
+  method?: string
+}
+
+interface PortFindResult {
+  success: boolean
+  data?: {
+    suggestedPort: number
+    startPort: number
+    method: string
+  }
+  error?: string
+  method?: string
+}
 
 class HelperServiceManager {
-  constructor(app) {
+  private app: App
+  private helperProcess: any
+  private isRunning: boolean
+  private isInstalling: boolean // Prevent concurrent installations
+  private plistPath: string
+  private helperPath: string
+  private plistTemplate: string
+
+  constructor(app: App) {
     this.app = app
     this.helperProcess = null
     this.isRunning = false
@@ -20,8 +69,8 @@ class HelperServiceManager {
     // Determine the correct path to helper files based on whether app is packaged
     if (app.isPackaged) {
       // In production, helper files are in the app bundle
-      this.helperPath = path.join(process.resourcesPath, 'helper', 'liquidb-helper.js')
-      this.plistTemplate = path.join(process.resourcesPath, 'helper', 'com.liquidb.helper.plist')
+      this.helperPath = path.join(process.resourcesPath!, 'helper', 'liquidb-helper.js')
+      this.plistTemplate = path.join(process.resourcesPath!, 'helper', 'com.liquidb.helper.plist')
     } else {
       // In development, helper files are in the source directory
       this.helperPath = path.join(__dirname, '..', 'helper', 'liquidb-helper.js')
@@ -30,14 +79,14 @@ class HelperServiceManager {
   }
 
   // Check if helper service is installed
-  isInstalled() {
+  isInstalled(): boolean {
     return fs.existsSync(this.plistPath)
   }
 
   // Check if helper service is running
-  isServiceRunning() {
+  isServiceRunning(): Promise<boolean> {
     return new Promise((resolve) => {
-      exec('launchctl list | grep com.liquidb.helper', (error, stdout) => {
+      exec('launchctl list | grep com.liquidb.helper', (error: ExecException | null, stdout: string) => {
         if (error) {
           resolve(false)
           return
@@ -57,7 +106,7 @@ class HelperServiceManager {
   }
 
   // Install helper service
-  async install() {
+  async install(): Promise<boolean> {
     try {
       // Prevent concurrent installations
       if (this.isInstalling) {
@@ -99,7 +148,7 @@ class HelperServiceManager {
       
       // Determine source directory based on whether app is packaged
       const sourceDir = this.app.isPackaged 
-        ? path.join(process.resourcesPath, 'helper')
+        ? path.join(process.resourcesPath!, 'helper')
         : path.join(__dirname, '..', 'helper')
       
       for (const fileName of helperFiles) {
@@ -174,7 +223,7 @@ class HelperServiceManager {
       
       console.log('[Helper] Service installed successfully')
       return true
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Helper] Installation failed:', error)
       return false
     } finally {
@@ -183,9 +232,9 @@ class HelperServiceManager {
   }
 
   // Load helper service
-  async loadService() {
+  async loadService(): Promise<void> {
     return new Promise((resolve, reject) => {
-      exec(`launchctl load "${this.plistPath}"`, (error, stdout, stderr) => {
+      exec(`launchctl load "${this.plistPath}"`, (error: ExecException | null, stdout: string, stderr: string) => {
         if (error && !error.message.includes('already loaded')) {
           console.error('[Helper] Failed to load service:', stderr)
           reject(error)
@@ -198,9 +247,9 @@ class HelperServiceManager {
   }
 
   // Unload helper service
-  async unloadService() {
+  async unloadService(): Promise<void> {
     return new Promise((resolve, reject) => {
-      exec(`launchctl unload "${this.plistPath}"`, (error, stdout, stderr) => {
+      exec(`launchctl unload "${this.plistPath}"`, (error: ExecException | null, stdout: string, stderr: string) => {
         if (error && !error.message.includes('not loaded')) {
           console.error('[Helper] Failed to unload service:', stderr)
           reject(error)
@@ -213,7 +262,7 @@ class HelperServiceManager {
   }
 
   // Start helper service
-  async start() {
+  async start(): Promise<boolean> {
     try {
       if (this.isRunning) {
         console.log('[Helper] Service already running')
@@ -239,7 +288,7 @@ class HelperServiceManager {
         console.log('[Helper] Service is installed, ensuring it\'s loaded...')
         try {
           await this.loadService()
-        } catch (error) {
+        } catch (error: any) {
           console.log('[Helper] Service already loaded or load failed:', error.message)
         }
       }
@@ -250,16 +299,16 @@ class HelperServiceManager {
       this.isRunning = true
       console.log('[Helper] Service started successfully')
       return true
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Helper] Failed to start service:', error)
       return false
     }
   }
 
   // Start the actual service
-  async startService() {
+  async startService(): Promise<void> {
     return new Promise((resolve, reject) => {
-      exec(`launchctl start com.liquidb.helper`, (error, stdout, stderr) => {
+      exec(`launchctl start com.liquidb.helper`, (error: ExecException | null, stdout: string, stderr: string) => {
         if (error) {
           console.error('[Helper] Failed to start service:', stderr)
           reject(error)
@@ -272,7 +321,7 @@ class HelperServiceManager {
   }
 
   // Stop helper service
-  async stop() {
+  async stop(): Promise<boolean> {
     try {
       if (!this.isRunning) {
         console.log('[Helper] Service not running')
@@ -283,16 +332,16 @@ class HelperServiceManager {
       this.isRunning = false
       console.log('[Helper] Service stopped')
       return true
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Helper] Failed to stop service:', error)
       return false
     }
   }
 
   // Stop the actual service
-  async stopService() {
+  async stopService(): Promise<void> {
     return new Promise((resolve, reject) => {
-      exec(`launchctl stop com.liquidb.helper`, (error, stdout, stderr) => {
+      exec(`launchctl stop com.liquidb.helper`, (error: ExecException | null, stdout: string, stderr: string) => {
         if (error) {
           console.error('[Helper] Failed to stop service:', stderr)
           reject(error)
@@ -305,14 +354,14 @@ class HelperServiceManager {
   }
 
   // Restart helper service
-  async restart() {
+  async restart(): Promise<boolean> {
     await this.stop()
     await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1 second
     return await this.start()
   }
 
   // Uninstall helper service
-  async uninstall() {
+  async uninstall(): Promise<boolean> {
     try {
       console.log('[Helper] Uninstalling helper service...')
       
@@ -328,14 +377,14 @@ class HelperServiceManager {
       
       console.log('[Helper] Service uninstalled')
       return true
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Helper] Uninstall failed:', error)
       return false
     }
   }
 
   // Get service status
-  async getStatus() {
+  async getStatus(): Promise<ServiceStatus> {
     const installed = this.isInstalled()
     const running = await this.isServiceRunning()
     
@@ -347,18 +396,18 @@ class HelperServiceManager {
   }
 
   // Check if helper service is healthy and running
-  async isHealthy() {
+  async isHealthy(): Promise<boolean> {
     try {
       const status = await this.getStatus()
       return status.installed && status.running
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Helper] Error checking health:', error)
       return false
     }
   }
 
   // Request cleanup from helper
-  async requestCleanup() {
+  async requestCleanup(): Promise<CleanupResult> {
     try {
       // First check if helper service is running
       const isRunning = await this.isServiceRunning()
@@ -376,7 +425,7 @@ class HelperServiceManager {
       client.disconnect()
       
       return result
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Helper] Cleanup request failed:', error)
       
       // If socket connection failed, try direct cleanup
@@ -390,7 +439,7 @@ class HelperServiceManager {
   }
 
   // Check port availability through helper
-  async checkPort(port) {
+  async checkPort(port: number): Promise<PortCheckResult> {
     try {
       const isRunning = await this.isServiceRunning()
       if (!isRunning) {
@@ -406,7 +455,7 @@ class HelperServiceManager {
       client.disconnect()
       
       return result
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Helper] Port check failed:', error)
       
       // Fallback to direct port check
@@ -419,7 +468,7 @@ class HelperServiceManager {
   }
 
   // Find next available port through helper
-  async findPort(startPort = 3000, maxAttempts = 100) {
+  async findPort(startPort: number = 3000, maxAttempts: number = 100): Promise<PortFindResult> {
     try {
       const isRunning = await this.isServiceRunning()
       if (!isRunning) {
@@ -435,7 +484,7 @@ class HelperServiceManager {
       client.disconnect()
       
       return result
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Helper] Find port failed:', error)
       
       // Fallback to direct port finding
@@ -448,7 +497,7 @@ class HelperServiceManager {
   }
 
   // Perform cleanup directly without helper service
-  async performDirectCleanup() {
+  async performDirectCleanup(): Promise<CleanupResult> {
     try {
       console.log('[Helper] Performing direct cleanup of orphaned processes')
       
@@ -467,7 +516,7 @@ class HelperServiceManager {
           timestamp: Date.now()
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Helper] Direct cleanup failed:', error)
       return { 
         success: false, 
@@ -478,7 +527,7 @@ class HelperServiceManager {
   }
 
   // Perform direct port check
-  async performDirectPortCheck(port) {
+  async performDirectPortCheck(port: number): Promise<PortCheckResult> {
     try {
       const net = require('net')
       
@@ -500,7 +549,7 @@ class HelperServiceManager {
           })
         })
         
-        server.on('error', (err) => {
+        server.on('error', (err: NodeJS.ErrnoException) => {
           if (err.code === 'EADDRINUSE') {
             // Port is in use
             resolve({
@@ -526,7 +575,7 @@ class HelperServiceManager {
           }
         })
       })
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: error.message,
@@ -536,11 +585,11 @@ class HelperServiceManager {
   }
 
   // Perform direct port finding
-  async performDirectPortFind(startPort, maxAttempts) {
+  async performDirectPortFind(startPort: number, maxAttempts: number): Promise<PortFindResult> {
     try {
       for (let port = startPort; port < startPort + maxAttempts; port++) {
         const result = await this.performDirectPortCheck(port)
-        if (result.success && result.data.available) {
+        if (result.success && result.data?.available) {
           return {
             success: true,
             data: {
@@ -557,7 +606,7 @@ class HelperServiceManager {
         error: 'No available ports found',
         method: 'direct'
       }
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: error.message,
@@ -567,4 +616,4 @@ class HelperServiceManager {
   }
 }
 
-module.exports = HelperServiceManager
+export { HelperServiceManager }
