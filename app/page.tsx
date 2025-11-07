@@ -248,7 +248,6 @@ export default function DatabaseManager() {
     requestCriticalPermissions,
   } = usePermissions()
 
-  // Check permissions on app startup
   useEffect(() => {
     if (!permissionsLoading && permissions.length > 0) {
       const missingCritical = permissions.filter(p => p.critical && !p.granted)
@@ -258,14 +257,12 @@ export default function DatabaseManager() {
     }
   }, [permissions, permissionsLoading, setPermissionsDialogOpen])
 
-  // Clear selections when switching tabs to avoid confusion
   useEffect(() => {
     if (showBulkActions) {
       const visibleDatabases = getVisibleDatabases()
       const visibleIds = new Set(visibleDatabases.map(db => db.id))
       const selectedVisibleCount = Array.from(selectedDatabases).filter(id => visibleIds.has(id)).length
       
-      // If we have selections but they're not visible in the current tab, clear them
       if (selectedDatabases.size > 0 && selectedVisibleCount === 0) {
         setSelectedDatabases(new Set())
       }
