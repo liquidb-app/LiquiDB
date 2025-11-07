@@ -66,7 +66,7 @@ declare global {
       deleteAllDatabases?: () => Promise<{ success: boolean; error?: string }>
       updateDatabaseCredentials?: (dbConfig: { id: string; username: string; password?: string; name: string }) => Promise<{ success: boolean; error?: string }>
       getPassword?: (id: string) => Promise<string | null>
-      checkPortConflict?: (port: number) => Promise<{ success: boolean; inUse: boolean; processInfo?: { processName: string; pid: string } | null; error?: string }>
+      checkPortConflict?: (port: number, databaseId?: string) => Promise<{ success: boolean; inUse: boolean; processInfo?: { processName: string; pid: string } | null; error?: string }>
       getDatabaseSystemInfo?: (id: string) => Promise<{ success: boolean; pid?: number | null; memory?: { rss?: number; vsz?: number; cpu?: number; pmem?: number; time?: string } | null; cpu?: number | null; systemMemory?: { total: number; free: number; active?: number; inactive?: number; wired?: number; used?: number } | null; connections?: number; uptime?: number; isRunning?: boolean; killed?: boolean; exitCode?: number | null; error?: string }>
       verifyDatabaseInstance?: (id: string) => Promise<{ isRunning: boolean; pid?: number | null; killed?: boolean; exitCode?: number | null; error?: string }>
       recreateDatabasesFile?: () => Promise<{ success: boolean; recreated?: boolean; error?: string }>
