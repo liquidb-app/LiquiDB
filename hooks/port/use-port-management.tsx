@@ -45,15 +45,16 @@ export const usePortManagement = (
       loadBannedPorts()
     }
 
-    // Listen to storage changes for banned ports
-    window.addEventListener('storage', (e) => {
+    const storageListener = (e: StorageEvent) => {
       if (e.key === 'blacklisted-ports') {
         handleBannedPortsChange()
       }
-    })
+    }
+
+    window.addEventListener('storage', storageListener)
 
     return () => {
-      window.removeEventListener('storage', handleBannedPortsChange)
+      window.removeEventListener('storage', storageListener)
     }
   }, [setBannedPorts])
 
