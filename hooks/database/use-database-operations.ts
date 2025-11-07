@@ -20,7 +20,7 @@ export const useDatabaseOperations = (
 
     // Check for port conflicts before starting
     if (targetDb.port) {
-      const conflictResult = await checkPortConflict(targetDb.port)
+      const conflictResult = await checkPortConflict(targetDb.port, id)
       
       // Check for external port conflicts
       if (conflictResult.inUse) {
@@ -45,12 +45,42 @@ export const useDatabaseOperations = (
       }
     }
 
-    // Check if database is already starting
-    if (targetDb.status === "starting") {
-      notifyWarning("Database already starting", {
-        description: `${targetDb.name} is already in the process of starting.`,
+    // Check if database is already running
+    if (targetDb.status === "running") {
+      notifyWarning("Database already running", {
+        description: `${targetDb.name} is already running.`,
       })
       return
+    }
+    
+    // Check if database is already starting by verifying it's actually in the running databases map
+    // This prevents duplicate starts while allowing bulk start to work
+    // In bulk start scenarios, the status is set to "starting" but the process hasn't started yet
+    // So we check the actual backend status to see if it's really starting
+    if (targetDb.status === "starting") {
+      try {
+        const status = await window.electron?.checkDatabaseStatus?.(id)
+        // Only prevent if the backend confirms it's actually starting or running
+        // If backend says it's stopped, it means the frontend status is stale and we should proceed
+        if (status?.status === "running") {
+          notifyWarning("Database already running", {
+            description: `${targetDb.name} is already running.`,
+          })
+          return
+        }
+        // If backend says it's starting, it's actually starting - prevent duplicate
+        if (status?.status === "starting") {
+          notifyWarning("Database already starting", {
+            description: `${targetDb.name} is already in the process of starting.`,
+          })
+          return
+        }
+        // If backend says it's stopped, the frontend status is stale - proceed with start
+        // This allows bulk start to work properly
+      } catch (error) {
+        // If check fails, continue anyway - it's likely not actually starting
+        console.log(`[Start DB] Status check failed for ${id}, continuing anyway:`, error)
+      }
     }
 
     // Check if the database port is banned
@@ -125,9 +155,9 @@ export const useDatabaseOperations = (
       )
     )
 
-    // Final port conflict check right before starting (race condition protection)
-    try {
-      const finalCheck = await checkPortConflict(targetDb.port)
+      // Final port conflict check right before starting (race condition protection)
+      try {
+        const finalCheck = await checkPortConflict(targetDb.port, id)
       if (finalCheck.inUse) {
         notifyError("Cannot start database", {
           description: `Port ${targetDb.port} is now in use by ${finalCheck.processName} (PID: ${finalCheck.pid}). Please choose a different port.`,
