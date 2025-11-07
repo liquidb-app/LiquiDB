@@ -417,7 +417,11 @@ class HelperServiceManager {
       }
 
       // Try to connect to helper service
-      const HelperClient = require('../helper/ipc-client')
+      // Determine helper path based on whether app is packaged
+      const helperPath = this.app.isPackaged
+        ? path.join(process.resourcesPath!, 'helper', 'ipc-client.js')
+        : path.join(__dirname, '..', 'helper', 'ipc-client.js')
+      const HelperClient = require(helperPath)
       const client = new HelperClient()
       
       await client.connect()
@@ -447,7 +451,11 @@ class HelperServiceManager {
         return await this.performDirectPortCheck(port)
       }
 
-      const HelperClient = require('../helper/ipc-client')
+      // Determine helper path based on whether app is packaged
+      const helperPath = this.app.isPackaged
+        ? path.join(process.resourcesPath!, 'helper', 'ipc-client.js')
+        : path.join(__dirname, '..', 'helper', 'ipc-client.js')
+      const HelperClient = require(helperPath)
       const client = new HelperClient()
       
       await client.connect()
@@ -476,7 +484,11 @@ class HelperServiceManager {
         return await this.performDirectPortFind(startPort, maxAttempts)
       }
 
-      const HelperClient = require('../helper/ipc-client')
+      // Determine helper path based on whether app is packaged
+      const helperPath = this.app.isPackaged
+        ? path.join(process.resourcesPath!, 'helper', 'ipc-client.js')
+        : path.join(__dirname, '..', 'helper', 'ipc-client.js')
+      const HelperClient = require(helperPath)
       const client = new HelperClient()
       
       await client.connect()
@@ -502,7 +514,10 @@ class HelperServiceManager {
       console.log('[Helper] Performing direct cleanup of orphaned processes')
       
       // Import the helper functions directly
-      const helperPath = path.join(__dirname, '..', 'helper', 'liquidb-helper.js')
+      // Determine helper path based on whether app is packaged
+      const helperPath = this.app.isPackaged
+        ? path.join(process.resourcesPath!, 'helper', 'liquidb-helper.js')
+        : path.join(__dirname, '..', 'helper', 'liquidb-helper.js')
       const helper = require(helperPath)
       
       // Run cleanup
