@@ -1,13 +1,11 @@
 import { toast } from "sonner"
 import { log } from './logger'
 
-// Notification utility that respects the user's notification setting
 class NotificationManager {
   private static instance: NotificationManager
   private notificationsEnabled: boolean = true
 
   private constructor() {
-    // Load notification setting from localStorage
     this.loadNotificationSetting()
   }
 
@@ -20,15 +18,12 @@ class NotificationManager {
 
   private loadNotificationSetting() {
     try {
-      // Check if we're in a browser environment
       if (typeof window !== 'undefined' && window.localStorage) {
         try {
-          // Attempt to access localStorage - may throw SecurityError in some contexts
           const saved = localStorage.getItem("notifications-enabled")
           this.notificationsEnabled = saved !== null ? JSON.parse(saved) : true
           log.debug("Loaded setting from localStorage:", saved, "parsed:", this.notificationsEnabled)
         } catch (storageError: unknown) {
-          // Handle SecurityError specifically (access denied)
           const error = storageError as Error
           const isSecurityError = error?.name === 'SecurityError' || 
                                   (error?.message && error.message.includes('localStorage') && error.message.includes('denied'))
@@ -40,7 +35,6 @@ class NotificationManager {
           }
         }
       } else {
-        // Server-side rendering or localStorage not available
         this.notificationsEnabled = true
         log.debug("Using default setting (SSR):", this.notificationsEnabled)
       }
@@ -54,20 +48,18 @@ class NotificationManager {
     log.debug("Setting notifications enabled to:", enabled)
     this.notificationsEnabled = enabled
     try {
-      // Check if we're in a browser environment
       if (typeof window !== 'undefined' && window.localStorage) {
         try {
           localStorage.setItem("notifications-enabled", JSON.stringify(enabled))
           log.debug("Saved to localStorage:", enabled)
         } catch (storageError: unknown) {
-          // Handle SecurityError specifically (access denied)
           const error = storageError as Error
           const isSecurityError = error?.name === 'SecurityError' || 
                                   (error?.message && error.message.includes('localStorage') && error.message.includes('denied'))
           if (isSecurityError) {
             log.warn("localStorage access denied (SecurityError), setting not persisted")
           } else {
-            throw storageError // Re-throw if it's not a SecurityError
+            throw storageError 
           }
         }
       }
@@ -121,7 +113,6 @@ class NotificationManager {
   }
 }
 
-// Export singleton instance - initialize lazily to avoid SecurityError during module load
 let notificationsInstance: NotificationManager | null = null
 
 const getNotifications = (): NotificationManager => {
@@ -136,7 +127,6 @@ const getNotifications = (): NotificationManager => {
   return notificationsInstance
 }
 
-// Export singleton instance - access via getter to ensure lazy initialization
 export const notifications = {
   success: (...args: Parameters<NotificationManager['success']>) => getNotifications().success(...args),
   error: (...args: Parameters<NotificationManager['error']>) => getNotifications().error(...args),
@@ -147,7 +137,6 @@ export const notifications = {
   reloadNotificationSetting: () => getNotifications().reloadNotificationSetting(),
 }
 
-// Helper function to check if notifications are enabled
 const areNotificationsEnabled = (): boolean => {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
@@ -175,7 +164,6 @@ const areNotificationsEnabled = (): boolean => {
   }
 }
 
-// Export individual methods for convenience with safety checks
 export const notifySuccess = (message: string, options?: Parameters<typeof toast.success>[1], critical: boolean = false) => {
   log.debug("Called with message:", message, "critical:", critical)
   const enabled = areNotificationsEnabled()
@@ -224,12 +212,10 @@ export const notifyWarning = (message: string, options?: Parameters<typeof toast
   }
 }
 
-// Function to update notification setting and sync with singleton
 export const updateNotificationSetting = (enabled: boolean) => {
   log.debug("Setting notifications to:", enabled)
   getNotifications().setNotificationsEnabled(enabled)
   
-  // Also update localStorage directly for consistency
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
@@ -252,7 +238,6 @@ export const updateNotificationSetting = (enabled: boolean) => {
   }
 }
 
-// Function to get current notification setting
 export const getNotificationSetting = (): boolean => {
   return getNotifications().areNotificationsEnabled()
 }
