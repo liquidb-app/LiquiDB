@@ -71,7 +71,7 @@ export function PortConflictWarning({
           return
         }
         
-        const externalConflict = await getPortConflictInfo(port)
+        const externalConflict = await getPortConflictInfo(port, databaseId)
         
         if (isMounted) {
           if (externalConflict) {
@@ -104,7 +104,7 @@ export function PortConflictWarning({
             if (storedPid && storedPid !== 'N/A' && storedPid !== 'Unknown') {
               try {
                 if (window.electron?.checkPortConflict) {
-                  const pidCheck = await window.electron.checkPortConflict(port)
+                  const pidCheck = await window.electron.checkPortConflict(port, databaseId)
                   const currentPid = pidCheck?.processInfo?.pid
                   
                   if (!pidCheck?.inUse || (currentPid && currentPid !== storedPid)) {
