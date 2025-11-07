@@ -18,10 +18,11 @@
     "tailwind",
     "typescript"
   ],
-  "main": "electron/main.ts",
+  "main": "electron-dist/electron/main.js",
   "private": true,
   "scripts": {
     "preload:build": "tsc -p tsconfig.preload.json",
+    "electron:compile": "tsc -p tsconfig.electron.json",
     "dev": "npm run preload:build && concurrently \"next dev --turbopack\" \"wait-on http://localhost:3000 && NODE_OPTIONS='--import tsx' USE_DEV_SERVER=true electron .\"",
     "dev:minimal": "npm run preload:build && LOG_LEVEL=ERROR concurrently \"next dev\" \"wait-on http://localhost:3000 && NODE_OPTIONS='--import tsx' USE_DEV_SERVER=true electron .\"",
     "dev:quiet": "npm run preload:build && LOG_LEVEL=WARN concurrently \"next dev\" \"wait-on http://localhost:3000 && NODE_OPTIONS='--import tsx' USE_DEV_SERVER=true electron .\"",
@@ -32,10 +33,10 @@
     "start": "next start",
     "lint": "eslint .",
     "electron": "tsx electron/main.ts",
-    "electron:build": "next build && electron-builder",
-    "electron:build:mac": "next build && electron-builder --mac",
-    "electron:build:linux": "next build && electron-builder --linux",
-    "electron:build:mac:verbose": "next build && DEBUG=\"electron-builder\" electron-builder --mac",
+    "electron:build": "npm run electron:compile && next build && electron-builder",
+    "electron:build:mac": "npm run electron:compile && next build && electron-builder --mac",
+    "electron:build:linux": "npm run electron:compile && next build && electron-builder --linux",
+    "electron:build:mac:verbose": "npm run electron:compile && next build && DEBUG=\"electron-builder\" electron-builder --mac",
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {
@@ -44,7 +45,8 @@
     "appId": "com.liquidb.app",
     "productName": "LiquiDB",
     "files": [
-      "electron/**/*",
+      "electron-dist/**/*",
+      "helper/**/*",
       "out/**/*",
       "public/**/*",
       "package.json",
@@ -55,7 +57,8 @@
     "asarUnpack": [
       "**/*.node",
       "build/**",
-      "out/**"
+      "out/**",
+      "helper/**"
     ],
     "directories": {
       "buildResources": "build"
