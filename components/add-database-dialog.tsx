@@ -331,7 +331,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
     try {
       const availablePort = await findNextAvailablePort(defaultPort)
       setPort(availablePort.toString())
-    } catch (error) {
+    } catch (_error) {
       setPort(defaultPort.toString())
     } finally {
       setFindingPort(false)
@@ -702,7 +702,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
         setForceUpdate(prev => prev + 1)
         console.log("Installation process completed, UI should update")
       }, 500)
-    } catch {
+    } catch (_error) {
       setInstalling(false)
       setInstallMsg("")
       setInstallProgress(0)

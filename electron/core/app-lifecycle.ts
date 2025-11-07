@@ -46,10 +46,10 @@ const getMCPServerStatus = () => {
 }
 
 const initializeMCPServer = async (...args: any[]) => {
-  const module = await getMCPServerModule()
-  if (module && module.initializeMCPServer) {
-    // @ts-ignore
-    return module.initializeMCPServer(...args)
+  const mcpModule = await getMCPServerModule()
+  if (mcpModule && mcpModule.initializeMCPServer) {
+    // @ts-expect-error: initializeMCPServer has a flexible signature provided by MCP server module
+    return mcpModule.initializeMCPServer(...args)
   }
   return false
 }
