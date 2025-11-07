@@ -1,6 +1,5 @@
 import { ipcMain } from "electron"
 
-// MCP server is optional - only load if available
 let mcpServerModule: any = null
 try {
   mcpServerModule = require("../mcp-server")
@@ -20,7 +19,6 @@ export function registerMCPHandlers(): void {
     return
   }
 
-  // MCP server status
   ipcMain.handle("mcp:status", async (event) => {
     try {
       const status = getMCPServerStatus()
@@ -31,7 +29,6 @@ export function registerMCPHandlers(): void {
     }
   })
 
-  // MCP connection info
   ipcMain.handle("mcp:connection-info", async (event) => {
     try {
       const info = getMCPConnectionInfo()
