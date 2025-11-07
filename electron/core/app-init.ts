@@ -40,6 +40,14 @@ export function initializeAutoLauncher(): AutoLaunch | null {
     return null
   }
 
+  // Only initialize auto-launcher in production mode (packaged app)
+  // In development mode, process.execPath points to Electron binary in node_modules,
+  // which can cause issues when editors open the project (auto-starting the app)
+  if (!app.isPackaged) {
+    log.debug("Skipping auto-launcher initialization in development mode")
+    return null
+  }
+
   try {
     log.debug("App path:", process.execPath)
     log.debug("App name:", basename(process.execPath))
