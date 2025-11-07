@@ -259,7 +259,7 @@ export const usePortManagement = (
           }
         }
       }
-    }, [databaseStatus, databaseId, port, conflictInfo, updatePortWarningCache])
+    }, [databaseStatus, databaseId, port, conflictInfo])
 
     // Sync ref with state changes
     useEffect(() => {
@@ -483,7 +483,7 @@ export const usePortManagement = (
         clearInterval(interval)
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [port, databaseId, databaseStatus, cachedState, conflictInfo, updatePortWarningCache])
+    }, [port, databaseId, databaseStatus, cachedState, conflictInfo])
 
     const displayInfo = conflictInfo || cachedState?.info || null
 

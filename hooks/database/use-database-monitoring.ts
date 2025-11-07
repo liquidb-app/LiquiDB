@@ -673,7 +673,7 @@ export const useDatabaseMonitoring = (
           window.electron.removeAllListeners('auto-start-completed')
         }
       }
-  }, [])
+  }, [databases, databasesRef, lastStatusCheckRef, lastSystemInfoCheckRef, setDatabases, setLastSystemInfoCheck, startDatabaseWithErrorHandlingRef, checkDatabasesFileExistsRef])
 
   return {
     fetchSystemInfo
