@@ -5,10 +5,10 @@
 /**
  * Check if a port is in use and return conflict information
  */
-export async function checkPortConflict(port: number): Promise<{ inUse: boolean; processName?: string; pid?: string }> {
+export async function checkPortConflict(port: number, databaseId?: string): Promise<{ inUse: boolean; processName?: string; pid?: string }> {
   try {
     if (window.electron?.checkPortConflict) {
-      const result = await window.electron.checkPortConflict(port)
+      const result = await window.electron.checkPortConflict(port, databaseId)
       // Only return false if we got a definitive success response
       if (result?.success === true && result?.inUse === false) {
         return {
@@ -37,10 +37,10 @@ export async function checkPortConflict(port: number): Promise<{ inUse: boolean;
 /**
  * Get port conflict info (returns null if no conflict)
  */
-export async function getPortConflictInfo(port: number): Promise<{ processName: string; pid: string } | null> {
+export async function getPortConflictInfo(port: number, databaseId?: string): Promise<{ processName: string; pid: string } | null> {
   try {
     if (window.electron?.checkPortConflict) {
-      const result = await window.electron.checkPortConflict(port)
+      const result = await window.electron.checkPortConflict(port, databaseId)
       // Only return conflict info if port is in use
       if (result?.success === true && result?.inUse === true && result?.processInfo) {
         return {

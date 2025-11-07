@@ -63,39 +63,53 @@ export const usePortManagement = (
   }
 
   // Function to check for port conflicts dynamically (no caching)
-  const checkPortConflict = async (port: number): Promise<{ inUse: boolean; processName?: string; pid?: string }> => {
+  const checkPortConflict = async (port: number, databaseId?: string): Promise<{ inUse: boolean; processName?: string; pid?: string }> => {
     try {
       if (window.electron?.checkPortConflict) {
-        const result = await window.electron.checkPortConflict(port)
-        // Only return false if we got a definitive success response
+        const result = await window.electron.checkPortConflict(port, databaseId)
+
+        // If the helper explicitly says the port is free, trust it
         if (result?.success === true && result?.inUse === false) {
           return {
             inUse: false,
             processName: undefined,
-            pid: undefined
+            pid: undefined,
           }
         }
-        // If inUse is true, or if success is false/undefined, treat as in use
+
+        // If the helper explicitly says the port is in use, surface details if available
+        if (result?.success === true && result?.inUse === true) {
+          return {
+            inUse: true,
+            processName: result?.processInfo?.processName || "Unknown process",
+            pid: result?.processInfo?.pid || "Unknown",
+          }
+        }
+
+        // On any ambiguous response (success !== true), be conservative but avoid spurious UI noise
         return {
-          inUse: result?.inUse ?? true, // Default to in use if uncertain
-          processName: result?.processInfo?.processName || 'Unknown process',
-          pid: result?.processInfo?.pid || 'Unknown'
+          inUse: false,
+          processName: undefined,
+          pid: undefined,
         }
       }
-      // If electron API is not available, default to assuming port is in use for safety
-      console.warn(`[Port Check] Electron API not available, assuming port ${port} is in use`)
-      return { inUse: true, processName: 'Unknown (API unavailable)', pid: 'Unknown' }
+
+      // If electron API is not available, assume free to avoid permanent false warnings in browser/dev
+      console.warn(`[Port Check] Electron API not available, treating port ${port} as free for UI`)
+      return { inUse: false }
     } catch (error) {
       console.error(`[Port Check] Error checking port ${port}:`, error)
-      // On error, default to assuming port is in use for safety
-      return { inUse: true, processName: 'Unknown (check failed)', pid: 'Unknown' }
+      // On error, do not claim a conflict without proof
+      return { inUse: false }
     }
   }
 
   // Function to get port conflict info (dynamic check)
   const getPortConflictInfo = async (port: number): Promise<{ processName: string; pid: string } | null> => {
     const result = await checkPortConflict(port)
-    return result.inUse ? { processName: result.processName || 'Unknown', pid: result.pid || 'Unknown' } : null
+    return result.inUse
+      ? { processName: result.processName || "Unknown", pid: result.pid || "Unknown" }
+      : null
   }
 
   // Function to find a free port
@@ -202,6 +216,50 @@ export const usePortManagement = (
     const hasWarningRef = React.useRef(false) // Track if we currently have a warning displayed
     const currentIntervalRef = React.useRef(10000) // Track current interval value (default 10 seconds)
     const cachedState = portWarningCache[port]
+    const stopTimestampRef = React.useRef<number | null>(null) // When this DB was last seen as stopping/stopped
+
+    // Helper: treat DB as stopped-ish (we want to be lenient right after stop)
+    const isStoppedLike =
+      databaseStatus === "stopped" ||
+      databaseStatus === "stopping" ||
+      databaseStatus === "stopping-graceful" ||
+      databaseStatus === "stopping-forced"
+
+    // Track when the DB enters a stopped-like state so we can suppress stale warnings briefly
+    useEffect(() => {
+      if (isStoppedLike) {
+        // Set timestamp once when entering stopped-like state
+        if (!stopTimestampRef.current) {
+          stopTimestampRef.current = Date.now()
+        }
+      } else {
+        // Reset when leaving stopped-like state
+        stopTimestampRef.current = null
+      }
+    }, [isStoppedLike])
+
+    // Clear warning when database starts running (might have been cached from before)
+    useEffect(() => {
+      if ((databaseStatus === "running" || databaseStatus === "starting") && conflictInfo) {
+        const currentDb = databasesRef.current.find((db: DatabaseContainer) => db.id === databaseId)
+        // If we have a PID and the conflict info matches our own process, clear it
+        if (currentDb?.pid) {
+          const conflictPid = conflictInfo.pid
+          const pidMatches = 
+            conflictPid === currentDb.pid.toString() ||
+            conflictPid === String(currentDb.pid) ||
+            parseInt(conflictPid) === currentDb.pid
+          
+          if (pidMatches) {
+            // This is our own process - clear the warning
+            hasWarningRef.current = false
+            setConflictInfo(null)
+            freeConfirmationsRef.current = 0
+            updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
+          }
+        }
+      }
+    }, [databaseStatus, databaseId, port, conflictInfo, updatePortWarningCache])
 
     // Sync ref with state changes
     useEffect(() => {
@@ -212,10 +270,28 @@ export const usePortManagement = (
       let isMounted = true
 
       // Initialize local state from cache to avoid initial flicker
+      // But first check if the cached warning is for this database's own process
       if (cachedState?.show && !conflictInfo) {
-        setConflictInfo(cachedState.info || null)
-        hasWarningRef.current = true
-        freeConfirmationsRef.current = cachedState.freeStreak || 0
+        const currentDb = databasesRef.current.find((db: DatabaseContainer) => db.id === databaseId)
+        const cachedPid = cachedState.info?.pid
+        
+        // If database is running and cached PID matches our own PID, don't show the warning
+        if ((databaseStatus === "running" || databaseStatus === "starting") && 
+            currentDb?.pid && 
+            cachedPid && 
+            (cachedPid === currentDb.pid.toString() || 
+             cachedPid === String(currentDb.pid) || 
+             parseInt(cachedPid) === currentDb.pid)) {
+          // This is our own process - clear the cached warning
+          updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
+          hasWarningRef.current = false
+          freeConfirmationsRef.current = 0
+        } else {
+          // Not our own process - use cached state
+          setConflictInfo(cachedState.info || null)
+          hasWarningRef.current = true
+          freeConfirmationsRef.current = cachedState.freeStreak || 0
+        }
       }
       
       const checkConflict = async () => {
@@ -247,11 +323,30 @@ export const usePortManagement = (
             return
           }
           
+          // For recently stopped databases, suppress transient external warnings
+          const now = Date.now()
+          const justStoppedWindowMs = 2500 // 2.5s grace window
+          const isRecentlyStopped =
+            isStoppedLike &&
+            stopTimestampRef.current !== null &&
+            now - stopTimestampRef.current < justStoppedWindowMs
+
           // Check for external conflicts (for both running and stopped databases)
           const externalConflict = await getPortConflictInfo(port)
           
           if (isMounted) {
             if (externalConflict) {
+              // If this DB was just stopped, ignore this one-off external conflict result to avoid flicker
+              if (isRecentlyStopped) {
+                // Clear any stale warning state immediately for this DB
+                hasWarningRef.current = false
+                freeConfirmationsRef.current = 0
+                setConflictInfo(null)
+                updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
+                setIsChecking(false)
+                return
+              }
+
               // Reset free confirmation counter when conflict is detected
               freeConfirmationsRef.current = 0
               
@@ -261,15 +356,31 @@ export const usePortManagement = (
                 const isDatabaseProcess = isDatabaseRelatedProcess(externalConflict.processName)
                 
                 // If database is running, check if the detected process is this database's own process
+                // Check by PID (handle both string and number comparison)
+                const pidMatches = currentDb?.pid && (
+                  externalConflict.pid === currentDb.pid.toString() ||
+                  externalConflict.pid === String(currentDb.pid) ||
+                  parseInt(externalConflict.pid) === currentDb.pid
+                )
+                
+                // Also check if process name contains this database's name or container ID
+                const processNameLower = externalConflict.processName.toLowerCase()
+                // Handle format like "Database: pg-mho65ape" - extract name after "Database:"
+                const dbNameInProcess = currentDb?.name && (
+                  processNameLower.includes(currentDb.name.toLowerCase()) ||
+                  processNameLower.includes(`database: ${currentDb.name.toLowerCase()}`)
+                )
+                const containerIdMatches = currentDb?.containerId && processNameLower.includes(currentDb.containerId.toLowerCase())
+                
+                // If database is running and we detect its own process, don't show warning
                 if ((databaseStatus === "running" || databaseStatus === "starting") && 
                     isDatabaseProcess && 
-                    currentDb?.pid && 
-                    externalConflict.pid === currentDb.pid.toString()) {
+                    (pidMatches || dbNameInProcess || containerIdMatches)) {
                   // This is this database's own process - not a conflict, clear immediately
                   hasWarningRef.current = false
                   setConflictInfo(null)
                   freeConfirmationsRef.current = 0
-                  // Update cache - clear immediately since PID match confirms it's our own process
+                  // Update cache - clear immediately since PID/name match confirms it's our own process
                   updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
                 } else {
                   // Check if PID changed - if so, this might be a different process or the old one was killed
@@ -295,11 +406,9 @@ export const usePortManagement = (
                 }
               } else {
                 // False positive detected - don't clear existing warning if we have one
-                // Only update state if we don't currently have a warning displayed
                 if (!hasWarningRef.current) {
                   setConflictInfo(null)
                 }
-                // If warning exists, preserve it - don't clear on false positive check
               }
             } else {
               // Port conflict check returned no conflict - port might be free
@@ -315,7 +424,6 @@ export const usePortManagement = (
                   updatePortWarningCache(port, { show: false, info: null, freeStreak: 0 })
                 } else {
                   // Update cache with current free streak to persist between renders
-                  // But keep show as true until we have 2 confirmations
                   const currentCacheInfo = cachedState?.info || conflictInfo
                   updatePortWarningCache(port, { 
                     show: true, 
@@ -323,7 +431,6 @@ export const usePortManagement = (
                     freeStreak: freeConfirmationsRef.current 
                   })
                 }
-                // Otherwise keep existing warning state - don't clear on single "free" check
               } else {
                 // No warning was showing, but make sure cache is cleared
                 if (cachedState?.show) {
@@ -335,9 +442,6 @@ export const usePortManagement = (
         } catch (error: unknown) {
           const errorMessage = error instanceof Error ? error.message : String(error)
           console.error(`[Port Warning] Error checking port ${port}:`, errorMessage)
-          // On error, preserve existing warning state - don't clear it
-          // The port might still be in use, we just couldn't verify
-          // Don't increment confirmation counter on error
         } finally {
           if (isMounted) setIsChecking(false)
         }
@@ -349,20 +453,17 @@ export const usePortManagement = (
       // Re-check more frequently when a warning is active (every 2 seconds) to clear faster
       // Otherwise check every 10 seconds
       const getInterval = () => {
-        // If we have a warning, check more frequently
         if (hasWarningRef.current || cachedState?.show) {
           return 2000 // 2 seconds when warning is active
         }
         return 10000 // 10 seconds when no warning
       }
       
-      // Initialize interval ref with current value
       currentIntervalRef.current = getInterval()
       
       let interval = setInterval(() => {
         if (isMounted) {
           checkConflict()
-          // Update interval dynamically based on warning state
           const newInterval = getInterval()
           if (newInterval !== currentIntervalRef.current) {
             clearInterval(interval)
@@ -401,13 +502,23 @@ export const usePortManagement = (
           : `Port ${port} is in use by external process: ${displayInfo.processName} (PID: ${displayInfo.pid})`
     })()
 
-    // Only show warning if there's an actual conflict (live or cached)
-    // Don't show if we've confirmed the port is free (2+ consecutive free checks)
+    // Only show warning if there's an actual conflict (live or cached) and not in the immediate post-stop window
     const hasConfirmedFree = freeConfirmationsRef.current >= 2
-    const shouldShow = (hasWarningRef.current || cachedState?.show) && 
-                       !hasConfirmedFree && 
-                       (conflictInfo !== null || cachedState?.info)
-    if (!shouldShow || !displayInfo || !warningMessage) {
+    const now = Date.now()
+    const justStoppedWindowMs = 2500
+    const isRecentlyStoppedDisplay =
+      (databaseStatus === "stopped" || databaseStatus === "stopping") &&
+      stopTimestampRef.current !== null &&
+      now - stopTimestampRef.current < justStoppedWindowMs
+
+    const shouldShow =
+      !hasConfirmedFree &&
+      !isRecentlyStoppedDisplay &&
+      (hasWarningRef.current || cachedState?.show) &&
+      !!(conflictInfo || cachedState?.info) &&
+      !!warningMessage
+
+    if (!shouldShow) {
       return null
     }
 
