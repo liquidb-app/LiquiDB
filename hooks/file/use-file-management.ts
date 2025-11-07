@@ -15,9 +15,9 @@ export const useFileManagement = (
         if (recreateResult?.success) {
           console.log("[Storage] Recreated databases.json file")
         }
-        return true
+        return false
       }
-      return false
+      return true
     } catch (error) {
       console.error("[Storage] Error checking databases file:", error)
       return false
