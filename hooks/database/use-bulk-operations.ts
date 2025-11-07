@@ -175,15 +175,12 @@ export const useBulkOperations = (
       duration: 3000,
     })
 
-    // First, set only running databases to "stopping" status immediately
     setDatabases(prev => prev.map(db => 
       runningDatabases.some(rdb => rdb.id === db.id) ? { ...db, status: "stopping" as const } : db
     ))
 
-    // Stop only running databases in parallel
     const stopPromises = runningDatabases.map(async (db, index) => {
       try {
-        // Add a small delay between stops to prevent overwhelming the system
         if (index > 0) {
           await new Promise(resolve => setTimeout(resolve, 500 * index))
         }
