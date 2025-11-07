@@ -8,7 +8,7 @@ export const useDatabaseOperations = (
   setSelectedDatabase: React.Dispatch<React.SetStateAction<DatabaseContainer | null>>,
   setSettingsDialogOpen: React.Dispatch<React.SetStateAction<boolean>>,
   setInstanceInfoOpen: React.Dispatch<React.SetStateAction<boolean>>,
-  checkPortConflict: (port: number) => Promise<{ inUse: boolean; processName?: string; pid?: string }>,
+  checkPortConflict: (port: number, databaseId?: string) => Promise<{ inUse: boolean; processName?: string; pid?: string }>,
   isPortBanned: (port: number) => boolean,
   findFreePort: (preferredPort: number) => number
 ) => {
