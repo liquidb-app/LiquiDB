@@ -6,18 +6,14 @@ export const useAppInitialization = (setAppSettingsOpen: React.Dispatch<React.Se
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [dashboardOpacity, setDashboardOpacity] = useState(0)
 
-  // App initialization - check onboarding status after loading
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // Simulate app initialization time
         await new Promise(resolve => setTimeout(resolve, 1000))
         
-        // Check onboarding status
         const done = isOnboardingComplete()
         setShowOnboarding(!done)
         
-        // If onboarding is complete, fade in dashboard
         if (done) {
           setDashboardOpacity(1)
         }
@@ -32,9 +28,7 @@ export const useAppInitialization = (setAppSettingsOpen: React.Dispatch<React.Se
     initializeApp()
   }, [])
 
-  // Notify main process when dashboard is ready (loaded and onboarding complete)
   useEffect(() => {
-    // Dashboard is ready when loading is complete and onboarding is not showing
     if (!isLoading && !showOnboarding && typeof window !== 'undefined' && window.electron?.notifyDashboardReady) {
       const notifyReady = async () => {
         try {
@@ -46,14 +40,12 @@ export const useAppInitialization = (setAppSettingsOpen: React.Dispatch<React.Se
         }
       }
       
-      // Small delay to ensure everything is fully initialized
       const timeoutId = setTimeout(notifyReady, 100)
       
       return () => clearTimeout(timeoutId)
     }
   }, [isLoading, showOnboarding])
 
-  // Dashboard fade-in effect when onboarding finishes
   useEffect(() => {
     if (!showOnboarding) {
       // Fade in dashboard when onboarding is hidden
