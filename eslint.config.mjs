@@ -20,6 +20,7 @@ const eslintConfig = [
       "node_modules/**",
       "*.tsbuildinfo",
       "electron/dist/**",
+      "electron-dist/**",
       "next-env.d.ts",
     ],
   },
