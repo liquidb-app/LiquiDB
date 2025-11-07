@@ -48,7 +48,6 @@ export const useAppInitialization = (setAppSettingsOpen: React.Dispatch<React.Se
 
   useEffect(() => {
     if (!showOnboarding) {
-      // Fade in dashboard when onboarding is hidden
       const timer = setTimeout(() => {
         setDashboardOpacity(1)
       }, 100) // Small delay to sync with stars fade-out
@@ -56,7 +55,6 @@ export const useAppInitialization = (setAppSettingsOpen: React.Dispatch<React.Se
     }
   }, [showOnboarding])
 
-  // Allow profile menu to open settings via event
   useEffect(() => {
     const handler = () => setAppSettingsOpen(true)
     window.addEventListener("open-app-settings", handler as EventListener)
