@@ -202,6 +202,10 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
   await cleanupOrphanedDatabases(app)
   
   // Clean up orphaned database processes on startup
+  // Add a small delay to ensure app is fully ready before checking processes
+  // This helps prevent crashes from calling process.kill() too early
+  await new Promise(resolve => setTimeout(resolve, 100))
+  
   try {
     console.log("[App Start] Checking for orphaned database processes...")
     const databases = storage.loadDatabases(app)
@@ -209,14 +213,27 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
     
     // Helper function to check if a process exists using process.kill(pid, 0)
     // This is safer than using exec() and doesn't require shell commands
+    // Added additional validation to prevent SIGSEGV crashes
     const isProcessRunning = (pid: number): boolean => {
       try {
+        // Additional validation: PIDs on macOS are typically 1-999999
+        // Very large PIDs or invalid values can cause crashes
+        if (!Number.isInteger(pid) || pid <= 0 || pid > 999999) {
+          console.log(`[App Start] Invalid PID value: ${pid}`)
+          return false
+        }
+        
         // Signal 0 doesn't actually kill the process, it just checks if it exists
         process.kill(pid, 0)
         return true
       } catch (error: any) {
         // ESRCH means process doesn't exist
         if (error.code === 'ESRCH') {
+          return false
+        }
+        // EINVAL means invalid signal (shouldn't happen with signal 0, but handle it)
+        if (error.code === 'EINVAL') {
+          console.log(`[App Start] Invalid signal for PID ${pid}`)
           return false
         }
         // Other errors (like EPERM) mean process exists but we can't signal it
@@ -230,8 +247,8 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
       if (db.pid !== null && db.pid !== undefined) {
         const pid = typeof db.pid === 'number' ? db.pid : parseInt(String(db.pid), 10)
         
-        // Skip if PID is invalid
-        if (isNaN(pid) || pid <= 0) {
+        // Skip if PID is invalid (more strict validation)
+        if (isNaN(pid) || pid <= 0 || !Number.isInteger(pid) || pid > 999999) {
           console.log(`[App Start] Invalid PID ${db.pid} for database ${db.id}, clearing from storage`)
           db.status = 'stopped'
           db.pid = null
@@ -239,6 +256,7 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
         }
         
         // Check if process is actually running using safer method
+        // Wrap in try-catch to prevent crashes from process.kill()
         try {
           const isRunning = isProcessRunning(pid)
           if (!isRunning) {
@@ -251,9 +269,9 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
             console.log(`[App Start] Found orphaned database process ${pid} for database ${db.id}, will kill it`)
             orphanedPids.push({ pid, id: db.id })
           }
-        } catch (_error) {
-          // Assume process doesn't exist if check fails
-          console.log(`[App Start] Error checking process ${pid} for database ${db.id}, clearing from storage`)
+        } catch (error: any) {
+          // Catch any errors (including potential crashes) and assume process doesn't exist
+          console.log(`[App Start] Error checking process ${pid} for database ${db.id}: ${error.message || error}, clearing from storage`)
           db.status = 'stopped'
           db.pid = null
         }
