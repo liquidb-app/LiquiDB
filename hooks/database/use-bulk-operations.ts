@@ -28,13 +28,11 @@ export const useBulkOperations = (
     
     console.log(`[Bulk Start] Starting ${stoppedDatabases.length} stopped databases (${databaseIds.length - stoppedDatabases.length} already running)`)
     
-    // Show initial toast
     notifyInfo("Starting Multiple Databases", {
       description: `Starting ${stoppedDatabases.length} stopped databases...`,
       duration: 3000,
     })
 
-    // Check for banned ports first (only on stopped databases)
     const bannedPortDatabases = stoppedDatabases.filter(db => isPortBanned(db.port))
     
     if (bannedPortDatabases.length > 0) {
