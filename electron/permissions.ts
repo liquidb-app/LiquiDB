@@ -90,7 +90,6 @@ class PermissionsManager {
     }
   }
 
-  // Check if accessibility permission is granted
   async checkAccessibilityPermission(): Promise<boolean> {
     try {
       // Use Electron's native API to check accessibility permission
@@ -104,7 +103,6 @@ class PermissionsManager {
     }
   }
 
-  // Request accessibility permission
   async requestAccessibilityPermission(): Promise<boolean> {
     try {
       console.log('[Permissions] Requesting accessibility permission...')
@@ -127,7 +125,6 @@ class PermissionsManager {
     }
   }
 
-  // Check if full disk access is granted
   async checkFullDiskAccessPermission(): Promise<boolean> {
     try {
       // Try to access a system file that requires full disk access
@@ -148,7 +145,6 @@ class PermissionsManager {
     }
   }
 
-  // Request full disk access permission
   async requestFullDiskAccessPermission(): Promise<boolean> {
     try {
       console.log('[Permissions] Requesting full disk access permission...')
@@ -176,44 +172,31 @@ class PermissionsManager {
     }
   }
 
-  // Check if network access is available
   async checkNetworkAccessPermission(): Promise<boolean> {
-    // Network access is automatically granted to apps on macOS
-    // We don't need to check this as a permission
     this.permissions.networkAccess = true
     return true
   }
 
-  // Request network access permission (usually not needed as it's automatic)
   async requestNetworkAccessPermission(): Promise<boolean> {
-    // Network access is automatically granted to apps on macOS
-    // No permission dialog is needed
     this.permissions.networkAccess = true
     return true
   }
 
-  // Check if file access is available
   async checkFileAccessPermission(): Promise<boolean> {
     try {
-      // Check if we can access the app's data directory
       const testDir = path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB')
       
-      // Try to create directory if it doesn't exist
       if (!fs.existsSync(testDir)) {
         await fs.promises.mkdir(testDir, { recursive: true })
       }
       
-      // Try to write a test file
       const testFile = path.join(testDir, 'permission-test.txt')
       await fs.promises.writeFile(testFile, 'test')
       
-      // Try to read it back
       const content = await fs.promises.readFile(testFile, 'utf8')
       
-      // Clean up
       await fs.promises.unlink(testFile)
       
-      // If we got here without errors, we have file access
       this.permissions.fileAccess = content === 'test'
       return this.permissions.fileAccess
     } catch (error: any) {
@@ -222,7 +205,6 @@ class PermissionsManager {
     }
   }
 
-  // Request file access permission
   async requestFileAccessPermission(): Promise<boolean> {
     try {
       const testDir = path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB')
@@ -240,7 +222,6 @@ class PermissionsManager {
     }
   }
 
-  // Check if launch agent permission is available
   async checkLaunchAgentPermission(): Promise<boolean> {
     try {
       const launchAgentsDir = path.join(os.homedir(), 'Library', 'LaunchAgents')
@@ -266,16 +247,12 @@ class PermissionsManager {
 </dict>
 </plist>`
       
-      // Try to write and then delete the test file
       await fs.promises.writeFile(testPlist, testContent)
       
-      // Verify we can read it back
       const content = await fs.promises.readFile(testPlist, 'utf8')
       
-      // Clean up
       await fs.promises.unlink(testPlist)
       
-      // If we got here without errors, we have launch agent permission
       this.permissions.launchAgent = content.includes('com.liquidb.test')
       return this.permissions.launchAgent
     } catch (error: any) {
@@ -284,10 +261,8 @@ class PermissionsManager {
     }
   }
 
-  // Check if keychain access is available
   async checkKeychainAccessPermission(): Promise<boolean> {
     try {
-      // Use Electron's native safeStorage API to check keychain access
       const isAvailable = safeStorage.isEncryptionAvailable()
       this.permissions.keychainAccess = isAvailable
       return isAvailable
@@ -298,27 +273,20 @@ class PermissionsManager {
     }
   }
 
-  // Request keychain access permission
   async requestKeychainAccessPermission(): Promise<boolean> {
     try {
       console.log('[Permissions] Requesting keychain access permission...')
       
-      // Use Electron's native safeStorage API to trigger keychain permission dialog
-      // This will show the macOS keychain permission dialog on first use
       if (safeStorage.isEncryptionAvailable()) {
-        // Try to encrypt a test string - this will trigger the permission dialog
         const testData = 'LiquiDB test data'
         safeStorage.encryptString(testData)
         
-        // Wait a moment for the user to respond to the dialog
         await new Promise(resolve => setTimeout(resolve, 2000))
         
-        // Check if permission was granted
         const granted = await this.checkKeychainAccessPermission()
         this.permissions.keychainAccess = granted
         return granted
       } else {
-        // If encryption is not available, we don't have keychain access
         this.permissions.keychainAccess = false
         return false
       }
@@ -329,9 +297,7 @@ class PermissionsManager {
     }
   }
 
-  // Check all permissions
   async checkAllPermissions(): Promise<CheckAllPermissionsResult> {
-    // Reset all permissions to false first
     this.permissions = {
       accessibility: false,
       fullDiskAccess: false,
@@ -365,7 +331,6 @@ class PermissionsManager {
     }
   }
 
-  // Get permission descriptions
   getPermissionDescriptions(): { [key: string]: PermissionDescription } {
     return {
       accessibility: {
