@@ -147,22 +147,47 @@ const tourSteps: TourStep[] = [
   },
   {
     id: "add-database",
-    title: "Add New Database",
-    description: "Create your first database instance",
+    title: "Add Your First Database",
+    description: "Use the Add your first database button to spin up an instance in seconds.",
     content: (
       <div className="space-y-2">
         <div className="px-3 py-2.5 rounded-md bg-muted/20 border border-border/50">
-          <p className="text-sm font-medium mb-1">Multiple Types</p>
-          <p className="text-xs text-muted-foreground">PostgreSQL, MySQL, MongoDB</p>
+          <p className="text-sm font-medium mb-1">Highlighted action</p>
+          <p className="text-xs text-muted-foreground">
+            Click the <span className="font-semibold">Add your first database</span> button to create a new PostgreSQL, MySQL, MongoDB, or Redis instance.
+          </p>
         </div>
         <div className="px-3 py-2.5 rounded-md bg-muted/20 border border-border/50">
-          <p className="text-sm font-medium mb-1">Quick Setup</p>
-          <p className="text-xs text-muted-foreground">Automatic configuration</p>
+          <p className="text-sm font-medium mb-1">Guided setup</p>
+          <p className="text-xs text-muted-foreground">We handle sensible defaults so you can focus on building, not configuring.</p>
         </div>
       </div>
     ),
     icon: <PlusIcon size={20} className="text-muted-foreground" />,
-    highlight: "add-database-button"
+    highlight: "add-first-database-button",
+  },
+  {
+    id: "docs-support",
+    title: "Docs & Support",
+    description: "Get help any time from the LiquiDB documentation and support channels.",
+    content: (
+      <div className="space-y-2">
+        <div className="px-3 py-2.5 rounded-md bg-muted/20 border border-border/50">
+          <p className="text-sm font-medium mb-1">Documentation</p>
+          <p className="text-xs text-muted-foreground">
+            Visit our docs from the Help/Docs section in the app to explore guides, recipes, and best practices.
+          </p>
+        </div>
+        <div className="px-3 py-2.5 rounded-md bg-muted/20 border border-border/50">
+          <p className="text-sm font-medium mb-1">Support</p>
+          <p className="text-xs text-muted-foreground">
+            If you get stuck, use the same area to reach support — we&apos;re here to help.
+          </p>
+        </div>
+      </div>
+    ),
+    icon: <LayoutPanelTopIcon size={20} className="text-muted-foreground" />,
+    highlight: "docs-link",
   },
   {
     id: "settings",
@@ -220,6 +245,8 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
   const [mounted, setMounted] = useState(false)
   const { theme, resolvedTheme } = useTheme()
   const notificationShownRef = useRef(false)
+  const previousStepRef = useRef<number>(0)
+  const previousTargetRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -269,42 +296,107 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
   }, [isOpen])
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      setTargetElement(null)
+      previousTargetRef.current = null
+      previousStepRef.current = 0
+      return
+    }
 
     const currentStepData = tourSteps[currentStep]
+    const previousStepData = tourSteps[previousStepRef.current]
+    
+    // Check if both previous and current steps have highlights for smooth transition
+    const bothHaveHighlights = previousStepData?.highlight && currentStepData?.highlight && previousTargetRef.current
+    
+    // If both have highlights, we'll transition smoothly - don't clear immediately
+    // Otherwise, clear the target element when step changes
+    if (!bothHaveHighlights) {
+      // Store previous target before clearing
+      setTargetElement((prevTarget) => {
+        if (prevTarget) {
+          previousTargetRef.current = prevTarget
+        }
+        return null
+      })
+    }
+    
+    // Only set highlight if the current step has one
     if (currentStepData.highlight) {
       const timer = setTimeout(() => {
+        // Double-check we're still on the same step
+        const stepData = tourSteps[currentStep]
+        if (!stepData || stepData.highlight !== currentStepData.highlight) {
+          return
+        }
+        
         const element = document.querySelector(`[data-tour="${currentStepData.highlight}"]`) as HTMLElement
         if (element) {
-          setTargetElement(element)
+          // Store previous target before updating
+          setTargetElement((prevTarget) => {
+            if (prevTarget) {
+              previousTargetRef.current = prevTarget
+            }
+            previousStepRef.current = currentStep
+            return element
+          })
         } else {
           let fallbackElement: HTMLElement | null = null
           
           switch (currentStepData.highlight) {
             case 'database-cards':
-              fallbackElement = document.querySelector('[data-testid="database-cards"]') as HTMLElement ||
-                               document.querySelector('.grid') as HTMLElement
+              fallbackElement = document.querySelector('[data-testid="database-cards"]') as HTMLElement
+                || document.querySelector('.grid') as HTMLElement
               break
             case 'settings-button':
-              fallbackElement = document.querySelector('[data-testid="settings-button"]') as HTMLElement ||
-                               document.querySelector('button[aria-label*="settings"]') as HTMLElement ||
-                               document.querySelector('button:has(svg)') as HTMLElement
+              fallbackElement = document.querySelector('[data-testid="settings-button"]') as HTMLElement
+                || document.querySelector('button[aria-label*="settings" i]') as HTMLElement
+                || document.querySelector('button:has(svg)') as HTMLElement
+              break
+            case 'add-first-database-button':
+              fallbackElement = document.querySelector('[data-tour="add-first-database-button"]') as HTMLElement
+                || document.querySelector('[data-tour="add-database-button"]') as HTMLElement
+                || Array.from(document.querySelectorAll('button')).find((btn) =>
+                  btn.textContent?.toLowerCase().includes('add your first database')
+                ) as HTMLElement
+                || Array.from(document.querySelectorAll('button')).find((btn) =>
+                  btn.textContent?.toLowerCase().includes('add database')
+                ) as HTMLElement
               break
             case 'add-database-button':
-              fallbackElement = document.querySelector('[data-testid="add-database"]') as HTMLElement ||
-                               document.querySelector('button:has-text("Add Database")') as HTMLElement
+              fallbackElement = document.querySelector('[data-tour="add-database-button"]') as HTMLElement
+                || document.querySelector('[data-testid="add-database"]') as HTMLElement
+                || Array.from(document.querySelectorAll('button')).find((btn) =>
+                  btn.textContent?.toLowerCase().includes('add database')
+                ) as HTMLElement
+              break
+            case 'docs-link':
+              fallbackElement = document.querySelector('[data-tour="docs-link"]') as HTMLElement
+                || document.querySelector('[data-testid="docs-link"]') as HTMLElement
+                || Array.from(document.querySelectorAll('a,button')).find((el) => {
+                  const text = el.textContent?.toLowerCase() || ''
+                  return text.includes('docs') || text.includes('documentation') || text.includes('help')
+                }) as HTMLElement
               break
           }
           
           if (fallbackElement) {
-            setTargetElement(fallbackElement)
+            // Store previous target before updating
+            setTargetElement((prevTarget) => {
+              if (prevTarget) {
+                previousTargetRef.current = prevTarget
+              }
+              previousStepRef.current = currentStep
+              return fallbackElement
+            })
           }
         }
       }, 100)
 
       return () => clearTimeout(timer)
     } else {
-      setTargetElement(null)
+      // No highlight for this step, update previous step reference
+      previousStepRef.current = currentStep
     }
   }, [currentStep, isOpen])
 
@@ -407,6 +499,14 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
   }, [isOpen, handleNext, handlePrevious, handleSkip])
 
   const currentStepData = tourSteps[currentStep]
+  const previousStepData = tourSteps[previousStepRef.current]
+  
+  // Check if both previous and current steps have highlights for smooth transition
+  const bothHaveHighlights = previousStepData?.highlight && currentStepData?.highlight && previousTargetRef.current && targetElement
+  
+  // Use longer, smoother transition when moving between highlighted steps
+  const transitionDuration = bothHaveHighlights ? 0.5 : 0.3
+  const transitionEase = bothHaveHighlights ? "easeInOut" : "easeOut"
 
   if (!isVisible) return null
 
@@ -432,7 +532,7 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
                   height: targetElement.offsetTop - 8
                 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
+                transition={{ duration: transitionDuration, ease: transitionEase }}
               />
               {/* Left overlay */}
               <motion.div
@@ -446,7 +546,7 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
                   height: targetElement.offsetHeight + 16
                 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
+                transition={{ duration: transitionDuration, ease: transitionEase }}
               />
               {/* Right overlay */}
               <motion.div
@@ -460,7 +560,7 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
                   height: targetElement.offsetHeight + 16
                 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
+                transition={{ duration: transitionDuration, ease: transitionEase }}
               />
               {/* Bottom overlay */}
               <motion.div
@@ -474,7 +574,7 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
                   height: window.innerHeight - (targetElement.offsetTop + targetElement.offsetHeight + 8)
                 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
+                transition={{ duration: transitionDuration, ease: transitionEase }}
               />
               {/* Highlight border around target element */}
               <motion.div
@@ -492,7 +592,7 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
                   height: targetElement.offsetHeight + 16
                 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
+                transition={{ duration: transitionDuration, ease: transitionEase }}
               />
             </>
           )}

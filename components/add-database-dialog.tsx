@@ -142,8 +142,6 @@ function getStableVersion(databaseType: string, versions: string[], currentIndex
   
   const isStable = stableMajorVersions.some(stable => majorVersion.startsWith(stable))
   
-  console.log(`[Stable Check] ${databaseType} ${currentVersion} (${majorVersion}) - Stable versions: [${stableMajorVersions.join(', ')}] - Is stable: ${isStable}`)
-  
   return isStable
 }
 
@@ -253,7 +251,6 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
           promise,
           new Promise<T>((resolve) => {
             setTimeout(() => {
-              console.warn(`[Versions] Timeout after ${timeoutMs}ms, using fallback`)
               resolve(fallback)
             }, timeoutMs)
           })
@@ -328,20 +325,13 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
     setSelectedIcon(DATABASE_CONFIGS[type].icon)
     
     const defaultPort = DATABASE_CONFIGS[type].defaultPort
-    console.log(`[Port Assignment] Starting port search from ${defaultPort} for ${type}`)
     setFindingPort(true)
     setPortError("")
     
     try {
       const availablePort = await findNextAvailablePort(defaultPort)
-      console.log(`[Port Assignment] Found available port: ${availablePort}`)
       setPort(availablePort.toString())
-      
-      if (availablePort !== defaultPort) {
-        console.log(`[Port Assignment] Port ${defaultPort} was taken, assigned ${availablePort} instead`)
-      }
-    } catch (error) {
-      console.error("[Port Assignment] Error finding available port:", error)
+    } catch (_error) {
       setPort(defaultPort.toString())
     } finally {
       setFindingPort(false)
@@ -412,7 +402,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       setPortStatus("checking")
       
       try {
-        const allDatabases = await window.electron?.getAllDatabases?.() || []
+        const allDatabases = await window.electron?.getDatabases?.() || []
         const internalConflict = allDatabases.find((db: DatabaseContainer) => db.port === portNum)
         
         if (internalConflict) {
@@ -481,7 +471,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
           const conflictChecks = await Promise.all(
             portsToCheck.map(async (p) => {
               try {
-                const allDatabases = await window.electron?.getAllDatabases?.() || []
+                const allDatabases = await window.electron?.getDatabases?.() || []
                 console.log(`[Port Check] Checking port ${p} against ${allDatabases.length} existing databases`)
                 const internalConflict = allDatabases.some((db: DatabaseContainer) => {
                   const isConflict = db.port === p
@@ -513,7 +503,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
           const portChecks = await Promise.all(
             portsToCheck.map(async (p) => {
               try {
-                const allDatabases = await window.electron?.getAllDatabases?.() || []
+                const allDatabases = await window.electron?.getDatabases?.() || []
                 console.log(`[Port Check] Checking port ${p} against ${allDatabases.length} existing databases`)
                 const internalConflict = allDatabases.some((db: DatabaseContainer) => {
                   const isConflict = db.port === p
@@ -570,7 +560,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
     try {
       setCheckingPort(true)
       
-      const allDatabases = await window.electron?.getAllDatabases?.() || []
+      const allDatabases = await window.electron?.getDatabases?.() || []
       const internalConflict = allDatabases.find((db: DatabaseContainer) => db.port === portNum)
       
       if (internalConflict) {
@@ -696,7 +686,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
         icon: selectedIcon,
         autoStart,
         homebrewPath: getHomebrewPath(selectedType, version),
-        dataPath: `~/Library/Application Support/LiquiDB/databases/${id}`,
+        // dataPath will be set correctly by the Electron main process
       }
       
       if (window.electron?.saveDatabase) {
@@ -712,7 +702,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
         setForceUpdate(prev => prev + 1)
         console.log("Installation process completed, UI should update")
       }, 500)
-    } catch {
+    } catch (_error) {
       setInstalling(false)
       setInstallMsg("")
       setInstallProgress(0)

@@ -18,6 +18,7 @@
 
 # electron
 /release
+/electron-dist
 
 # misc
 .DS_Store
@@ -42,4 +43,28 @@ next-env.d.ts
 dump.rdb
 *.rdb
 
+# editor/ide
 /.cursor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# logs
+*.log
+logs/
+
+# build artifacts
+*.zip
+*.dmg
+*.blockmap
+*.tgz
+
+# tooling
+/.eslintcache
+/.turbo
+*.orig
+
+# os
+Thumbs.db

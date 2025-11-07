@@ -20,6 +20,7 @@ const eslintConfig = [
       "node_modules/**",
       "*.tsbuildinfo",
       "electron/dist/**",
+      "electron-dist/**",
       "next-env.d.ts",
     ],
   },
@@ -42,10 +43,11 @@ const eslintConfig = [
     },
   },
   {
-    files: ["electron/**/*.js", "helper/**/*.js"],
+    files: ["electron/**/*.{js,ts,tsx}", "helper/**/*.{js,ts,tsx}"],
     rules: {
       "@typescript-eslint/no-require-imports": "off",
       "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "off",
     },
   },
 ];

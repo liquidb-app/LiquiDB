@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 interface Permission {
   name: string
@@ -24,8 +24,19 @@ export function usePermissions() {
   const [permissions, setPermissions] = useState<Permission[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const lastCheckTime = useRef<number>(0)
+  const checkInProgress = useRef<boolean>(false)
 
   const checkPermissions = useCallback(async () => {
+    // Throttle checks to once every 5 seconds to prevent resource exhaustion
+    const now = Date.now()
+    if (checkInProgress.current || (now - lastCheckTime.current < 5000)) {
+      console.log('[Permissions] Throttling permission check')
+      return
+    }
+    
+    checkInProgress.current = true
+    lastCheckTime.current = now
     setIsLoading(true)
     setError(null)
     
@@ -61,6 +72,7 @@ export function usePermissions() {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setIsLoading(false)
+      checkInProgress.current = false
     }
   }, [])
 

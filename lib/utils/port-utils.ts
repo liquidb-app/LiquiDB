@@ -3,39 +3,12 @@
  */
 
 /**
- * Find the next available port starting from preferredPort
+ * Check if a port is in use and return conflict information
  */
-export function findFreePort(preferredPort: number, usedPorts: number[]): number {
-  let port = preferredPort
-  
-  // Try the preferred port first
-  if (!usedPorts.includes(port)) {
-    return port
-  }
-  
-  // Find the next available port starting from preferredPort + 1
-  port = preferredPort + 1
-  while (usedPorts.includes(port) && port < 65535) {
-    port++
-  }
-  
-  return port
-}
-
-/**
- * Check if a port is banned
- */
-export function isPortBanned(port: number, bannedPorts: number[]): boolean {
-  return bannedPorts.includes(port)
-}
-
-/**
- * Check for port conflicts dynamically
- */
-export async function checkPortConflict(port: number): Promise<{ inUse: boolean; processName?: string; pid?: string }> {
+export async function checkPortConflict(port: number, databaseId?: string): Promise<{ inUse: boolean; processName?: string; pid?: string }> {
   try {
     if (window.electron?.checkPortConflict) {
-      const result = await window.electron.checkPortConflict(port)
+      const result = await window.electron.checkPortConflict(port, databaseId)
       // Only return false if we got a definitive success response
       if (result?.success === true && result?.inUse === false) {
         return {
@@ -64,9 +37,26 @@ export async function checkPortConflict(port: number): Promise<{ inUse: boolean;
 /**
  * Get port conflict info (returns null if no conflict)
  */
-export async function getPortConflictInfo(port: number): Promise<{ processName: string; pid: string } | null> {
-  const result = await checkPortConflict(port)
-  return result.inUse ? { processName: result.processName || 'Unknown', pid: result.pid || 'Unknown' } : null
+export async function getPortConflictInfo(port: number, databaseId?: string): Promise<{ processName: string; pid: string } | null> {
+  try {
+    if (window.electron?.checkPortConflict) {
+      const result = await window.electron.checkPortConflict(port, databaseId)
+      // Only return conflict info if port is in use
+      if (result?.success === true && result?.inUse === true && result?.processInfo) {
+        return {
+          processName: result.processInfo.processName || 'Unknown',
+          pid: result.processInfo.pid || 'Unknown'
+        }
+      }
+      // Port is available or check failed
+      return null
+    }
+    // If electron API is not available, return null (no conflict info)
+    return null
+  } catch (error) {
+    console.error(`[Port Check] Error checking port ${port}:`, error)
+    return null
+  }
 }
 
 /**
@@ -98,3 +88,29 @@ export function isDatabaseRelatedProcess(processName: string): boolean {
   })
 }
 
+/**
+ * Check if a port is banned
+ */
+export function isPortBanned(port: number, bannedPorts: number[]): boolean {
+  return bannedPorts.includes(port)
+}
+
+/**
+ * Find the next available port starting from a preferred port
+ */
+export function findFreePort(preferredPort: number, usedPorts: number[]): number {
+  let port = preferredPort
+  
+  // Try the preferred port first
+  if (!usedPorts.includes(port)) {
+    return port
+  }
+  
+  // Find the next available port starting from preferredPort + 1
+  port = preferredPort + 1
+  while (usedPorts.includes(port) && port < 65535) {
+    port++
+  }
+  
+  return port
+}

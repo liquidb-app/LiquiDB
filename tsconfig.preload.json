@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "commonjs",
+    "lib": ["ES2021"],
+    "outDir": "./electron-dist",
+    "rootDir": "./electron",
+    "noEmit": false,
+    "allowJs": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "types": ["node", "electron"],
+    "strict": false,
+    "noImplicitAny": false,
+    "isolatedModules": false
+  },
+  "include": ["electron/preload.ts"],
+  "exclude": ["node_modules", "electron-dist"]
+}

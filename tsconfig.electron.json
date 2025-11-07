@@ -1,0 +1,4 @@
+{
+  "extends": "./electron/tsconfig.json"
+}
+

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Cpu, MemoryStick, HardDrive, Clock, Database, Activity, Terminal as TerminalIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface SystemStats {
   success: boolean
@@ -51,12 +52,91 @@ const formatUptime = (seconds: number) => {
   return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`
 }
 
+// Custom hook to safely get sidebar state
+function useSidebarState() {
+  const [sidebarState, setSidebarState] = useState<{
+    state: "expanded" | "collapsed"
+    collapsible: "offcanvas" | "icon" | "none"
+  }>({ state: "collapsed", collapsible: "offcanvas" })
+
+  useEffect(() => {
+    // Detect sidebar state from DOM
+    const detectSidebarState = () => {
+      if (typeof window === 'undefined') return
+      
+      const sidebarElement = document.querySelector('[data-slot="sidebar-container"]')
+      if (sidebarElement) {
+        const state = sidebarElement.getAttribute('data-state') as "expanded" | "collapsed" | null
+        const collapsible = sidebarElement.getAttribute('data-collapsible') as "offcanvas" | "icon" | "none" | null
+        
+        setSidebarState({
+          state: state || "collapsed",
+          collapsible: collapsible || "offcanvas"
+        })
+        return
+      }
+      
+      // Check if sidebar wrapper exists
+      const sidebarWrapper = document.querySelector('[data-slot="sidebar-wrapper"]')
+      if (sidebarWrapper) {
+        // Look for sidebar state in the wrapper's children
+        const sidebarGroup = sidebarWrapper.querySelector('[data-state]')
+        if (sidebarGroup) {
+          const state = sidebarGroup.getAttribute('data-state') as "expanded" | "collapsed" | null
+          const collapsible = sidebarGroup.getAttribute('data-collapsible') as "offcanvas" | "icon" | "none" | null
+          
+          setSidebarState({
+            state: state || "collapsed",
+            collapsible: collapsible || "offcanvas"
+          })
+          return
+        }
+      }
+      
+      // Default: no sidebar visible
+      setSidebarState({ state: "collapsed", collapsible: "offcanvas" })
+    }
+
+    // Initial detection
+    detectSidebarState()
+
+    // Watch for changes in sidebar state
+    const observer = new MutationObserver(detectSidebarState)
+    const sidebarWrapper = document.querySelector('[data-slot="sidebar-wrapper"]')
+    if (sidebarWrapper) {
+      observer.observe(sidebarWrapper, {
+        attributes: true,
+        attributeFilter: ['data-state', 'data-collapsible'],
+        subtree: true,
+        childList: true
+      })
+    }
+
+    // Also watch for changes on the document body in case sidebar is added/removed
+    const bodyObserver = new MutationObserver(detectSidebarState)
+    if (typeof document !== 'undefined') {
+      bodyObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+      })
+    }
+
+    return () => {
+      observer.disconnect()
+      bodyObserver.disconnect()
+    }
+  }, [])
+
+  return sidebarState
+}
+
 export function SystemStats() {
   const [stats, setStats] = useState<SystemStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1024)
   const [mcpStatus, setMcpStatus] = useState<{ running: boolean; name: string } | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const sidebarState = useSidebarState()
 
   const fetchStats = async () => {
     try {
@@ -64,9 +144,15 @@ export function SystemStats() {
       if (data) {
         setStats(data)
         setIsLoading(false)
+      } else {
+        // If data is null/undefined, preserve previous stats instead of clearing
+        console.warn('[System Stats] No data received, preserving previous stats')
+        setIsLoading(false)
       }
     } catch (error) {
-      console.error('Error fetching app stats:', error)
+      // Log error but preserve previous stats instead of clearing
+      console.error('[System Stats] Error fetching app stats:', error)
+      // Don't clear stats on error - preserve previous values
       setIsLoading(false)
     }
   }
@@ -98,12 +184,13 @@ export function SystemStats() {
     
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
+    // Start with default interval (increased to reduce load)
     intervalRef.current = setInterval(() => {
       if (isVisible) {
       fetchStats()
       fetchMCPStatus()
       }
-    }, 8000)
+    }, 10000) // Increased from 8s to 10s
 
     return () => {
       if (intervalRef.current) {
@@ -112,6 +199,35 @@ export function SystemStats() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
+
+  // Update interval when MCP status changes to reduce load when MCP is running
+  useEffect(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      
+      let isVisible = !document.hidden
+      const handleVisibilityChange = () => {
+        isVisible = !document.hidden
+      }
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+      
+      // Increase interval when MCP server is running to reduce load
+      const interval = mcpStatus?.running ? 20000 : 10000 // Increased intervals
+      intervalRef.current = setInterval(() => {
+        if (isVisible) {
+          fetchStats()
+          fetchMCPStatus()
+        }
+      }, interval)
+      
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+        }
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+      }
+    }
+  }, [mcpStatus?.running])
 
   useEffect(() => {
     const handleResize = () => {
@@ -141,9 +257,26 @@ export function SystemStats() {
   const diskTotal = stats.disk?.total || 0
   const loadAvg = stats.loadAverage?.[0] || 0
 
+  // Calculate footer left offset based on sidebar state
+  // When sidebar is expanded: shift by 16rem (256px)
+  // When sidebar is collapsed with icon: shift by 3rem (48px)
+  // When sidebar is collapsed with offcanvas: no shift (0)
+  const getFooterLeftOffset = () => {
+    if (sidebarState.state === "expanded") {
+      return "md:left-[16rem]"
+    }
+    if (sidebarState.collapsible === "icon") {
+      return "md:left-[3rem]"
+    }
+    return "md:left-0"
+  }
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border/50 px-6 py-1.5">
-      <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+    <div className={cn(
+      "fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border/50 px-5 py-1 transition-all duration-200 ease-linear",
+      getFooterLeftOffset()
+    )}>
+      <div className="flex items-center justify-between gap-4 text-[10px] text-muted-foreground">
         <div className="flex items-center justify-start gap-4">
         {/* MCP Icon - Very Left */}
         {mcpStatus !== null && (
@@ -152,13 +285,13 @@ export function SystemStats() {
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-1.5 cursor-default">
                   {mcpStatus.running && (
-                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
+                    <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
                   )}
                   <svg
                     fill="currentColor"
                     fillRule="evenodd"
-                    height="12"
-                    width="12"
+                    height="10"
+                    width="10"
                     viewBox="0 0 24 24"
                     xmlns="http://www.w3.org/2000/svg"
                     className="opacity-60 flex-shrink-0"
@@ -187,9 +320,9 @@ export function SystemStats() {
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-1.5 cursor-default">
                   {stats.runningDatabases > 0 && (
-                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
+                    <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
                   )}
-                  <Database className="h-3 w-3 opacity-60 flex-shrink-0" />
+                  <Database className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
                   {showText && (
                     <span className="font-mono tabular-nums">{stats.runningDatabases}</span>
                   )}
@@ -210,7 +343,7 @@ export function SystemStats() {
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex items-center gap-1.5 cursor-default">
-              <MemoryStick className="h-3 w-3 opacity-60 flex-shrink-0" />
+              <MemoryStick className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
               {showText && (
                 <span className="font-mono tabular-nums whitespace-nowrap">RAM {formatBytes(stats.memory.used)}</span>
               )}
@@ -231,7 +364,7 @@ export function SystemStats() {
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex items-center gap-1.5 cursor-default">
-              <Cpu className="h-3 w-3 opacity-60 flex-shrink-0" />
+              <Cpu className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
               {showText && (
                 <span className="font-mono tabular-nums whitespace-nowrap">CPU {formatCompactNumber(cpuPercentage, 1)}%</span>
               )}
@@ -254,7 +387,7 @@ export function SystemStats() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-1.5 cursor-default">
-                  <Activity className="h-3 w-3 opacity-60 flex-shrink-0" />
+                  <Activity className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
                   {showText && (
                     <span className="font-mono tabular-nums whitespace-nowrap">Load {formatCompactNumber(loadAvg, 2)}</span>
                   )}
@@ -278,7 +411,7 @@ export function SystemStats() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-1.5 cursor-default">
-                  <HardDrive className="h-3 w-3 opacity-60 flex-shrink-0" />
+                  <HardDrive className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
                   {showText && (
                     <span className="font-mono tabular-nums whitespace-nowrap">
                       {formatBytes(diskUsed)} / {formatBytes(diskTotal)}
@@ -305,7 +438,7 @@ export function SystemStats() {
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="flex items-center gap-1.5 cursor-default">
-                <Clock className="h-3 w-3 opacity-60 flex-shrink-0" />
+                <Clock className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
                 {showText && (
                   <span className="font-mono tabular-nums whitespace-nowrap">{formatUptime(stats.uptime)}</span>
                 )}
@@ -328,9 +461,9 @@ export function SystemStats() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 px-2 text-muted-foreground hover:text-foreground"
+              className="h-[22px] px-2 text-muted-foreground hover:text-foreground"
             >
-              <TerminalIcon className="h-3 w-3" />
+              <TerminalIcon className="h-2.5 w-2.5" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>

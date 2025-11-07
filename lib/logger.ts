@@ -1,67 +1,74 @@
-enum LogLevel {
-  ERROR = 0,
-  WARN = 1,
-  INFO = 2,
-  DEBUG = 3,
-  VERBOSE = 4
-}
+const LogLevel = {
+  ERROR: 0,
+  WARN: 1,
+  INFO: 2,
+  DEBUG: 3,
+  VERBOSE: 4
+} as const
+
+type LogLevelType = typeof LogLevel[keyof typeof LogLevel]
 
 class Logger {
-  private level: LogLevel
+  private level: LogLevelType
 
   constructor() {
     // Get log level from environment variable or default to ERROR (minimal)
-    // Check if process is available (Node.js environment)
+    // Check if process is available (Node.js/Electron environment)
     const envLevel = typeof process !== 'undefined' && process.env?.LOG_LEVEL
       ? process.env.LOG_LEVEL.toUpperCase()
       : undefined
-    this.level = envLevel ? LogLevel[envLevel as keyof typeof LogLevel] : LogLevel.ERROR
+
+    if (envLevel && envLevel in LogLevel) {
+      this.level = LogLevel[envLevel as keyof typeof LogLevel]
+    } else {
+      this.level = LogLevel.ERROR
+    }
   }
 
-  private shouldLog(level: LogLevel): boolean {
+  shouldLog(level: LogLevelType): boolean {
     return level <= this.level
   }
 
-  private formatMessage(level: string, message: string, ..._args: any[]): string {
+  formatMessage(level: string, message: string, ..._args: unknown[]): string {
     const timestamp = new Date().toISOString()
     return `[${timestamp}] [${level}] ${message}`
   }
 
-  error(message: string, ...args: any[]): void {
+  error(message: string, ...args: unknown[]): void {
     if (this.shouldLog(LogLevel.ERROR)) {
       console.error(this.formatMessage('ERROR', message), ...args)
     }
   }
 
-  warn(message: string, ...args: any[]): void {
+  warn(message: string, ...args: unknown[]): void {
     if (this.shouldLog(LogLevel.WARN)) {
       console.warn(this.formatMessage('WARN', message), ...args)
     }
   }
 
-  info(message: string, ...args: any[]): void {
+  info(message: string, ...args: unknown[]): void {
     if (this.shouldLog(LogLevel.INFO)) {
       console.log(this.formatMessage('INFO', message), ...args)
     }
   }
 
-  debug(message: string, ...args: any[]): void {
+  debug(message: string, ...args: unknown[]): void {
     if (this.shouldLog(LogLevel.DEBUG)) {
       console.log(this.formatMessage('DEBUG', message), ...args)
     }
   }
 
-  verbose(message: string, ...args: any[]): void {
+  verbose(message: string, ...args: unknown[]): void {
     if (this.shouldLog(LogLevel.VERBOSE)) {
       console.log(this.formatMessage('VERBOSE', message), ...args)
     }
   }
 
-  setLevel(level: LogLevel): void {
+  setLevel(level: LogLevelType): void {
     this.level = level
   }
 
-  getLevel(): LogLevel {
+  getLevel(): LogLevelType {
     return this.level
   }
 }
@@ -70,10 +77,16 @@ class Logger {
 const logger = new Logger()
 
 // Helper functions for easier usage
-export const log = {
-  error: (message: string, ...args: any[]) => logger.error(message, ...args),
-  warn: (message: string, ...args: any[]) => logger.warn(message, ...args),
-  info: (message: string, ...args: any[]) => logger.info(message, ...args),
-  debug: (message: string, ...args: any[]) => logger.debug(message, ...args),
-  verbose: (message: string, ...args: any[]) => logger.verbose(message, ...args)
+const log = {
+  error: (message: string, ...args: unknown[]) => logger.error(message, ...args),
+  warn: (message: string, ...args: unknown[]) => logger.warn(message, ...args),
+  info: (message: string, ...args: unknown[]) => logger.info(message, ...args),
+  debug: (message: string, ...args: unknown[]) => logger.debug(message, ...args),
+  verbose: (message: string, ...args: unknown[]) => logger.verbose(message, ...args)
+}
+
+export {
+  LogLevel,
+  logger,
+  log
 }

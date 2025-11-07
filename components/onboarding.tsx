@@ -350,6 +350,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
   const [helperTimeout, setHelperTimeout] = useState(false)
   
   const isTogglingAutoLaunchRef = useRef(false)
+  const lastAutoLaunchStatusRef = useRef<boolean | null>(null)
 
   useEffect(() => {
     const existing = loadProfile()
@@ -376,8 +377,12 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
 
         const isEnabled = await api.isAutoLaunchEnabled()
         if (typeof isEnabled === 'boolean') {
-          setAutoStartPref(isEnabled)
-          console.log(`[Onboarding] Auto-launch status: ${isEnabled ? 'enabled' : 'disabled'}`)
+          // Only update/log when the value actually changes
+          if (lastAutoLaunchStatusRef.current !== isEnabled) {
+            lastAutoLaunchStatusRef.current = isEnabled
+            setAutoStartPref(isEnabled)
+            console.log(`[Onboarding] Auto-launch status changed: ${isEnabled ? 'enabled' : 'disabled'}`)
+          }
         } else {
           console.warn("[Onboarding] Invalid auto-launch status response:", isEnabled)
           if (isOnboardingComplete()) {
@@ -405,7 +410,8 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
         const api = window?.electron
         if (api?.isAutoLaunchEnabled) {
           const isEnabled = await api.isAutoLaunchEnabled()
-          if (typeof isEnabled === 'boolean' && isEnabled !== autoStart) {
+          if (typeof isEnabled === 'boolean' && isEnabled !== lastAutoLaunchStatusRef.current) {
+            lastAutoLaunchStatusRef.current = isEnabled
             console.log(`[Onboarding] Auto-launch status changed externally: ${isEnabled ? 'enabled' : 'disabled'}`)
             setAutoStartPref(isEnabled)
           }
@@ -439,10 +445,14 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
   }, [step])
 
   const checkHelperStatus = useCallback(async () => {
-    const isInitialCheck = !helperStatus
-    if (isInitialCheck) {
-      setHelperLoading(true)
-    }
+    // Check if this is the initial check by looking at current state
+    setHelperStatus(prevStatus => {
+      const isInitialCheck = !prevStatus
+      if (isInitialCheck) {
+        setHelperLoading(true)
+      }
+      return prevStatus // Return unchanged to avoid triggering re-render
+    })
     
     try {
       const timeoutPromise = new Promise((_, reject) => 
@@ -456,11 +466,12 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       if (result && !(result instanceof Error) && result?.success && result.data) {
         const newStatus = result.data
         
-        if (isInitialCheck) {
-          setHelperLoading(false)
-        }
-        
         setHelperStatus(prevStatus => {
+          const isInitialCheck = !prevStatus
+          if (isInitialCheck) {
+            setHelperLoading(false)
+          }
+          
           if (!prevStatus || 
               prevStatus.installed !== newStatus.installed || 
               prevStatus.running !== newStatus.running) {
@@ -483,7 +494,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
         console.warn("Helper status check timed out, assuming service is not available")
       }
     }
-  }, [helperStatus])
+  }, [])
 
   useEffect(() => {
     if (step === 4) {
@@ -491,10 +502,13 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       checkHelperStatus()
       
       const timeoutId = setTimeout(() => {
-        if (helperLoading) {
-          setHelperTimeout(true)
-          setHelperLoading(false)
-        }
+        setHelperLoading(prev => {
+          if (prev) {
+            setHelperTimeout(true)
+            return false
+          }
+          return prev
+        })
       }, 10000)
       
       const statusInterval = setInterval(checkHelperStatus, 10000)
@@ -508,7 +522,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
       setHelperLoading(false)
       setHelperTimeout(false)
     }
-  }, [step, checkHelperStatus, helperLoading])
+  }, [step, checkHelperStatus])
 
   const handleStartHelper = async () => {
     setHelperLoading(true)
@@ -704,6 +718,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
         }
       } else {
         setAutoStartPref(enabled)
+        lastAutoLaunchStatusRef.current = enabled
         console.log(`[Onboarding] Auto-launch ${enabled ? 'enabled' : 'disabled'} successfully`)
         notifySuccess(`Auto-launch ${enabled ? 'enabled' : 'disabled'}`)
       }
