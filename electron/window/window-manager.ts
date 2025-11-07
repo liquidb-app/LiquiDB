@@ -321,9 +321,26 @@ export function createWindow(app: App): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: isDev
-        ? path.join(__dirname, "..", "..", "electron-dist", "preload.js")
-        : path.join(__dirname, "..", "preload.js"),
+      preload: (() => {
+        if (isDev) {
+          // In dev: __dirname is electron-dist/electron/window/
+          // preload.js is at electron-dist/preload.js
+          const preloadPath = path.join(__dirname, "..", "..", "preload.js")
+          if (fs.existsSync(preloadPath)) {
+            return preloadPath
+          }
+          // Fallback: try electron-dist/electron/preload.js (if it exists there)
+          const fallbackPath = path.join(__dirname, "..", "preload.js")
+          if (fs.existsSync(fallbackPath)) {
+            return fallbackPath
+          }
+          log.warn(`[Window] Preload script not found at ${preloadPath} or ${fallbackPath}`)
+          return preloadPath // Return the expected path anyway
+        } else {
+          // In production: preload.js should be in the same directory as main.js
+          return path.join(__dirname, "..", "preload.js")
+        }
+      })(),
     },
     backgroundColor: "#000000",
   }
