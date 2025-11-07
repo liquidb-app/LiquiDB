@@ -45,7 +45,6 @@ export const useBulkOperations = (
 
     const conflictChecks = await Promise.all(
       stoppedDatabases.map(async (targetDb) => {
-        // Check for external port conflicts
         if (targetDb.port) {
           const conflictResult = await checkPortConflict(targetDb.port)
           if (conflictResult.inUse) {
@@ -77,7 +76,6 @@ export const useBulkOperations = (
       })
     )
 
-    // Filter out databases with conflicts
     const conflictedDatabases = conflictChecks.filter(check => check.hasConflict)
     const validDatabaseIds = conflictChecks.filter(check => !check.hasConflict).map(check => check.id)
 
@@ -112,11 +110,9 @@ export const useBulkOperations = (
       } : db
     ))
 
-    // Start all valid databases using the existing startDatabaseWithErrorHandling function
-    // This function handles the async nature properly and uses real-time listeners
+
     const startPromises = validDatabaseIds.map(async (id, index) => {
       try {
-        // Add a small delay between starts to prevent overwhelming the system
         if (index > 0) {
           await new Promise(resolve => setTimeout(resolve, 1000 * index))
         }
@@ -124,13 +120,8 @@ export const useBulkOperations = (
         const targetDb = databases.find((db) => db.id === id)
         if (!targetDb) return { id, success: false, error: "Database not found" }
 
-        // Use the existing startDatabaseWithErrorHandling function
-        // This function handles the async startup properly
-        // Note: Port conflicts are already checked upfront, so this should succeed
         await startDatabaseWithErrorHandlingRef.current(id)
-        
-        // Since startDatabaseWithErrorHandling doesn't return a value,
-        // we'll assume success if no error was thrown
+
         return { id, success: true, error: null }
       } catch (error) {
         console.error(`[Bulk Start] Error starting database ${id}:`, error)
@@ -138,14 +129,11 @@ export const useBulkOperations = (
       }
     })
 
-    // Wait for all operations to complete
     const results = await Promise.all(startPromises)
     
-    // Count successes and failures
     const successful = results.filter(r => r.success).length
     const failed = results.filter(r => !r.success).length
 
-    // Show result toast
     if (failed === 0) {
       notifySuccess("Bulk Start Initiated", {
         description: `Starting ${successful} databases. Status updates will appear as they complete.`,
@@ -182,7 +170,6 @@ export const useBulkOperations = (
     
     console.log(`[Bulk Stop] Stopping ${runningDatabases.length} running databases (${databaseIds.length - runningDatabases.length} already stopped)`)
     
-    // Show initial toast
     notifyInfo("Stopping Multiple Databases", {
       description: `Stopping ${runningDatabases.length} running databases...`,
       duration: 3000,
