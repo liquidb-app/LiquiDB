@@ -13,7 +13,8 @@ export function registerAutoLaunchHandlers(): void {
     try {
       const autoLauncher = sharedState.getAutoLauncher()
       if (!autoLauncher) {
-        console.warn("[Auto-launch] Auto-launcher not available")
+        // Auto-launcher is not available in development mode (expected behavior)
+        // Return false silently without logging warnings
         return false
       }
       return await autoLauncher.isEnabled()
@@ -27,8 +28,9 @@ export function registerAutoLaunchHandlers(): void {
     try {
       const autoLauncher = sharedState.getAutoLauncher()
       if (!autoLauncher) {
-        console.warn("[Auto-launch] Auto-launcher not available")
-        return { success: false, error: "Auto-launch module not available" }
+        // Auto-launcher is not available in development mode (expected behavior)
+        // Return error response without logging warnings
+        return { success: false, error: "Auto-launch is only available in production builds" }
       }
       
       // First check if auto-launch is already enabled
@@ -57,8 +59,9 @@ export function registerAutoLaunchHandlers(): void {
     try {
       const autoLauncher = sharedState.getAutoLauncher()
       if (!autoLauncher) {
-        console.warn("[Auto-launch] Auto-launcher not available")
-        return { success: false, error: "Auto-launch module not available" }
+        // Auto-launcher is not available in development mode (expected behavior)
+        // Return success since it's effectively disabled
+        return { success: true }
       }
       
       // First check if auto-launch is actually enabled
