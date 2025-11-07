@@ -4,44 +4,81 @@
  * Handles checking and requesting all necessary macOS permissions for the app
  */
 
-const { exec } = require('child_process')
-const { promisify } = require('util')
-const fs = require('fs')
-const path = require('path')
-const os = require('os')
-const { systemPreferences, safeStorage } = require('electron')
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
+import { systemPreferences, safeStorage } from 'electron'
 
 const execAsync = promisify(exec)
 
+interface PermissionsState {
+  accessibility: boolean
+  fullDiskAccess: boolean
+  networkAccess: boolean
+  fileAccess: boolean
+  launchAgent: boolean
+  keychainAccess: boolean
+}
+
+interface PermissionDescription {
+  name: string
+  description: string
+  why: string
+  icon: string
+  critical: boolean
+}
+
+interface PermissionResult {
+  permission: string
+  granted: boolean
+  error: string | null
+}
+
+interface CheckAllPermissionsResult {
+  permissions: PermissionsState
+  allGranted: boolean
+  results: PermissionResult[]
+}
+
+interface RequestCriticalPermissionsResult {
+  permissions: PermissionsState
+  allGranted: boolean
+  results: PermissionResult[]
+}
+
 // Helper function to check TCC permissions using tccutil
-async function checkTCCPermission(service) {
+async function checkTCCPermission(service: string): Promise<boolean> {
   try {
-    const { stdout } = await execAsync(`tccutil reset ${service} com.liquidb.app 2>/dev/null || echo "not_found"`)
+    const { stdout } = await execAsync(`tccutil reset ${service} com.liquidb.app 2>/dev/null || echo "not_found"`) as { stdout: string }
     if (stdout.includes('not_found')) {
       // If tccutil doesn't find the app, it means no permission has been granted
       return false
     }
     // If tccutil succeeds, it means the app has permission
     return true
-  } catch (error) {
+  } catch (error: any) {
     return false
   }
 }
 
 // Helper function to trigger permission dialogs by resetting permissions
-async function triggerPermissionDialog(service) {
+async function triggerPermissionDialog(service: string): Promise<boolean> {
   try {
     console.log(`[Permissions] Triggering permission dialog for ${service}...`)
     // Reset the permission to trigger a new dialog
     await execAsync(`tccutil reset ${service} com.liquidb.app`)
     return true
-  } catch (error) {
+  } catch (error: any) {
     console.log(`[Permissions] Failed to trigger permission dialog for ${service}:`, error.message)
     return false
   }
 }
 
 class PermissionsManager {
+  private permissions: PermissionsState
+
   constructor() {
     this.permissions = {
       accessibility: false,
@@ -54,13 +91,13 @@ class PermissionsManager {
   }
 
   // Check if accessibility permission is granted
-  async checkAccessibilityPermission() {
+  async checkAccessibilityPermission(): Promise<boolean> {
     try {
       // Use Electron's native API to check accessibility permission
       const hasPermission = systemPreferences.isTrustedAccessibilityClient(false)
       this.permissions.accessibility = hasPermission
       return hasPermission
-    } catch (e) {
+    } catch (e: any) {
       console.log('[Permissions] Accessibility permission check failed:', e.message)
       this.permissions.accessibility = false
       return false
@@ -68,13 +105,13 @@ class PermissionsManager {
   }
 
   // Request accessibility permission
-  async requestAccessibilityPermission() {
+  async requestAccessibilityPermission(): Promise<boolean> {
     try {
       console.log('[Permissions] Requesting accessibility permission...')
       
       // Use Electron's native API to request accessibility permission
       // This will show the system dialog if permission is not granted
-      const hasPermission = systemPreferences.isTrustedAccessibilityClient(true)
+      systemPreferences.isTrustedAccessibilityClient(true)
       
       // Wait a moment for the user to respond to the dialog
       await new Promise(resolve => setTimeout(resolve, 2000))
@@ -83,7 +120,7 @@ class PermissionsManager {
       const granted = await this.checkAccessibilityPermission()
       this.permissions.accessibility = granted
       return granted
-    } catch (e) {
+    } catch (e: any) {
       console.log('[Permissions] Accessibility permission request failed:', e.message)
       this.permissions.accessibility = false
       return false
@@ -91,10 +128,10 @@ class PermissionsManager {
   }
 
   // Check if full disk access is granted
-  async checkFullDiskAccessPermission() {
+  async checkFullDiskAccessPermission(): Promise<boolean> {
     try {
       // Try to access a system file that requires full disk access
-      const { stdout, stderr } = await execAsync('ls /var/log/system.log 2>&1')
+      const { stdout, stderr } = await execAsync('ls /var/log/system.log 2>&1') as { stdout: string, stderr: string }
       
       // Check if the command actually succeeded and we got output
       if (stdout && !stderr && stdout.includes('system.log')) {
@@ -104,7 +141,7 @@ class PermissionsManager {
         this.permissions.fullDiskAccess = false
         return false
       }
-    } catch (e) {
+    } catch (e: any) {
       // If we can't access system files, we don't have full disk access
       this.permissions.fullDiskAccess = false
       return false
@@ -112,7 +149,7 @@ class PermissionsManager {
   }
 
   // Request full disk access permission
-  async requestFullDiskAccessPermission() {
+  async requestFullDiskAccessPermission(): Promise<boolean> {
     try {
       console.log('[Permissions] Requesting full disk access permission...')
       
@@ -132,7 +169,7 @@ class PermissionsManager {
       const granted = await this.checkFullDiskAccessPermission()
       this.permissions.fullDiskAccess = granted
       return granted
-    } catch (e) {
+    } catch (e: any) {
       console.log('[Permissions] Full disk access permission request failed:', e.message)
       this.permissions.fullDiskAccess = false
       return false
@@ -140,7 +177,7 @@ class PermissionsManager {
   }
 
   // Check if network access is available
-  async checkNetworkAccessPermission() {
+  async checkNetworkAccessPermission(): Promise<boolean> {
     // Network access is automatically granted to apps on macOS
     // We don't need to check this as a permission
     this.permissions.networkAccess = true
@@ -148,7 +185,7 @@ class PermissionsManager {
   }
 
   // Request network access permission (usually not needed as it's automatic)
-  async requestNetworkAccessPermission() {
+  async requestNetworkAccessPermission(): Promise<boolean> {
     // Network access is automatically granted to apps on macOS
     // No permission dialog is needed
     this.permissions.networkAccess = true
@@ -156,7 +193,7 @@ class PermissionsManager {
   }
 
   // Check if file access is available
-  async checkFileAccessPermission() {
+  async checkFileAccessPermission(): Promise<boolean> {
     try {
       // Check if we can access the app's data directory
       const testDir = path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB')
@@ -179,14 +216,14 @@ class PermissionsManager {
       // If we got here without errors, we have file access
       this.permissions.fileAccess = content === 'test'
       return this.permissions.fileAccess
-    } catch (error) {
+    } catch (error: any) {
       this.permissions.fileAccess = false
       return false
     }
   }
 
   // Request file access permission
-  async requestFileAccessPermission() {
+  async requestFileAccessPermission(): Promise<boolean> {
     try {
       const testDir = path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB')
       await fs.promises.mkdir(testDir, { recursive: true })
@@ -197,14 +234,14 @@ class PermissionsManager {
       
       this.permissions.fileAccess = true
       return true
-    } catch (error) {
+    } catch (error: any) {
       this.permissions.fileAccess = false
       return false
     }
   }
 
   // Check if launch agent permission is available
-  async checkLaunchAgentPermission() {
+  async checkLaunchAgentPermission(): Promise<boolean> {
     try {
       const launchAgentsDir = path.join(os.homedir(), 'Library', 'LaunchAgents')
       
@@ -241,20 +278,20 @@ class PermissionsManager {
       // If we got here without errors, we have launch agent permission
       this.permissions.launchAgent = content.includes('com.liquidb.test')
       return this.permissions.launchAgent
-    } catch (error) {
+    } catch (error: any) {
       this.permissions.launchAgent = false
       return false
     }
   }
 
   // Check if keychain access is available
-  async checkKeychainAccessPermission() {
+  async checkKeychainAccessPermission(): Promise<boolean> {
     try {
       // Use Electron's native safeStorage API to check keychain access
       const isAvailable = safeStorage.isEncryptionAvailable()
       this.permissions.keychainAccess = isAvailable
       return isAvailable
-    } catch (e) {
+    } catch (e: any) {
       console.log('[Permissions] Keychain access check failed:', e.message)
       this.permissions.keychainAccess = false
       return false
@@ -262,7 +299,7 @@ class PermissionsManager {
   }
 
   // Request keychain access permission
-  async requestKeychainAccessPermission() {
+  async requestKeychainAccessPermission(): Promise<boolean> {
     try {
       console.log('[Permissions] Requesting keychain access permission...')
       
@@ -271,7 +308,7 @@ class PermissionsManager {
       if (safeStorage.isEncryptionAvailable()) {
         // Try to encrypt a test string - this will trigger the permission dialog
         const testData = 'LiquiDB test data'
-        const encrypted = safeStorage.encryptString(testData)
+        safeStorage.encryptString(testData)
         
         // Wait a moment for the user to respond to the dialog
         await new Promise(resolve => setTimeout(resolve, 2000))
@@ -285,7 +322,7 @@ class PermissionsManager {
         this.permissions.keychainAccess = false
         return false
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log('[Permissions] Keychain access permission request failed:', error.message)
       this.permissions.keychainAccess = false
       return false
@@ -293,9 +330,7 @@ class PermissionsManager {
   }
 
   // Check all permissions
-  async checkAllPermissions() {
-    console.log('[Permissions] Checking all permissions...')
-    
+  async checkAllPermissions(): Promise<CheckAllPermissionsResult> {
     // Reset all permissions to false first
     this.permissions = {
       accessibility: false,
@@ -306,42 +341,15 @@ class PermissionsManager {
       keychainAccess: false
     }
     
-    // Check each permission individually with detailed logging
-    console.log('[Permissions] Checking accessibility...')
+    // Check each permission individually (reduced logging for performance)
     const accessibilityResult = await this.checkAccessibilityPermission()
-    console.log('[Permissions] Accessibility result:', accessibilityResult)
-    
-    console.log('[Permissions] Checking full disk access...')
     const fullDiskResult = await this.checkFullDiskAccessPermission()
-    console.log('[Permissions] Full disk access result:', fullDiskResult)
-    
-    console.log('[Permissions] Checking network access...')
     const networkResult = await this.checkNetworkAccessPermission()
-    console.log('[Permissions] Network access result:', networkResult)
-    
-    console.log('[Permissions] Checking file access...')
     const fileResult = await this.checkFileAccessPermission()
-    console.log('[Permissions] File access result:', fileResult)
-    
-    console.log('[Permissions] Checking launch agent...')
     const launchAgentResult = await this.checkLaunchAgentPermission()
-    console.log('[Permissions] Launch agent result:', launchAgentResult)
-    
-    console.log('[Permissions] Checking keychain access...')
     const keychainResult = await this.checkKeychainAccessPermission()
-    console.log('[Permissions] Keychain access result:', keychainResult)
 
     const allGranted = accessibilityResult && fullDiskResult && networkResult && fileResult && launchAgentResult && keychainResult
-    
-    console.log('[Permissions] Final permission check results:', {
-      accessibility: this.permissions.accessibility,
-      fullDiskAccess: this.permissions.fullDiskAccess,
-      networkAccess: this.permissions.networkAccess,
-      fileAccess: this.permissions.fileAccess,
-      launchAgent: this.permissions.launchAgent,
-      keychainAccess: this.permissions.keychainAccess,
-      allGranted
-    })
 
     return {
       permissions: this.permissions,
@@ -358,7 +366,7 @@ class PermissionsManager {
   }
 
   // Get permission descriptions
-  getPermissionDescriptions() {
+  getPermissionDescriptions(): { [key: string]: PermissionDescription } {
     return {
       accessibility: {
         name: 'Accessibility',
@@ -406,25 +414,25 @@ class PermissionsManager {
   }
 
   // Get missing critical permissions
-  getMissingCriticalPermissions() {
+  getMissingCriticalPermissions(): string[] {
     const descriptions = this.getPermissionDescriptions()
     return Object.keys(this.permissions).filter(permission => {
       const desc = descriptions[permission]
-      return desc.critical && !this.permissions[permission]
+      return desc && desc.critical && !this.permissions[permission as keyof PermissionsState]
     })
   }
 
   // Get missing permissions
-  getMissingPermissions() {
-    return Object.keys(this.permissions).filter(permission => !this.permissions[permission])
+  getMissingPermissions(): string[] {
+    return Object.keys(this.permissions).filter(permission => !this.permissions[permission as keyof PermissionsState])
   }
 
   // Request only critical permissions that the app actually needs
-  async requestCriticalPermissions() {
+  async requestCriticalPermissions(): Promise<RequestCriticalPermissionsResult> {
     console.log('[Permissions] Requesting critical permissions only...')
     
     // Request accessibility permission using Electron's native API
-    let accessibilityResult = { status: 'fulfilled', value: true }
+    let accessibilityResult: PromiseSettledResult<boolean> = { status: 'fulfilled', value: true }
     if (!this.permissions.accessibility) {
       try {
         console.log('[Permissions] Requesting accessibility permission using Electron API...')
@@ -440,7 +448,7 @@ class PermissionsManager {
           status: 'fulfilled', 
           value: granted 
         }
-      } catch (e) {
+      } catch (e: any) {
         console.log('[Permissions] Accessibility permission request failed:', e.message)
         accessibilityResult = { status: 'rejected', reason: e }
       }
@@ -469,15 +477,15 @@ class PermissionsManager {
         return {
           permission: permissionNames[index],
           granted: result.status === 'fulfilled' && result.value === true,
-          error: result.status === 'rejected' ? result.reason.message : null
+          error: result.status === 'rejected' ? (result.reason as Error).message : null
         }
       })
     }
   }
 
   // Request specific permission
-  async requestPermission(permissionName) {
-    const permissionMap = {
+  async requestPermission(permissionName: string): Promise<boolean> {
+    const permissionMap: { [key: string]: () => Promise<boolean> } = {
       accessibility: () => this.requestAccessibilityPermission(),
       fullDiskAccess: () => this.requestFullDiskAccessPermission(),
       networkAccess: () => this.requestNetworkAccessPermission(),
@@ -493,8 +501,8 @@ class PermissionsManager {
   }
 
   // Open specific permission page in System Preferences
-  async openPermissionPage(permissionType) {
-    const urls = {
+  async openPermissionPage(permissionType: string): Promise<boolean> {
+    const urls: { [key: string]: string } = {
       accessibility: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
       fullDiskAccess: 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
       networkAccess: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Network',
@@ -512,40 +520,40 @@ class PermissionsManager {
       await execAsync(`open "${url}"`)
       console.log(`[Permissions] Opened System Preferences to ${permissionType} section`)
       return true
-    } catch (error) {
+    } catch (error: any) {
       console.error(`[Permissions] Failed to open ${permissionType} page:`, error)
       return false
     }
   }
 
   // Utility methods for secure storage using Electron's safeStorage API
-  encryptString(text) {
+  encryptString(text: string): Buffer | null {
     try {
       if (safeStorage.isEncryptionAvailable()) {
         return safeStorage.encryptString(text)
       }
       return null
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Permissions] Failed to encrypt string:', error)
       return null
     }
   }
 
-  decryptString(encryptedBuffer) {
+  decryptString(encryptedBuffer: Buffer): string | null {
     try {
       if (safeStorage.isEncryptionAvailable()) {
         return safeStorage.decryptString(encryptedBuffer)
       }
       return null
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Permissions] Failed to decrypt string:', error)
       return null
     }
   }
 
-  isEncryptionAvailable() {
+  isEncryptionAvailable(): boolean {
     return safeStorage.isEncryptionAvailable()
   }
 }
 
-module.exports = PermissionsManager
+export default PermissionsManager
