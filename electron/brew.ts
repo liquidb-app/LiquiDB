@@ -1,7 +1,7 @@
-const fs = require("fs")
-const { spawn } = require("child_process")
+import * as fs from "fs"
+import { spawn } from "child_process"
 
-function findBrewPath() {
+function findBrewPath(): string {
   const candidates = [
     "/opt/homebrew/bin/brew", // Apple Silicon default
     "/usr/local/bin/brew", // Intel default
@@ -13,7 +13,7 @@ function findBrewPath() {
   return "brew"
 }
 
-function isHomebrewInstalled() {
+export function isHomebrewInstalled(): boolean {
   try {
     const brewPath = findBrewPath()
     if (!brewPath) return false
@@ -25,7 +25,12 @@ function isHomebrewInstalled() {
   }
 }
 
-function installHomebrew({ onStdout, onStderr } = {}) {
+interface InstallOptions {
+  onStdout?: (data: string) => void
+  onStderr?: (data: string) => void
+}
+
+export function installHomebrew({ onStdout, onStderr }: InstallOptions = {}): Promise<boolean> {
   return new Promise((resolve, reject) => {
     console.log("[Homebrew] Starting Homebrew installation...")
     // Non-interactive Homebrew install script
@@ -36,24 +41,24 @@ function installHomebrew({ onStdout, onStderr } = {}) {
       stdio: "pipe"
     })
 
-    child.stdout.on("data", (d) => {
+    child.stdout!.on("data", (d: Buffer) => {
       const output = d.toString()
       console.log(`[Homebrew Install] ${output.trim()}`)
       onStdout?.(output)
     })
     
-    child.stderr.on("data", (d) => {
+    child.stderr!.on("data", (d: Buffer) => {
       const output = d.toString()
       console.log(`[Homebrew Install Error] ${output.trim()}`)
       onStderr?.(output)
     })
     
-    child.on("error", (err) => {
+    child.on("error", (err: Error) => {
       console.error(`[Homebrew Install] Process error:`, err)
       reject(err)
     })
     
-    child.on("close", (code) => {
+    child.on("close", (code: number | null) => {
       console.log(`[Homebrew Install] Installation completed with code ${code}`)
       if (code === 0) {
         console.log("[Homebrew] Homebrew installation successful!")
@@ -65,7 +70,12 @@ function installHomebrew({ onStdout, onStderr } = {}) {
   })
 }
 
-function execBrew(args, { onStdout, onStderr } = {}) {
+interface ExecResult {
+  stdout: string
+  stderr: string
+}
+
+export function execBrew(args: string[], { onStdout, onStderr }: InstallOptions = {}): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
     const brewPath = findBrewPath()
     
@@ -83,26 +93,26 @@ function execBrew(args, { onStdout, onStderr } = {}) {
     let stdout = ""
     let stderr = ""
     
-    child.stdout.on("data", (d) => {
+    child.stdout!.on("data", (d: Buffer) => {
       const s = d.toString()
       stdout += s
       console.log(`[Homebrew] ${s.trim()}`)
       onStdout?.(s)
     })
     
-    child.stderr.on("data", (d) => {
+    child.stderr!.on("data", (d: Buffer) => {
       const s = d.toString()
       stderr += s
       console.log(`[Homebrew Error] ${s.trim()}`)
       onStderr?.(s)
     })
     
-    child.on("error", (err) => {
+    child.on("error", (err: Error) => {
       console.error(`[Homebrew] Process error:`, err)
       reject(err)
     })
     
-    child.on("close", (code) => {
+    child.on("close", (code: number | null) => {
       console.log(`[Homebrew] Process exited with code ${code}`)
       if (code === 0) resolve({ stdout, stderr })
       else reject(new Error(stderr || `brew ${args.join(" ")} failed with code ${code}`))
@@ -110,7 +120,7 @@ function execBrew(args, { onStdout, onStderr } = {}) {
   })
 }
 
-async function ensureTap(tap) {
+async function ensureTap(tap: string): Promise<void> {
   try {
     await execBrew(["tap", tap])
   } catch {
@@ -118,7 +128,7 @@ async function ensureTap(tap) {
   }
 }
 
-async function getDatabaseVersions(dbType) {
+export async function getDatabaseVersions(dbType: string): Promise<string[]> {
   try {
     if (dbType === "postgresql") {
       const { stdout } = await execBrew(["search", "^postgresql@"], {})
@@ -153,7 +163,7 @@ async function getDatabaseVersions(dbType) {
     }
     if (dbType === "redis") {
       try {
-        const { stdout } = await execBrew(["info", "--json=v2", "redis"]) // stable
+        const { stdout } = await execBrew(["info", "--json=v2", "redis"], {}) // stable
         const json = JSON.parse(stdout)
         const stable = json?.formulae?.[0]?.versions?.stable
         return stable ? [stable] : ["7.2", "7.0", "6.2"]
@@ -171,9 +181,9 @@ async function getDatabaseVersions(dbType) {
   return []
 }
 
-function formulaFor(dbType, version) {
+function formulaFor(dbType: string, version: string): string {
   // Extract major version for Homebrew formulas
-  const getMajorVersion = (version) => {
+  const getMajorVersion = (version: string): string => {
     if (!version) return ""
     // For versions like "9.4.0", extract "9.4"
     // For versions like "8.0.35", extract "8.0"
@@ -194,7 +204,16 @@ function formulaFor(dbType, version) {
   return ""
 }
 
-async function installDatabase({ dbType, version, onStdout, onStderr }) {
+interface InstallDatabaseOptions extends InstallOptions {
+  dbType: string
+  version: string
+}
+
+interface InstallDatabaseResult extends ExecResult {
+  alreadyInstalled?: boolean
+}
+
+export async function installDatabase({ dbType, version, onStdout, onStderr }: InstallDatabaseOptions): Promise<InstallDatabaseResult> {
   console.log(`[Homebrew] Installing ${dbType} version ${version}...`)
   
   if (dbType === "mongodb") {
@@ -227,11 +246,11 @@ async function installDatabase({ dbType, version, onStdout, onStderr }) {
   // Use --formula flag to explicitly install as a formula (not cask)
   // This prevents Homebrew from trying to migrate casks to formulae
   const result = await execBrew(["install", "--formula", formula], { 
-    onStdout: (data) => {
+    onStdout: (data: string) => {
       console.log(`[Homebrew Install] ${data.trim()}`)
       onStdout?.(data)
     },
-    onStderr: (data) => {
+    onStderr: (data: string) => {
       console.log(`[Homebrew Install Error] ${data.trim()}`)
       onStderr?.(data)
     }
@@ -247,12 +266,5 @@ async function installDatabase({ dbType, version, onStdout, onStderr }) {
   }
   
   return result
-}
-
-module.exports = {
-  isHomebrewInstalled,
-  installHomebrew,
-  getDatabaseVersions,
-  installDatabase,
 }
 
