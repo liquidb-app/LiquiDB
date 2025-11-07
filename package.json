@@ -22,8 +22,9 @@
   "private": true,
   "scripts": {
     "preload:build": "tsc -p tsconfig.preload.json",
+    "helper:build": "tsc -p tsconfig.helper.json",
     "electron:compile": "tsc -p tsconfig.electron.json",
-    "dev": "npm run electron:compile && npm run preload:build && concurrently \"next dev --turbopack\" \"wait-on http://localhost:3000 && NODE_OPTIONS='--import tsx' USE_DEV_SERVER=true electron .\"",
+    "dev": "npm run electron:compile && npm run preload:build && npm run helper:build && concurrently \"next dev --turbopack\" \"wait-on http://localhost:3000 && NODE_OPTIONS='--import tsx' USE_DEV_SERVER=true electron .\"",
     "dev:minimal": "npm run electron:compile && npm run preload:build && LOG_LEVEL=ERROR concurrently \"next dev\" \"wait-on http://localhost:3000 && NODE_OPTIONS='--import tsx' USE_DEV_SERVER=true electron .\"",
     "dev:quiet": "npm run electron:compile && npm run preload:build && LOG_LEVEL=WARN concurrently \"next dev\" \"wait-on http://localhost:3000 && NODE_OPTIONS='--import tsx' USE_DEV_SERVER=true electron .\"",
     "dev:normal": "npm run electron:compile && npm run preload:build && LOG_LEVEL=INFO concurrently \"next dev\" \"wait-on http://localhost:3000 && NODE_OPTIONS='--import tsx' USE_DEV_SERVER=true electron .\"",
