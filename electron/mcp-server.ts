@@ -1,18 +1,19 @@
 // MCP SDK imports - loaded lazily to avoid crashes
 // These will be loaded when initializeMCPServer is called
 
-const { log } = require("./logger")
-const storage = require("./storage")
-const path = require("path")
-const fs = require("fs")
+import { log } from "./logger"
+import storage from "./storage"
+import * as path from "path"
+import * as fs from "fs"
+import { App } from "electron"
 
 // Lazy load electron app to avoid crashes if not available
-let app = null
-function getApp() {
+let app: App | null = null
+function getApp(): App | null {
   if (!app) {
     try {
       app = require("electron").app
-    } catch (error) {
+    } catch (error: any) {
       log.error("Failed to get electron app:", error)
       return null
     }
@@ -20,9 +21,22 @@ function getApp() {
   return app
 }
 
-let mcpServer = null
-let transport = null
+let mcpServer: any = null
+let transport: any = null
 let isMCPServerRunning = false
+
+interface MCPConnectionInfo {
+  name: string
+  command: string
+  args: string[]
+  description: string
+  isDevelopment: boolean
+}
+
+interface MCPServerStatus {
+  running: boolean
+  name: string
+}
 
 /**
  * Initialize and start the MCP server
@@ -30,7 +44,11 @@ let isMCPServerRunning = false
  * @param {Function} startDatabaseFn - Function to start a database
  * @param {Function} stopDatabaseFn - Function to stop a database
  */
-async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn) {
+export async function initializeMCPServer(
+  appInstance: App,
+  startDatabaseFn: (db: any) => Promise<any>,
+  stopDatabaseFn: (id: string) => Promise<any>
+): Promise<boolean> {
   try {
     log.info("[MCP] Initializing MCP server...")
     log.debug("[MCP] App instance available:", !!appInstance)
@@ -44,7 +62,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
     }
     
     // Initialize MCP SDK components safely
-    let Server, StdioServerTransport, CallToolRequestSchema, ListToolsRequestSchema
+    let Server: any, StdioServerTransport: any, CallToolRequestSchema: any, ListToolsRequestSchema: any
     
     try {
       log.debug("[MCP] Loading MCP SDK components...")
@@ -53,7 +71,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
       CallToolRequestSchema = require("@modelcontextprotocol/sdk/types.js").CallToolRequestSchema
       ListToolsRequestSchema = require("@modelcontextprotocol/sdk/types.js").ListToolsRequestSchema
       log.debug("[MCP] MCP SDK components loaded successfully")
-    } catch (error) {
+    } catch (error: any) {
       log.error("[MCP] Failed to load MCP SDK:", error)
       log.error("[MCP] Error details:", error.message)
       log.error("[MCP] Stack trace:", error.stack)
@@ -73,7 +91,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
     )
 
     // Set up error handling
-    mcpServer.onerror = (error) => {
+    mcpServer.onerror = (error: any) => {
       log.error("[MCP] MCP Server error:", error)
       log.error("[MCP] Error details:", error.message)
       if (error.stack) {
@@ -214,7 +232,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
     })
 
     // Handle tool calls - use the imported schemas
-    mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+    mcpServer.setRequestHandler(CallToolRequestSchema, async (request: any) => {
       const { name, arguments: args } = request.params
 
       try {
@@ -226,7 +244,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
                 {
                   type: "text",
                   text: JSON.stringify(
-                    databases.map((db) => ({
+                    databases.map((db: any) => ({
                       id: db.id,
                       name: db.name,
                       type: db.type,
@@ -266,7 +284,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
 
             // Check for duplicate name
             const existingDatabases = storage.loadDatabases(appInstance)
-            const nameExists = existingDatabases.some((db) => db.name === name)
+            const nameExists = existingDatabases.some((db: any) => db.name === name)
             if (nameExists) {
               return {
                 content: [
@@ -345,7 +363,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
             }
 
             const databases = storage.loadDatabases(appInstance)
-            const database = databases.find((db) => db.id === id)
+            const database = databases.find((db: any) => db.id === id)
 
             if (!database) {
               return {
@@ -399,7 +417,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
             }
 
             const databases = storage.loadDatabases(appInstance)
-            const database = databases.find((db) => db.id === id)
+            const database = databases.find((db: any) => db.id === id)
 
             if (!database) {
               return {
@@ -453,7 +471,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
             }
 
             const databases = storage.loadDatabases(appInstance)
-            const database = databases.find((db) => db.id === id)
+            const database = databases.find((db: any) => db.id === id)
 
             if (!database) {
               return {
@@ -472,7 +490,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
 
             // Check for duplicate name if name is being updated
             if (updates.name && updates.name !== database.name) {
-              const nameExists = databases.some((db) => db.name === updates.name && db.id !== id)
+              const nameExists = databases.some((db: any) => db.name === updates.name && db.id !== id)
               if (nameExists) {
                 return {
                   content: [
@@ -499,6 +517,13 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
             // Convert port to number if provided
             if (updates.port !== undefined) {
               updatedDatabase.port = parseInt(updates.port, 10)
+            }
+
+            // Always set dataPath to the correct absolute path using the app's userData directory
+            // This ensures consistency regardless of where the app is installed
+            const containerId = updatedDatabase.containerId || updatedDatabase.id
+            if (containerId) {
+              updatedDatabase.dataPath = storage.getDatabaseDataDir(appInstance, containerId)
             }
 
             storage.upsertDatabase(appInstance, updatedDatabase)
@@ -545,7 +570,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
             }
 
             const databases = storage.loadDatabases(appInstance)
-            const database = databases.find((db) => db.id === id)
+            const database = databases.find((db: any) => db.id === id)
 
             if (!database) {
               return {
@@ -599,7 +624,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
               isError: true,
             }
         }
-      } catch (error) {
+      } catch (error: any) {
         log.error(`MCP tool error (${name}):`, error)
         return {
           content: [
@@ -621,7 +646,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
     try {
       transport = new StdioServerTransport()
       log.debug("[MCP] Stdio transport created successfully")
-    } catch (transportError) {
+    } catch (transportError: any) {
       log.error("[MCP] Failed to create stdio transport:", transportError)
       log.error("[MCP] Error details:", transportError.message)
       log.error("[MCP] Stack trace:", transportError.stack)
@@ -633,7 +658,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
     try {
       await mcpServer.connect(transport)
       log.debug("[MCP] Server connected to transport successfully")
-    } catch (connectError) {
+    } catch (connectError: any) {
       log.error("[MCP] Failed to connect server to transport:", connectError)
       log.error("[MCP] Error details:", connectError.message)
       log.error("[MCP] Stack trace:", connectError.stack)
@@ -646,7 +671,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
 
     log.info("[MCP] MCP server started successfully on stdio")
     return true
-  } catch (error) {
+  } catch (error: any) {
     log.error("[MCP] Failed to initialize MCP server:", error)
     log.error("[MCP] Error details:", error.message)
     log.error("[MCP] Stack trace:", error.stack)
@@ -661,7 +686,7 @@ async function initializeMCPServer(appInstance, startDatabaseFn, stopDatabaseFn)
 /**
  * Get MCP server connection info
  */
-function getMCPConnectionInfo() {
+export function getMCPConnectionInfo(): MCPConnectionInfo {
   let command = process.execPath
   let isDevelopment = false
   
@@ -738,7 +763,7 @@ function getMCPConnectionInfo() {
 /**
  * Stop the MCP server
  */
-async function stopMCPServer() {
+export async function stopMCPServer(): Promise<void> {
   try {
     if (transport) {
       await transport.close()
@@ -749,7 +774,7 @@ async function stopMCPServer() {
     }
     isMCPServerRunning = false
     log.info("MCP server stopped")
-  } catch (error) {
+  } catch (error: any) {
     log.error("Error stopping MCP server:", error)
   }
 }
@@ -757,17 +782,9 @@ async function stopMCPServer() {
 /**
  * Get MCP server status
  */
-function getMCPServerStatus() {
+export function getMCPServerStatus(): MCPServerStatus {
   return {
     running: isMCPServerRunning,
     name: "LiquiDB MCP Server",
   }
 }
-
-module.exports = {
-  initializeMCPServer,
-  getMCPConnectionInfo,
-  stopMCPServer,
-  getMCPServerStatus,
-}
-
