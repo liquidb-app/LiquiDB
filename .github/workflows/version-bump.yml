@@ -164,7 +164,7 @@ jobs:
           else
             # Create and push tag
             git tag -a "$TAG" -m "Release $VERSION"
-            git push origin "$TAG"
+            git push https://x-access-token:${{ secrets.PAT }}@github.com/${{ github.repository }} "$TAG"
             echo "✅ Created and pushed tag: $TAG"
             echo "This will trigger the release workflow"
           fi
