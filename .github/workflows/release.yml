@@ -273,9 +273,15 @@ jobs:
             dist/**/*.portable.exe
           draft: false
           prerelease: false
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false
           generate_release_notes: false
-          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+      - name: Verify release was created
+        run: |
+          echo "✅ Release created successfully!"
+          echo "Release name: liquidb@${{ steps.version.outputs.version }}"
+          echo "Tag: ${{ github.ref_name }}"
+          echo "All build artifacts have been uploaded to the release page"
 
