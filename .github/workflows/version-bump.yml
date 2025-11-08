@@ -101,7 +101,8 @@ jobs:
           
           # Run auto-version-bump script and capture output
           # The script outputs the new version to stdout (last line)
-          NEW_VERSION=$(npx tsx scripts/auto-version-bump.ts $BUMP_TYPE 2>&1 | tail -n1)
+          CURRENT_VERSION="${{ steps.current-version.outputs.version }}"
+          NEW_VERSION=$(npx tsx scripts/auto-version-bump.ts $CURRENT_VERSION $BUMP_TYPE 2>&1 | tail -n1)
           
           # Verify we got a valid version
           if [[ ! "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
