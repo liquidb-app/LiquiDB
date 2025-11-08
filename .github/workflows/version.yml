@@ -85,11 +85,19 @@ jobs:
           echo "Tags visible to git:"
           git tag -l | sort -V
           echo ""
+          echo "Tag refs:"
+          git show-ref --tags
+          echo ""
           echo "Latest tag details:"
           LATEST_TAG=$(git tag -l 'v*.*.*' | sort -V | tail -n 1 || echo "")
           if [ -n "$LATEST_TAG" ]; then
+            echo "Latest tag: $LATEST_TAG"
             git show-ref --tags | grep "$LATEST_TAG" || echo "Tag $LATEST_TAG not found in refs"
+            git log --oneline -1 "$LATEST_TAG" 2>/dev/null || echo "Cannot show commit for tag $LATEST_TAG"
           fi
+          echo ""
+          echo "Current package.json version:"
+          grep '"version"' package.json || echo "No version found in package.json"
 
       - name: Run semantic-release
         id: semantic
