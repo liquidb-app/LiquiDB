@@ -162,7 +162,7 @@ jobs:
     name: Create GitHub Release
     needs: release
     runs-on: ubuntu-latest
-    if: always()
+    if: needs.release.result == 'success'
     permissions:
       contents: write
 
@@ -217,11 +217,17 @@ jobs:
           path: dist
           pattern: '*-builds'
           merge-multiple: true
-          continue-on-error: false
 
       - name: Verify downloaded artifacts
         run: |
           echo "Verifying downloaded artifacts..."
+          echo "Contents of dist directory:"
+          ls -la dist/ || echo "dist/ directory does not exist"
+          echo ""
+          echo "All files in dist:"
+          find dist -type f 2>/dev/null || echo "No files found"
+          echo ""
+          
           ARTIFACT_COUNT=$(find dist -type f \( \
             -name "*.dmg" -o \
             -name "*.zip" -o \
