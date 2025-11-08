@@ -157,7 +157,17 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          git tag -a "$TAG" -m "Release $VERSION"
-          git push origin "$TAG"
-          echo "✅ Created and pushed tag: $TAG"
+          # Fetch latest tags to avoid conflicts
+          git fetch --tags origin || true
+          
+          # Check if tag exists remotely
+          if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+            echo "Tag $TAG already exists remotely, skipping"
+          else
+            # Create and push tag
+            git tag -a "$TAG" -m "Release $VERSION"
+            git push origin "$TAG"
+            echo "✅ Created and pushed tag: $TAG"
+            echo "This will trigger the release workflow"
+          fi
 
