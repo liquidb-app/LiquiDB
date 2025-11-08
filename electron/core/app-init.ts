@@ -133,58 +133,82 @@ export function setupAppLifecycleHandlers(app: Electron.App): void {
     
     log.info("Stopping all databases...")
     
-    const runningDatabases = sharedState.getRunningDatabases()
+    // Set a timeout to prevent blocking indefinitely (max 5 seconds for cleanup)
+    const cleanupTimeout = setTimeout(() => {
+      console.warn("[App Quit] Cleanup timeout reached, forcing quit...")
+      app.exit(0)
+    }, 5000)
     
-    // Kill all database processes (from memory and storage)
-    await killAllDatabaseProcesses(app)
-    
-    // Clean up temporary files
-    for (const [id] of runningDatabases) {
+    try {
+      const runningDatabases = sharedState.getRunningDatabases()
+      
+      // Kill all database processes (from memory and storage) - with timeout
+      const killPromise = killAllDatabaseProcesses(app)
+      const killTimeout = Promise.race([
+        killPromise,
+        new Promise((resolve) => setTimeout(() => {
+          console.warn("[App Quit] Process kill timeout, continuing with cleanup...")
+          resolve(null)
+        }, 3000))
+      ])
+      await killTimeout
+      
+      // Clean up temporary files (non-blocking, don't wait)
+      const tempCleanupPromises: Promise<void>[] = []
+      for (const [id] of runningDatabases) {
+        tempCleanupPromises.push(
+          (async () => {
+            try {
+              const databases = storage.loadDatabases(app)
+              const dbRecord = databases.find((d) => d.id === id)
+              if (dbRecord?.containerId) {
+                await cleanupDatabaseTempFiles(app, dbRecord.containerId, dbRecord.type)
+              }
+            } catch (error) {
+              console.error(`[App Quit] Error cleaning temp files for database ${id}:`, error)
+            }
+          })()
+        )
+      }
+      // Don't wait for temp cleanup - let it run in background
+      Promise.all(tempCleanupPromises).catch(() => {})
+      
+      runningDatabases.clear()
+      
+      // Start helper service when main app closes (helper must continue running) - non-blocking
+      const helperService = sharedState.getHelperService()
+      if (helperService) {
+        // Don't wait for helper service start - let it run in background
+        helperService.start().catch((error) => {
+          console.error("[App Quit] Error starting helper service:", error)
+        })
+      }
+      
+      // Clear all PIDs from storage when app quits
       try {
         const databases = storage.loadDatabases(app)
-        const dbRecord = databases.find((d) => d.id === id)
-        if (dbRecord?.containerId) {
-          await cleanupDatabaseTempFiles(app, dbRecord.containerId, dbRecord.type)
+        let updated = false
+        for (const db of databases) {
+          if (db.pid !== null) {
+            db.status = 'stopped'
+            db.pid = null
+            updated = true
+          }
+        }
+        if (updated) {
+          storage.saveDatabases(app, databases)
+          console.log("[App Quit] Cleared all PIDs from storage")
         }
       } catch (error) {
-        console.error(`[App Quit] Error cleaning temp files for database ${id}:`, error)
-      }
-    }
-    
-    runningDatabases.clear()
-    
-    // Start helper service when main app closes (helper must continue running)
-    const helperService = sharedState.getHelperService()
-    if (helperService) {
-      try {
-        console.log("[App Quit] Starting helper service for background monitoring...")
-        await helperService.start()
-      } catch (error) {
-        console.error("[App Quit] Error starting helper service:", error)
-      }
-    }
-    
-    // Clear all PIDs from storage when app quits
-    try {
-      const databases = storage.loadDatabases(app)
-      let updated = false
-      for (const db of databases) {
-        if (db.pid !== null) {
-          db.status = 'stopped'
-          db.pid = null
-          updated = true
-        }
-      }
-      if (updated) {
-        storage.saveDatabases(app, databases)
-        console.log("[App Quit] Cleared all PIDs from storage")
+        console.error("[App Quit] Failed to clear PIDs from storage:", error)
       }
     } catch (error) {
-      console.error("[App Quit] Failed to clear PIDs from storage:", error)
+      console.error("[App Quit] Error during cleanup:", error)
+    } finally {
+      clearTimeout(cleanupTimeout)
+      // Now allow the app to quit
+      app.exit(0)
     }
-    
-    // Now allow the app to quit
-    app.exit(0)
   })
 }
 

@@ -2060,8 +2060,8 @@ export async function stopDatabaseProcessGracefully(
       process.kill("SIGTERM")
     }
 
-    // Wait for process to exit gracefully (max 10 seconds)
-    const maxWaitTime = 10000 // 10 seconds
+    // Wait for process to exit gracefully (max 2 seconds for faster shutdown)
+    const maxWaitTime = 2000 // 2 seconds (reduced from 10 for faster shutdown)
     const checkInterval = 100 // Check every 100ms
     let waited = 0
 
@@ -2079,8 +2079,8 @@ export async function stopDatabaseProcessGracefully(
       console.log(`[Database] ${id} Process did not exit gracefully, force killing with SIGKILL`)
       try {
         process.kill("SIGKILL")
-        // Wait a bit more for SIGKILL to take effect
-        await new Promise((resolve) => setTimeout(resolve, 500))
+        // Wait a bit more for SIGKILL to take effect (reduced from 500ms)
+        await new Promise((resolve) => setTimeout(resolve, 200))
         return true
       } catch (killError: unknown) {
         console.error(`[Database] ${id} Error force killing process:`, killError)
@@ -2241,8 +2241,8 @@ export async function killAllDatabaseProcesses(
               if (!isKnownProcess) {
                 // Verify this process belongs to our app by checking its command line
                 try {
-                  // Add significant delay between execSync calls to prevent EAGAIN errors
-                  await new Promise((resolve) => setTimeout(resolve, 200))
+                  // Add small delay between execSync calls to prevent EAGAIN errors (reduced from 200ms)
+                  await new Promise((resolve) => setTimeout(resolve, 50))
 
                   const psOutput = execSync(`ps -p ${pid} -o command=`, {
                     encoding: "utf8",
@@ -2263,8 +2263,8 @@ export async function killAllDatabaseProcesses(
                     console.log(`[Kill] Command: ${command.substring(0, 200)}`)
                     await killProcessByPid(pid, "SIGTERM")
                     killedPids.add(pid)
-                    // Add significant delay after killing to prevent resource exhaustion
-                    await new Promise((resolve) => setTimeout(resolve, 300))
+                    // Add small delay after killing to prevent resource exhaustion (reduced from 300ms)
+                    await new Promise((resolve) => setTimeout(resolve, 100))
                   } else {
                     // This process doesn't belong to our app - leave it alone
                     console.log(
@@ -2300,8 +2300,8 @@ export async function killAllDatabaseProcesses(
     }
   }
 
-  // Wait a moment for processes to terminate gracefully
-  await new Promise((resolve) => setTimeout(resolve, 2000))
+  // Wait a moment for processes to terminate gracefully (reduced from 2000ms for faster shutdown)
+  await new Promise((resolve) => setTimeout(resolve, 500))
 
       // Force kill any processes that are still running
   const stillRunning: number[] = []
