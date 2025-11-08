@@ -1,5 +1,7 @@
 module.exports = {
   branches: ['main'],
+  // Ensure semantic-release can see all tags
+  tagFormat: 'v${version}',
   plugins: [
     [
       '@semantic-release/commit-analyzer',
