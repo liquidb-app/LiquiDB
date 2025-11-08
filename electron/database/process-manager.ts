@@ -1224,6 +1224,10 @@ export async function startDatabaseProcessAsync(
     let stoppedEventSent = false // Flag to prevent duplicate stopped events
     let mongodbStatusTimeout: NodeJS.Timeout | null = null
     let redisStatusTimeout: NodeJS.Timeout | null = null
+    
+    // Capture error output for better error messages
+    let errorOutput: string[] = []
+    let stderrOutput: string[] = []
 
     // For PostgreSQL, listen for "ready to accept connections" message
     if (type === "postgresql") {
@@ -1310,6 +1314,9 @@ export async function startDatabaseProcessAsync(
       child.stderr!.on("data", (data: Buffer) => {
         const output = data.toString()
         const trimmedOutput = output.trim()
+        
+        // Capture error output for better error messages
+        stderrOutput.push(trimmedOutput)
 
         // Filter out routine checkpoint logs (they're informational, not errors)
         const isCheckpointLog =
@@ -1322,6 +1329,7 @@ export async function startDatabaseProcessAsync(
           const isError = /ERROR|FATAL|PANIC/i.test(trimmedOutput)
           if (isError) {
             console.error(`[PostgreSQL] ${id} error:`, trimmedOutput)
+            errorOutput.push(trimmedOutput)
           } else {
             console.log(`[PostgreSQL] ${id} output:`, trimmedOutput)
           }
@@ -1431,7 +1439,19 @@ export async function startDatabaseProcessAsync(
       child.stderr!.on("data", (data: Buffer) => {
         try {
           const output = data.toString()
-          console.log(`[MySQL] ${id} error output:`, output.trim())
+          const trimmedOutput = output.trim()
+          
+          // Capture error output for better error messages
+          stderrOutput.push(trimmedOutput)
+          
+          // Check if it's an actual error
+          const isError = /ERROR|FATAL|error|fatal/i.test(trimmedOutput)
+          if (isError) {
+            console.error(`[MySQL] ${id} error:`, trimmedOutput)
+            errorOutput.push(trimmedOutput)
+          } else {
+            console.log(`[MySQL] ${id} output:`, trimmedOutput)
+          }
 
           // Check for MySQL ready message in stderr too
           if (
@@ -1476,12 +1496,16 @@ export async function startDatabaseProcessAsync(
         try {
           const output = data.toString()
           const trimmedOutput = output.trim()
+          
+          // Capture error output for better error messages
+          stderrOutput.push(trimmedOutput)
 
           // Check if it's an actual error (contains ERROR, FATAL, or critical messages)
           const isError =
             /ERROR|FATAL|error|fatal|exception|Assertion/i.test(trimmedOutput)
           if (isError) {
             console.error(`[MongoDB] ${id} error output:`, trimmedOutput)
+            errorOutput.push(trimmedOutput)
           } else {
             console.log(`[MongoDB] ${id} output:`, trimmedOutput)
           }
@@ -1651,7 +1675,13 @@ export async function startDatabaseProcessAsync(
       child.stderr!.on("data", (data: Buffer) => {
         try {
           const output = data.toString()
-          console.error(`[Redis] ${id} error output:`, output.trim())
+          const trimmedOutput = output.trim()
+          
+          // Capture error output for better error messages
+          stderrOutput.push(trimmedOutput)
+          errorOutput.push(trimmedOutput)
+          
+          console.error(`[Redis] ${id} error output:`, trimmedOutput)
         } catch (error: unknown) {
           console.error(`[Redis] ${id} Error in stderr handler:`, error)
         }
@@ -1692,6 +1722,16 @@ export async function startDatabaseProcessAsync(
           redisStatusTimeout = null
         }
 
+        // Build a more helpful error message
+        let errorMessage = err.message
+        if (err.message.includes("ENOENT") || err.message.includes("not found")) {
+          errorMessage = `${type} binary not found. Please ensure ${type} is installed via Homebrew.`
+        } else if (err.message.includes("EACCES") || err.message.includes("permission")) {
+          errorMessage = `Permission denied. Please check your system permissions.`
+        } else if (err.message.includes("EADDRINUSE") || err.message.includes("port")) {
+          errorMessage = `Port ${port} is already in use. Please choose a different port.`
+        }
+
         // Update database in storage to clear PID, update status, and clear lastStarted timestamp
         try {
           const databases = storage.loadDatabases(app)
@@ -1713,7 +1753,7 @@ export async function startDatabaseProcessAsync(
           mainWindow.webContents.send("database-status-changed", {
             id,
             status: "stopped",
-            error: err.message,
+            error: errorMessage,
             pid: null,
           })
         }
@@ -1726,12 +1766,57 @@ export async function startDatabaseProcessAsync(
     child.on("exit", (code: number | null) => {
       console.log(`[Database] ${id} exited with code ${code}`)
 
+      // Build error message from captured output
+      let errorMessage: string | undefined = undefined
+      
       // Log additional error information for non-zero exit codes
       if (code !== 0 && code !== null) {
         console.error(
           `[Database] ${id} exited with non-zero code ${code}. This usually indicates an error.`,
         )
-        if (type === "mongodb") {
+        
+        // Extract meaningful error message from captured output
+        if (errorOutput.length > 0) {
+          // Use the last few error lines (most recent errors are usually most relevant)
+          const recentErrors = errorOutput.slice(-3).join("; ")
+          errorMessage = recentErrors.length > 200 ? recentErrors.substring(0, 200) + "..." : recentErrors
+        } else if (stderrOutput.length > 0) {
+          // If no explicit errors, use stderr output
+          const recentStderr = stderrOutput.slice(-3).join("; ")
+          errorMessage = recentStderr.length > 200 ? recentStderr.substring(0, 200) + "..." : recentStderr
+        } else {
+          // Generate a helpful error message based on database type
+          if (type === "postgresql") {
+            errorMessage = `PostgreSQL failed to start. Common causes: Port ${port} may be in use, data directory issues, or initialization failed.`
+          } else if (type === "mysql") {
+            errorMessage = `MySQL failed to start. Common causes: Port ${port} may be in use, data directory issues, or initialization failed.`
+          } else if (type === "mongodb") {
+            errorMessage = `MongoDB failed to start. Common causes: Port ${port} may be in use, data directory issues, or mongod.lock file exists.`
+          } else if (type === "redis") {
+            errorMessage = `Redis failed to start. Common causes: Port ${port} may be in use, data directory issues, or invalid configuration.`
+          } else {
+            errorMessage = `Database failed to start with exit code ${code}`
+          }
+        }
+        
+        // Log detailed error information
+        if (type === "postgresql") {
+          console.error(`[PostgreSQL] ${id} PostgreSQL failed to start. Common causes:`)
+          console.error(`[PostgreSQL] ${id} - Port ${port} may already be in use`)
+          console.error(`[PostgreSQL] ${id} - Data directory may have permission issues`)
+          console.error(`[PostgreSQL] ${id} - Database initialization may have failed`)
+          if (errorMessage) {
+            console.error(`[PostgreSQL] ${id} Error details: ${errorMessage}`)
+          }
+        } else if (type === "mysql") {
+          console.error(`[MySQL] ${id} MySQL failed to start. Common causes:`)
+          console.error(`[MySQL] ${id} - Port ${port} may already be in use`)
+          console.error(`[MySQL] ${id} - Data directory may have permission issues`)
+          console.error(`[MySQL] ${id} - Database initialization may have failed`)
+          if (errorMessage) {
+            console.error(`[MySQL] ${id} Error details: ${errorMessage}`)
+          }
+        } else if (type === "mongodb") {
           console.error(`[MongoDB] ${id} MongoDB failed to start. Common causes:`)
           console.error(`[MongoDB] ${id} - Port ${port} may already be in use`)
           console.error(
@@ -1741,7 +1826,9 @@ export async function startDatabaseProcessAsync(
           console.error(
             `[MongoDB] ${id} - Check for mongod.lock file in data directory (may need repair)`,
           )
-          console.error(`[MongoDB] ${id} Check the error output above for details.`)
+          if (errorMessage) {
+            console.error(`[MongoDB] ${id} Error details: ${errorMessage}`)
+          }
         } else if (type === "redis") {
           console.error(`[Redis] ${id} Redis failed to start. Common causes:`)
           console.error(`[Redis] ${id} - Port ${port} may already be in use`)
@@ -1749,7 +1836,9 @@ export async function startDatabaseProcessAsync(
             `[Redis] ${id} - Data directory may have permission issues`,
           )
           console.error(`[Redis] ${id} - Invalid configuration arguments`)
-          console.error(`[Redis] ${id} Check the error output above for details.`)
+          if (errorMessage) {
+            console.error(`[Redis] ${id} Error details: ${errorMessage}`)
+          }
         }
       }
 
@@ -1789,6 +1878,7 @@ export async function startDatabaseProcessAsync(
           id,
           status: "stopped",
           exitCode: code,
+          error: errorMessage || (code !== 0 && code !== null ? `Process exited with code ${code}` : undefined),
           pid: null,
         })
       }
