@@ -2,11 +2,58 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - main
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT }}
+          fetch-tags: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Generate package-lock.json if missing
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo "package-lock.json not found, generating..."
+            npm install --package-lock-only
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run semantic-release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          semantic_version: 23
+          extra_plugins: |
+            @semantic-release/changelog@6.0.3
+            @semantic-release/git@10.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
+
   build:
+    needs: version
+    if: needs.version.outputs.new_release_published == 'true'
     strategy:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
@@ -56,8 +103,10 @@ jobs:
       - name: List build artifacts
         run: |
           echo "Build artifacts in dist/:"
-          ls -lah dist/ || echo "dist/ directory not found"
-          find dist -type f -name "*" 2>/dev/null || echo "No files found in dist/"
+          find dist -type f 2>/dev/null | head -20 || echo "No files found in dist/"
+          if [ -d dist ]; then
+            ls -lah dist/ || echo "dist/ directory is empty"
+          fi
 
       - name: Upload macOS artifacts
         if: matrix.os == 'macos-latest'
@@ -99,7 +148,8 @@ jobs:
           retention-days: 30
 
   publish:
-    needs: build
+    needs: [version, build]
+    if: needs.version.outputs.new_release_published == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -108,26 +158,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Get version from tag
+      - name: Get version from semantic-release
         id: get_version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          VERSION="${{ needs.version.outputs.new_release_version }}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Release version: $VERSION"
 
       - name: Download macOS artifacts
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: macos-artifacts
           path: release-artifacts/macos
 
       - name: Download Windows artifacts
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: windows-artifacts
           path: release-artifacts/windows
 
       - name: Download Linux artifacts
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: linux-artifacts
@@ -136,17 +189,20 @@ jobs:
       - name: List downloaded artifacts
         run: |
           echo "Downloaded artifacts:"
-          find release-artifacts -type f 2>/dev/null || echo "No artifacts found"
-          ls -lah release-artifacts/ || echo "release-artifacts directory not found"
+          find release-artifacts -type f 2>/dev/null | head -20 || echo "No artifacts found"
+          if [ -d release-artifacts ]; then
+            find release-artifacts -type f -exec ls -lh {} \; || echo "No files to list"
+          fi
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: v${{ needs.version.outputs.new_release_version }}
           files: |
             release-artifacts/**/*
           draft: false
           prerelease: false
           make_latest: true
+          generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT }}
