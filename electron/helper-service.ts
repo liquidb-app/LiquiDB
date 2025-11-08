@@ -72,8 +72,8 @@ class HelperServiceManager {
       this.helperPath = path.join(process.resourcesPath!, 'helper', 'liquidb-helper.js')
       this.plistTemplate = path.join(process.resourcesPath!, 'helper', 'com.liquidb.helper.plist')
     } else {
-      // In development, helper files are in the source directory
-      this.helperPath = path.join(__dirname, '..', 'helper', 'liquidb-helper.js')
+      // In development, helper files are in the build directory
+      this.helperPath = path.join(__dirname, '..', 'helper-dist', 'liquidb-helper.js')
       this.plistTemplate = path.join(__dirname, '..', 'helper', 'com.liquidb.helper.plist')
     }
   }
@@ -149,7 +149,7 @@ class HelperServiceManager {
       // Determine source directory based on whether app is packaged
       const sourceDir = this.app.isPackaged 
         ? path.join(process.resourcesPath!, 'helper')
-        : path.join(__dirname, '..', 'helper')
+        : path.join(__dirname, '..', 'helper-dist')
       
       for (const fileName of helperFiles) {
         const sourceFile = path.join(sourceDir, fileName)
@@ -420,7 +420,7 @@ class HelperServiceManager {
       // Determine helper path based on whether app is packaged
       const helperPath = this.app.isPackaged
         ? path.join(process.resourcesPath!, 'helper', 'ipc-client.js')
-        : path.join(__dirname, '..', 'helper', 'ipc-client.js')
+        : path.join(__dirname, '..', 'helper-dist', 'ipc-client.js')
       const HelperClient = require(helperPath)
       const client = new HelperClient()
       
@@ -454,7 +454,7 @@ class HelperServiceManager {
       // Determine helper path based on whether app is packaged
       const helperPath = this.app.isPackaged
         ? path.join(process.resourcesPath!, 'helper', 'ipc-client.js')
-        : path.join(__dirname, '..', 'helper', 'ipc-client.js')
+        : path.join(__dirname, '..', 'helper-dist', 'ipc-client.js')
       const HelperClient = require(helperPath)
       const client = new HelperClient()
       
@@ -487,7 +487,7 @@ class HelperServiceManager {
       // Determine helper path based on whether app is packaged
       const helperPath = this.app.isPackaged
         ? path.join(process.resourcesPath!, 'helper', 'ipc-client.js')
-        : path.join(__dirname, '..', 'helper', 'ipc-client.js')
+        : path.join(__dirname, '..', 'helper-dist', 'ipc-client.js')
       const HelperClient = require(helperPath)
       const client = new HelperClient()
       
@@ -517,7 +517,7 @@ class HelperServiceManager {
       // Determine helper path based on whether app is packaged
       const helperPath = this.app.isPackaged
         ? path.join(process.resourcesPath!, 'helper', 'liquidb-helper.js')
-        : path.join(__dirname, '..', 'helper', 'liquidb-helper.js')
+        : path.join(__dirname, '..', 'helper-dist', 'liquidb-helper.js')
       const helper = require(helperPath)
       
       // Run cleanup

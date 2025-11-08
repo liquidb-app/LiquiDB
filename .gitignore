@@ -19,6 +19,7 @@
 # electron
 /release
 /electron-dist
+/helper-dist
 
 # misc
 .DS_Store

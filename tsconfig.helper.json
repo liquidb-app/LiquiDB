@@ -3,8 +3,8 @@
     "target": "ES2021",
     "module": "commonjs",
     "lib": ["ES2021"],
-    "outDir": ".",
-    "rootDir": ".",
+    "outDir": "helper-dist",
+    "rootDir": "helper",
     "noEmit": false,
     "allowJs": true,
     "esModuleInterop": true,
@@ -17,7 +17,7 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["helper/ipc-client.ts"],
-  "exclude": ["node_modules"]
+  "include": ["helper/ipc-client.ts", "helper/liquidb-helper.ts"],
+  "exclude": ["node_modules", "helper-dist"]
 }
 

@@ -48,6 +48,7 @@
     "files": [
       "electron-dist/**/*",
       "helper/**/*",
+      "helper-dist/**/*",
       "out/**/*",
       "public/**/*",
       "package.json",
@@ -59,7 +60,8 @@
       "**/*.node",
       "build/**",
       "out/**",
-      "helper/**"
+      "helper/**",
+      "helper-dist/**"
     ],
     "directories": {
       "buildResources": "build"
