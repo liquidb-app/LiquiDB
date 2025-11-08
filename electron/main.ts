@@ -16,6 +16,8 @@ import { registerMCPHandlers } from "./ipc/mcp-handlers"
 import { registerPermissionsHandlers } from "./ipc/permissions-handlers"
 import { registerFileHandlers } from "./ipc/file-handlers"
 import { registerSystemHandlers } from "./ipc/system-handlers"
+import { registerUpdateHandlers } from "./ipc/update-handlers"
+import { initializeAutoUpdater } from "./auto-update"
 
 // Initialize app instance lock handling
 initializeAppLock()
@@ -50,11 +52,15 @@ if (!process.argv.includes('--mcp')) {
     registerMCPHandlers()
     registerPermissionsHandlers()
     registerFileHandlers(app)
+    registerUpdateHandlers()
     
     // Register dashboard-ready handler (needs to be registered separately)
     registerDashboardReadyHandler(app)
   }
 }
+
+// Initialize auto-updater
+initializeAutoUpdater()
 
 // Handle app.whenReady() lifecycle
 app.whenReady().then(async () => {

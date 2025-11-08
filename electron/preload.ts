@@ -102,6 +102,32 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.removeAllListeners('export-progress')
   },
   
+  // Update methods
+  checkForUpdate: () => ipcRenderer.invoke("update:check"),
+  downloadUpdate: () => ipcRenderer.invoke("update:download"),
+  installUpdate: () => ipcRenderer.invoke("update:install"),
+  onUpdateAvailable: (callback: (data: any) => void) => {
+    ipcRenderer.on('update-available', (_event: any, data: any) => callback(data))
+  },
+  onUpdateDownloaded: (callback: (data: any) => void) => {
+    ipcRenderer.on('update-downloaded', (_event: any, data: any) => callback(data))
+  },
+  onUpdateDownloadProgress: (callback: (data: any) => void) => {
+    ipcRenderer.on('update-download-progress', (_event: any, data: any) => callback(data))
+  },
+  onUpdateError: (callback: (data: any) => void) => {
+    ipcRenderer.on('update-error', (_event: any, data: any) => callback(data))
+  },
+  removeUpdateListeners: () => {
+    ipcRenderer.removeAllListeners('update-available')
+    ipcRenderer.removeAllListeners('update-downloaded')
+    ipcRenderer.removeAllListeners('update-download-progress')
+    ipcRenderer.removeAllListeners('update-error')
+  },
+  
+  // Changelog methods
+  getChangelog: () => ipcRenderer.invoke("get-changelog"),
+  
   platform: process.platform,
   isElectron: true,
 })
