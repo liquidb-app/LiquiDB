@@ -142,6 +142,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "4.1.0",
+    "electron-updater": "^6.6.2",
     "framer-motion": "*",
     "geist": "^1.5.1",
     "lucide-react": "^0.454.0",
