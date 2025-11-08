@@ -34,6 +34,8 @@ import { AllTabContent } from "@/components/database/tab-contents/all-tab-conten
 import { ActiveTabContent } from "@/components/database/tab-contents/active-tab-content"
 import { InactiveTabContent } from "@/components/database/tab-contents/inactive-tab-content"
 import { PortConflictSelectionDialog } from "@/components/database/port-conflict-selection-dialog"
+import { UpdateNotification } from "@/components/update-notification"
+import { ChangelogDialog } from "@/components/changelog-dialog"
 import type { DatabaseContainer } from "@/lib/types"
 
 export default function DatabaseManager() {
@@ -117,6 +119,9 @@ export default function DatabaseManager() {
   const [showBulkActions, setShowBulkActions] = useState(false)
   const [bannedPorts, setBannedPorts] = useState<number[]>([])
   const [portConflicts, setPortConflicts] = useState<[number, DatabaseContainer[]][]>([])
+  const [changelogOpen, setChangelogOpen] = useState(false)
+  const [changelogVersion, setChangelogVersion] = useState<string | undefined>(undefined)
+  const [changelogContent, setChangelogContent] = useState<string | undefined>(undefined)
   
   // Delete animation state
   const [isDeletingAll, setIsDeletingAll] = useState(false)
@@ -135,6 +140,40 @@ export default function DatabaseManager() {
     setShowOnboarding,
     dashboardOpacity,
   } = useAppInitialization(setAppSettingsOpen)
+
+  // Check if app was just updated and show changelog
+  useEffect(() => {
+    const checkForUpdateChangelog = async () => {
+      try {
+        // Check if this is the first launch after an update
+        const wasUpdated = localStorage.getItem('app-was-updated')
+        if (wasUpdated === 'true') {
+          const previousVersion = localStorage.getItem('previous-version')
+          const currentVersion = await window.electron?.getAppVersion?.()
+          
+          if (currentVersion?.success && currentVersion.version && previousVersion && currentVersion.version !== previousVersion) {
+            // Fetch changelog for the new version
+            const changelogResult = await window.electron?.getChangelog?.()
+            if (changelogResult?.success) {
+              setChangelogVersion(currentVersion.version)
+              setChangelogContent(changelogResult.changelog)
+              setChangelogOpen(true)
+            }
+          }
+          
+          // Clear the flag
+          localStorage.removeItem('app-was-updated')
+          localStorage.removeItem('previous-version')
+        }
+      } catch (error) {
+        console.error("Failed to check for update changelog:", error)
+      }
+    }
+
+    if (!isLoading) {
+      checkForUpdateChangelog()
+    }
+  }, [isLoading])
   
   // Initialize hooks - order matters due to dependencies
   const { checkDatabasesFileExists } = useFileManagement(setDatabases)
@@ -508,6 +547,17 @@ export default function DatabaseManager() {
           
           {/* Fixed Footer with System Stats */}
           <SystemStats />
+
+          {/* Update Notification (left side) */}
+          <UpdateNotification />
+
+          {/* Changelog Dialog */}
+          <ChangelogDialog
+            open={changelogOpen}
+            onOpenChange={setChangelogOpen}
+            version={changelogVersion}
+            changelog={changelogContent}
+          />
         </div>
       )}
     </React.Fragment>
