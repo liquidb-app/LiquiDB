@@ -45,9 +45,9 @@
     "tag:create": "tsx scripts/create-tag.ts",
     "tag:create:push": "tsx scripts/create-tag.ts --push",
     "electron:build": "npm run electron:compile && next build && electron-builder",
-    "electron:build:mac": "npm run electron:compile && next build && electron-builder --mac",
-    "electron:build:win": "npm run electron:compile && next build && electron-builder --win",
-    "electron:build:linux": "npm run electron:compile && next build && electron-builder --linux",
+    "electron:build:mac": "npm run electron:compile && next build && electron-builder --mac --publish never",
+    "electron:build:win": "npm run electron:compile && next build && electron-builder --win --publish never",
+    "electron:build:linux": "npm run electron:compile && next build && electron-builder --linux --publish never",
     "electron:build:mac:verbose": "npm run electron:compile && next build && DEBUG=\"electron-builder\" electron-builder --mac",
     "postinstall": "electron-builder install-app-deps"
   },
