@@ -239,13 +239,16 @@ jobs:
           
           if [ "$ARTIFACT_COUNT" -eq "0" ]; then
             echo "ERROR: No artifacts downloaded!"
+            echo "Expected artifacts from all platforms (mac, win, linux)"
             echo "Contents of dist/:"
             ls -la dist/ || echo "dist/ directory does not exist"
             find dist -type f || echo "No files found"
             exit 1
           fi
           
-          echo "Downloaded $ARTIFACT_COUNT artifact(s)"
+          echo "✅ Downloaded $ARTIFACT_COUNT artifact(s) from all platforms"
+          echo ""
+          echo "Artifacts to upload:"
           find dist -type f \( \
             -name "*.dmg" -o \
             -name "*.zip" -o \
