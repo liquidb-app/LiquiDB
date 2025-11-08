@@ -19,20 +19,24 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.PAT }}
           ref: main
+          fetch-tags: true
 
       - name: Fetch all tags and refs
         run: |
-          git fetch origin --tags --force
-          git fetch origin --force
+          git config --global --add safe.directory '*'
+          git fetch origin --tags --force || true
+          git fetch origin --force || true
           echo "All tags:"
           git tag -l | sort -V || echo "No tags found"
           echo ""
           echo "Tag refs:"
-          git show-ref --tags || echo "No tag refs found"
+          git show-ref --tags 2>/dev/null || echo "No tag refs found"
 
       - name: Check latest tag and current commit
         id: check_tag
+        continue-on-error: true
         run: |
+          set +e
           CURRENT_COMMIT=$(git rev-parse HEAD)
           echo "Current commit: $CURRENT_COMMIT"
           
@@ -47,7 +51,7 @@ jobs:
           fi
           
           # Check if current commit already has a tag
-          EXISTING_TAG=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || echo "")
+          EXISTING_TAG=$(git tag --points-at HEAD 2>/dev/null | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || echo "")
           if [ -n "$EXISTING_TAG" ]; then
             echo "tag_exists=true" >> $GITHUB_OUTPUT
             echo "existing_tag=$EXISTING_TAG" >> $GITHUB_OUTPUT
@@ -62,6 +66,7 @@ jobs:
             COMMITS_SINCE_TAG=$(git rev-list --count "$LATEST_TAG_COMMIT..HEAD" 2>/dev/null || echo "0")
             echo "Commits since $LATEST_TAG: $COMMITS_SINCE_TAG"
           fi
+          set -e
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -83,17 +88,19 @@ jobs:
         if: steps.check_tag.outputs.tag_exists != 'true'
         run: |
           echo "Tags visible to git:"
-          git tag -l | sort -V
+          git tag -l | sort -V || echo "No tags found"
           echo ""
           echo "Tag refs:"
-          git show-ref --tags
+          git show-ref --tags 2>/dev/null || echo "No tag refs found"
           echo ""
           echo "Latest tag details:"
           LATEST_TAG=$(git tag -l 'v*.*.*' | sort -V | tail -n 1 || echo "")
           if [ -n "$LATEST_TAG" ]; then
             echo "Latest tag: $LATEST_TAG"
-            git show-ref --tags | grep "$LATEST_TAG" || echo "Tag $LATEST_TAG not found in refs"
+            git show-ref --tags 2>/dev/null | grep "$LATEST_TAG" || echo "Tag $LATEST_TAG not found in refs"
             git log --oneline -1 "$LATEST_TAG" 2>/dev/null || echo "Cannot show commit for tag $LATEST_TAG"
+          else
+            echo "No version tags found"
           fi
           echo ""
           echo "Current package.json version:"
