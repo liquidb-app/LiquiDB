@@ -35,7 +35,7 @@ interface DatabaseCardProps {
   handleDebugDatabase: (id: string) => void
   handleSettings: (database: DatabaseContainer) => void
   handleCopyContainerId: (containerId: string, dbId: string) => void
-  createHoverHandlers: (id: string, type: string) => { onMouseEnter: () => void; onMouseLeave: () => void; iconRef?: React.RefObject<{ startAnimation: () => void; stopAnimation: () => void }> }
+  createHoverHandlers: (id: string, type: string) => { onMouseEnter: () => void; onMouseLeave: () => void; iconRef: React.RefObject<{ startAnimation: () => void; stopAnimation: () => void } | null> }
   isPortBanned: (port: number) => boolean
   PortConflictWarning: React.ComponentType<{ port: number; databaseId: string; databaseStatus: string }>
   fetchSystemInfo: (databaseId: string) => void
