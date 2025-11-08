@@ -244,7 +244,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-          name: LiquiDB@${{ steps.version.outputs.version }}
+          name: liquiDB@${{ steps.version.outputs.version }}
           body_path: release-notes.md
           files: |
             dist/**/*.dmg
