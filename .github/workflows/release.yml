@@ -46,12 +46,23 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: npm run electron:build:linux
 
+      - name: List build artifacts
+        run: |
+          echo "Build artifacts in dist/:"
+          ls -lah dist/ || echo "dist/ directory not found"
+          find dist -type f -name "*" 2>/dev/null || echo "No files found in dist/"
+
       - name: Upload macOS artifacts
         if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
           name: macos-artifacts
-          path: dist/
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+            dist/mac-universal/**
+          if-no-files-found: warn
           retention-days: 30
 
       - name: Upload Windows artifacts
