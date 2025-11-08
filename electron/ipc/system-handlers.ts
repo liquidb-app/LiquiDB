@@ -57,6 +57,65 @@ export function registerSystemHandlers(app: App): void {
     }
   })
 
+  // Get app version handler
+  ipcMain.handle("get-app-version", async () => {
+    try {
+      const version = app.getVersion()
+      return { success: true, version }
+    } catch (error: any) {
+      console.error("[App Version] Error getting version:", error)
+      return { success: false, error: error.message || "Failed to get version" }
+    }
+  })
+
+  // Get changelog handler
+  ipcMain.handle("get-changelog", async () => {
+    try {
+      const version = app.getVersion()
+      // Try to fetch changelog from GitHub releases API
+      const https = require("https")
+      return new Promise((resolve) => {
+        const url = `https://api.github.com/repos/alexg-sh/LiquiDB/releases/tags/v${version}`
+        
+        const request = https.get(url, (res: any) => {
+          if (res.statusCode !== 200) {
+            resolve({ success: false, error: `API returned status code ${res.statusCode}` })
+            return
+          }
+          
+          let data = ''
+          res.on('data', (chunk: string) => {
+            data += chunk
+          })
+          
+          res.on('end', () => {
+            try {
+              const release = JSON.parse(data)
+              resolve({ 
+                success: true, 
+                changelog: release.body || `## Version ${version}\n\nSee the full changelog on GitHub.` 
+              })
+            } catch (error: any) {
+              resolve({ success: false, error: error.message })
+            }
+          })
+        })
+        
+        request.on('error', (error: any) => {
+          resolve({ success: false, error: error.message })
+        })
+        
+        request.setTimeout(5000, () => {
+          request.destroy()
+          resolve({ success: false, error: 'Request timeout' })
+        })
+      })
+    } catch (error: any) {
+      console.error("[Changelog] Error getting changelog:", error)
+      return { success: false, error: error.message || "Failed to get changelog" }
+    }
+  })
+
   // Fetch programming quotes
   ipcMain.handle("fetch-quotes", async () => {
     return new Promise((resolve) => {

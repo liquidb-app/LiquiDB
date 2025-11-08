@@ -53,6 +53,9 @@ contextBridge.exposeInMainWorld("electron", {
   openExternalLink: (url: string) => ipcRenderer.invoke("open-external-link", url),
   quitApp: () => ipcRenderer.invoke("app:quit"),
   
+  // App version
+  getAppVersion: () => ipcRenderer.invoke("get-app-version"),
+  
   // Onboarding status check - use IPC instead of direct localStorage access
   isOnboardingComplete: () => ipcRenderer.invoke("is-onboarding-complete"),
   

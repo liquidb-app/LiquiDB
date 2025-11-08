@@ -85,6 +85,16 @@ declare global {
       onExportProgress?: (callback: (data: { stage?: string; message?: string; progress?: number; total?: number }) => void) => void
       removeExportProgressListener?: () => void
       quitApp?: () => Promise<void>
+      getAppVersion?: () => Promise<{ success: boolean; version?: string; error?: string }>
+      checkForUpdate?: () => Promise<{ available: boolean; info?: { version: string; releaseDate?: string; releaseNotes?: string }; error?: string }>
+      downloadUpdate?: () => Promise<{ success: boolean; error?: string }>
+      installUpdate?: () => Promise<{ success: boolean; error?: string }>
+      onUpdateAvailable?: (callback: (data: { version: string; releaseDate?: string; releaseNotes?: string }) => void) => void
+      onUpdateDownloaded?: (callback: (data: { version: string; releaseNotes?: string }) => void) => void
+      onUpdateDownloadProgress?: (callback: (data: { percent: number }) => void) => void
+      onUpdateError?: (callback: (data: { message: string }) => void) => void
+      removeUpdateListeners?: () => void
+      getChangelog?: () => Promise<{ success: boolean; changelog?: string; error?: string }>
       isElectron?: boolean
       platform?: string
     }
