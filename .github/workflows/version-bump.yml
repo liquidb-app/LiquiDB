@@ -1,4 +1,4 @@
-name: Auto Tag
+name: Auto Version Bump
 
 on:
   push:
@@ -9,12 +9,16 @@ on:
       - '.gitignore'
       - 'LICENSE'
       - 'changelogs/**'
+      - '.github/workflows/version-bump.yml'
 
 jobs:
-  auto-tag:
-    name: Auto Create Tag
+  version-bump:
+    name: Auto Bump Version
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+    if: |
+      github.event_name == 'push' && 
+      !startsWith(github.ref, 'refs/tags/') &&
+      !contains(github.event.head_commit.message, 'Bump version to')
     permissions:
       contents: write
 
@@ -53,11 +57,28 @@ jobs:
           echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
           echo "Latest tag: $LATEST_TAG (version: $LATEST_VERSION)"
 
-      - name: Determine next version
-        id: next-version
+      - name: Check if version needs bumping
+        id: check-bump
         run: |
+          CURRENT_VERSION="${{ steps.current-version.outputs.version }}"
           LATEST_VERSION="${{ steps.latest-tag.outputs.version }}"
           
+          # Compare versions - if current is newer or equal, no bump needed
+          if [ "$(printf '%s\n' "$CURRENT_VERSION" "$LATEST_VERSION" | sort -V | head -n1)" = "$CURRENT_VERSION" ] && [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+            echo "Current version ($CURRENT_VERSION) is older than latest tag ($LATEST_VERSION), will bump"
+            echo "needs_bump=true" >> $GITHUB_OUTPUT
+          elif [ "$CURRENT_VERSION" = "$LATEST_VERSION" ]; then
+            echo "Version matches latest tag, will check commits for bump"
+            echo "needs_bump=check" >> $GITHUB_OUTPUT
+          else
+            echo "Current version ($CURRENT_VERSION) is newer than latest tag ($LATEST_VERSION), no bump needed"
+            echo "needs_bump=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine bump type and bump version
+        id: bump-version
+        if: steps.check-bump.outputs.needs_bump != 'false'
+        run: |
           # Get commits since last tag
           LAST_TAG="${{ steps.latest-tag.outputs.tag }}"
           if [ "$LAST_TAG" = "v0.0.0" ]; then
@@ -81,37 +102,27 @@ jobs:
             echo "Using patch bump (default)"
           fi
           
-          # Parse current version
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST_VERSION"
-          MAJOR=${MAJOR:-0}
-          MINOR=${MINOR:-0}
-          PATCH=${PATCH:-0}
+          # Run auto-version-bump script and capture output
+          # The script outputs the new version to stdout (last line)
+          NEW_VERSION=$(npx tsx scripts/auto-version-bump.ts $BUMP_TYPE 2>&1 | tail -n1)
           
-          # Bump version
-          case $BUMP_TYPE in
-            major)
-              MAJOR=$((MAJOR + 1))
-              MINOR=0
-              PATCH=0
-              ;;
-            minor)
-              MINOR=$((MINOR + 1))
-              PATCH=0
-              ;;
-            patch)
-              PATCH=$((PATCH + 1))
-              ;;
-          esac
+          # Verify we got a valid version
+          if [[ ! "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Invalid version returned from script: $NEW_VERSION"
+            exit 1
+          fi
           
-          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
-          echo "Next version: $NEW_VERSION ($BUMP_TYPE bump)"
+          echo "New version: $NEW_VERSION ($BUMP_TYPE bump)"
 
       - name: Check if tag already exists
         id: check-tag
+        if: steps.bump-version.outputs.version != ''
         run: |
-          NEW_TAG="v${{ steps.next-version.outputs.version }}"
+          NEW_VERSION="${{ steps.bump-version.outputs.version }}"
+          NEW_TAG="v${NEW_VERSION}"
+          
           if git rev-parse "$NEW_TAG" >/dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_OUTPUT
             echo "Tag $NEW_TAG already exists"
@@ -121,14 +132,25 @@ jobs:
           fi
           echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
 
+      - name: Commit version change
+        if: steps.bump-version.outputs.version != '' && steps.check-tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add package.json
+          git commit -m "Bump version to ${{ steps.bump-version.outputs.version }}" || echo "No changes to commit"
+          git push origin main || echo "Nothing to push"
+
       - name: Create and push tag
-        if: steps.check-tag.outputs.exists == 'false'
+        if: steps.bump-version.outputs.version != '' && steps.check-tag.outputs.exists == 'false'
         run: |
           TAG="${{ steps.check-tag.outputs.tag }}"
-          VERSION="${{ steps.next-version.outputs.version }}"
+          VERSION="${{ steps.bump-version.outputs.version }}"
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          
           git tag -a "$TAG" -m "Release $VERSION"
           git push origin "$TAG"
           echo "✅ Created and pushed tag: $TAG"
