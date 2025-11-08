@@ -1,4 +1,10 @@
 import { exec } from "child_process"
+const brew = require("../brew")
+
+// Helper to execute brew commands with proper environment
+async function execBrewCommand(args: string[]): Promise<{ stdout: string; stderr: string }> {
+  return brew.execBrew(args, {})
+}
 
 /**
  * Fetch with timeout
@@ -153,100 +159,95 @@ export async function getMongoDBVersions(): Promise<VersionDetail[]> {
   try {
     console.log(`[Brew] Fetching detailed MongoDB versions`)
     
-    // Fast MongoDB version fetching with full version details
-    const versions = await new Promise<VersionDetail[]>((resolve) => {
-      // Use a single command to get MongoDB versions quickly
-      exec(`brew search mongodb/brew/mongodb-community`, (error: any, stdout: string, stderr: string) => {
-        if (error) {
-          console.log(`[Brew] Error searching MongoDB versions:`, error.message)
-          resolve(getFallbackVersionDetails("mongodb-community"))
-          return
+    // Ensure MongoDB tap is available
+    try {
+      await execBrewCommand(["tap", "mongodb/brew"])
+    } catch (tapError: any) {
+      console.log(`[Brew] Error ensuring MongoDB tap (may already be tapped):`, tapError.message)
+    }
+    
+    const versionDetails: VersionDetail[] = []
+    
+    try {
+      // Search for MongoDB community packages
+      const searchResult = await execBrewCommand(["search", "mongodb/brew/mongodb-community"])
+      const lines = searchResult.stdout.trim().split('\n').filter(line => line.trim())
+      const mongoPackages: string[] = []
+      
+      // Extract versioned package names from mongodb-community@x.x.x format
+      for (const line of lines) {
+        const match = line.match(/mongodb-community@([0-9.]+)/)
+        if (match) {
+          mongoPackages.push(`mongodb/brew/mongodb-community@${match[1]}`)
         }
-        
-        try {
-          const lines = stdout.trim().split('\n').filter(line => line.trim())
-          const mongoPackages: string[] = []
-          
-          // Extract versioned package names from mongodb-community@x.x.x format
-          for (const line of lines) {
-            const match = line.match(/mongodb-community@([0-9.]+)/)
-            if (match) {
-              mongoPackages.push(`mongodb/brew/mongodb-community@${match[1]}`)
-            }
-          }
-          
-          // Get full version details for each MongoDB package
-          const getMongoVersionDetails = async (packages: string[]): Promise<VersionDetail[]> => {
-            const versionDetails: VersionDetail[] = []
-            
-            for (const pkg of packages) {
+      }
+      
+      console.log(`[Brew] Found ${mongoPackages.length} MongoDB packages`)
+      
+      // Get full version details for each MongoDB package
+      const packagePromises: Promise<VersionDetail | null>[] = []
+      
+      for (const pkg of mongoPackages) {
+        packagePromises.push(
+          execBrewCommand(["info", pkg, "--json"])
+            .then((infoResult) => {
               try {
-                const versionInfo = await new Promise<VersionDetail | null>((resolve) => {
-                  exec(`brew info ${pkg} --json`, (infoError: any, infoStdout: string) => {
-                    if (!infoError && infoStdout) {
-                      try {
-                        const info = JSON.parse(infoStdout)
-                        if (info && info.length > 0) {
-                          const fullVersion = info[0].versions?.stable || info[0].version
-                          if (fullVersion) {
-                            const match = pkg.match(/mongodb-community@([0-9.]+)/)
-                            if (match) {
-                              const majorVersion = match[1]
-                              resolve({
-                                majorVersion,
-                                fullVersion,
-                                packageName: pkg
-                              })
-                            } else {
-                              resolve(null)
-                            }
-                          } else {
-                            resolve(null)
-                          }
-                        } else {
-                          resolve(null)
-                        }
-                      } catch (parseError: any) {
-                        console.log(`[Brew] Error parsing MongoDB version info for ${pkg}:`, parseError.message)
-                        resolve(null)
+                const info = JSON.parse(infoResult.stdout)
+                if (info && info.length > 0) {
+                  const fullVersion = info[0].versions?.stable || info[0].version
+                  if (fullVersion) {
+                    const match = pkg.match(/mongodb-community@([0-9.]+)/)
+                    if (match) {
+                      const majorVersion = match[1]
+                      console.log(`[Brew] Found MongoDB version ${fullVersion} for ${pkg}`)
+                      return {
+                        majorVersion,
+                        fullVersion,
+                        packageName: pkg
                       }
-                    } else {
-                      resolve(null)
                     }
-                  })
-                })
-                
-                if (versionInfo) {
-                  versionDetails.push(versionInfo)
+                  }
                 }
-              } catch (err: any) {
-                console.log(`[Brew] Error getting MongoDB version for ${pkg}:`, err.message)
+              } catch (parseError: any) {
+                console.log(`[Brew] Error parsing MongoDB version info for ${pkg}:`, parseError.message)
               }
-            }
-            
-            return versionDetails
-          }
-          
-          // Get full version details for all MongoDB packages
-          getMongoVersionDetails(mongoPackages).then((versionDetails) => {
-            // Sort versions (newest first)
-            const sortedVersions = versionDetails.sort((a, b) => {
-              return compareVersions(b.fullVersion, a.fullVersion)
+              return null
             })
-            
-            console.log(`[Brew] Found ${sortedVersions.length} detailed MongoDB versions:`, sortedVersions)
-            resolve(sortedVersions.length > 0 ? sortedVersions : getFallbackVersionDetails("mongodb-community"))
-          })
-        } catch (parseError: any) {
-          console.log(`[Brew] Error parsing MongoDB versions:`, parseError.message)
-          resolve(getFallbackVersionDetails("mongodb-community"))
+            .catch((err: any) => {
+              console.log(`[Brew] Error getting MongoDB version for ${pkg}:`, err.message)
+              return null
+            })
+        )
+      }
+      
+      // Wait for all package info to be fetched
+      const results = await Promise.all(packagePromises)
+      results.forEach(result => {
+        if (result) {
+          versionDetails.push(result)
         }
       })
+    } catch (searchError: any) {
+      console.log(`[Brew] Error searching MongoDB versions:`, searchError.message)
+    }
+    
+    // Sort versions (newest first)
+    const sortedVersions = versionDetails.sort((a, b) => {
+      return compareVersions(b.fullVersion, a.fullVersion)
     })
     
-    return versions
+    console.log(`[Brew] Found ${sortedVersions.length} detailed MongoDB versions:`, sortedVersions)
+    
+    // Only use fallback if we truly found nothing
+    if (sortedVersions.length === 0) {
+      console.log(`[Brew] No MongoDB versions found, using fallback`)
+      return getFallbackVersionDetails("mongodb-community")
+    }
+    
+    return sortedVersions
   } catch (error: any) {
-    console.log(`[Brew] Failed to fetch MongoDB versions:`, error.message)
+    console.error(`[Brew] Failed to fetch MongoDB versions:`, error.message)
+    console.error(`[Brew] Error stack:`, error.stack)
     return getFallbackVersionDetails("mongodb-community")
   }
 }

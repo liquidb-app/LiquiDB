@@ -3,6 +3,11 @@ import { exec } from "child_process"
 const brew = require("../brew")
 const { getStableVersionsFromOfficialSources, getMongoDBVersions, getFallbackVersionDetails, compareVersions } = require("../utils/version-utils")
 
+// Helper to execute brew commands with proper environment
+async function execBrewCommand(args: string[]): Promise<{ stdout: string; stderr: string }> {
+  return brew.execBrew(args, {})
+}
+
 interface VersionDetail {
   majorVersion: string
   fullVersion: string
@@ -30,121 +35,107 @@ export function registerVersionHandlers(): void {
         return await getMongoDBVersions()
       }
       
-      // Get detailed version information with full version numbers
-      const result = await new Promise<VersionDetail[]>((resolve) => {
-        const versionDetails: VersionDetail[] = []
-        let completedCalls = 0
-        const totalCalls = 2
+      // Get detailed version information with full version numbers using execBrew
+      const versionDetails: VersionDetail[] = []
+      
+      try {
+        // First, search for versioned packages (e.g., postgresql@16, postgresql@15)
+        const searchResult = await execBrewCommand(["search", "--formula", `^${packageName}@`])
+        const lines = searchResult.stdout.trim().split('\n').filter(line => line.trim())
         
-        const checkComplete = () => {
-          completedCalls++
-          if (completedCalls === totalCalls) {
-            // Sort versions (newest first)
-            const sortedVersions = versionDetails.sort((a, b) => {
-              return compareVersions(b.fullVersion, a.fullVersion)
-            })
+        console.log(`[Brew] Found ${lines.length} versioned packages for ${packageName}`)
+        
+        // Get full version details for each versioned package
+        const packagePromises: Promise<VersionDetail | null>[] = []
+        
+        for (const line of lines) {
+          const match = line.match(new RegExp(`^${packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}@(.+)$`))
+          if (match) {
+            const majorVersion = match[1]
+            const fullPackageName = `${packageName}@${majorVersion}`
             
-            console.log(`[Brew] Found ${sortedVersions.length} detailed versions for ${packageName}:`, sortedVersions)
-            resolve(sortedVersions.length > 0 ? sortedVersions : getFallbackVersionDetails(packageName))
+            // Get full version details for each package
+            packagePromises.push(
+              execBrewCommand(["info", fullPackageName, "--json"])
+                .then((infoResult) => {
+                  try {
+                    const info = JSON.parse(infoResult.stdout)
+                    if (info && info.length > 0) {
+                      const fullVersion = info[0].versions?.stable || info[0].version
+                      if (fullVersion) {
+                        console.log(`[Brew] Found version ${fullVersion} for ${fullPackageName}`)
+                        return {
+                          majorVersion,
+                          fullVersion,
+                          packageName: fullPackageName
+                        }
+                      }
+                    }
+                  } catch (parseError: any) {
+                    console.log(`[Brew] Error parsing version info for ${fullPackageName}:`, parseError.message)
+                  }
+                  return null
+                })
+                .catch((error: any) => {
+                  console.log(`[Brew] Error getting info for ${fullPackageName}:`, error.message)
+                  return null
+                })
+            )
           }
         }
         
-        // Get versioned packages with full version info
-        exec(`brew search --formula "^${packageName}@"`, (error: any, stdout: string, stderr: string) => {
-          if (!error && stdout) {
-            try {
-              const lines = stdout.trim().split('\n').filter(line => line.trim())
-              const packagePromises: Promise<VersionDetail | null>[] = []
-              
-              for (const line of lines) {
-                const match = line.match(new RegExp(`^${packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}@(.+)$`))
-                if (match) {
-                  const majorVersion = match[1]
-                  const fullPackageName = `${packageName}@${majorVersion}`
-                  
-                  // Get full version details for each package
-                  packagePromises.push(
-                    new Promise<VersionDetail | null>((resolve) => {
-                      exec(`brew info ${fullPackageName} --json`, (infoError: any, infoStdout: string) => {
-                        if (!infoError && infoStdout) {
-                          try {
-                            const info = JSON.parse(infoStdout)
-                            if (info && info.length > 0) {
-                              const fullVersion = info[0].versions?.stable || info[0].version
-                              if (fullVersion) {
-                                resolve({
-                                  majorVersion,
-                                  fullVersion,
-                                  packageName: fullPackageName
-                                })
-                              } else {
-                                resolve(null)
-                              }
-                            } else {
-                              resolve(null)
-                            }
-                          } catch (parseError: any) {
-                            console.log(`[Brew] Error parsing version info for ${fullPackageName}:`, parseError.message)
-                            resolve(null)
-                          }
-                        } else {
-                          resolve(null)
-                        }
-                      })
-                    })
-                  )
-                }
-              }
-              
-              // Wait for all package info to be fetched
-              Promise.all(packagePromises).then((results) => {
-                results.forEach(result => {
-                  if (result) {
-                    versionDetails.push(result)
-                  }
-                })
-                checkComplete()
+        // Wait for all package info to be fetched
+        const results = await Promise.all(packagePromises)
+        results.forEach(result => {
+          if (result) {
+            versionDetails.push(result)
+          }
+        })
+      } catch (searchError: any) {
+        console.log(`[Brew] Error searching for ${packageName} versions:`, searchError.message)
+      }
+      
+      // Also get main package version (e.g., postgresql without @version)
+      try {
+        const mainInfoResult = await execBrewCommand(["info", packageName, "--json"])
+        const info = JSON.parse(mainInfoResult.stdout)
+        if (info && info.length > 0) {
+          const fullVersion = info[0].versions?.stable || info[0].version
+          if (fullVersion) {
+            // Extract major version from full version
+            const majorVersion = fullVersion.split('.').slice(0, 2).join('.')
+            const existingVersion = versionDetails.find(v => v.majorVersion === majorVersion)
+            if (!existingVersion) {
+              versionDetails.push({
+                majorVersion,
+                fullVersion,
+                packageName: packageName
               })
-            } catch (parseError: any) {
-              console.log(`[Brew] Error parsing search results:`, parseError.message)
-              checkComplete()
-            }
-          } else {
-            checkComplete()
-          }
-        })
-        
-        // Get main package version
-        exec(`brew info ${packageName} --json`, (infoError: any, infoStdout: string) => {
-          if (!infoError && infoStdout) {
-            try {
-              const info = JSON.parse(infoStdout)
-              if (info && info.length > 0) {
-                const fullVersion = info[0].versions?.stable || info[0].version
-                if (fullVersion) {
-                  // Extract major version from full version
-                  const majorVersion = fullVersion.split('.').slice(0, 2).join('.')
-                  const existingVersion = versionDetails.find(v => v.majorVersion === majorVersion)
-                  if (!existingVersion) {
-                    versionDetails.push({
-                      majorVersion,
-                      fullVersion,
-                      packageName: packageName
-                    })
-                  }
-                }
-              }
-            } catch (parseError: any) {
-              console.log(`[Brew] Error parsing main package version:`, parseError.message)
+              console.log(`[Brew] Found main package version ${fullVersion} for ${packageName}`)
             }
           }
-          checkComplete()
-        })
+        }
+      } catch (mainInfoError: any) {
+        console.log(`[Brew] Error getting main package version for ${packageName}:`, mainInfoError.message)
+      }
+      
+      // Sort versions (newest first)
+      const sortedVersions = versionDetails.sort((a, b) => {
+        return compareVersions(b.fullVersion, a.fullVersion)
       })
       
-      return result
+      console.log(`[Brew] Found ${sortedVersions.length} detailed versions for ${packageName}:`, sortedVersions)
+      
+      // Only use fallback if we truly found nothing
+      if (sortedVersions.length === 0) {
+        console.log(`[Brew] No versions found for ${packageName}, using fallback`)
+        return getFallbackVersionDetails(packageName)
+      }
+      
+      return sortedVersions
     } catch (error: any) {
-      console.log(`[Brew] Failed to fetch versions for ${packageName}:`, error.message)
+      console.error(`[Brew] Failed to fetch versions for ${packageName}:`, error.message)
+      console.error(`[Brew] Error stack:`, error.stack)
       return getFallbackVersionDetails(packageName)
     }
   })
@@ -164,8 +155,14 @@ export function registerVersionHandlers(): void {
   })
 
   ipcMain.handle("brew:installDb", async (event, { dbType, version }: { dbType: string, version: string }) => {
-    await brew.installDatabase({ dbType, version })
-    return true
+    try {
+      const result = await brew.installDatabase({ dbType, version })
+      return result
+    } catch (error: any) {
+      console.error(`[IPC] Error installing ${dbType} ${version}:`, error)
+      // Re-throw the error so it can be caught by the frontend
+      throw error
+    }
   })
 }
 
