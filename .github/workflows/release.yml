@@ -58,20 +58,45 @@ jobs:
       - name: Build for platform
         shell: bash
         run: |
+          set -e
           if [ "${{ matrix.platform }}" == "mac" ]; then
-            npm run electron:build:mac
+            npm run electron:build:mac || (echo "macOS build failed" && exit 1)
           elif [ "${{ matrix.platform }}" == "win" ]; then
-            npm run electron:build:win
+            npm run electron:build:win || (echo "Windows build failed" && exit 1)
           else
-            npm run electron:build:linux
+            npm run electron:build:linux || (echo "Linux build failed" && exit 1)
           fi
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check electron-builder output
+        run: |
+          echo "Checking for build outputs..."
+          echo "Current directory: $(pwd)"
+          echo "---"
+          echo "dist directory contents:"
+          ls -la dist/ 2>/dev/null || echo "dist/ not found"
+          echo "---"
+          echo "All files in dist:"
+          find dist -type f 2>/dev/null || echo "No files found"
+          echo "---"
+          echo "macOS builds:"
+          find dist -name "*.dmg" -o -name "*.zip" 2>/dev/null || echo "No macOS builds"
+          echo "---"
+          echo "Windows builds:"
+          find dist -name "*.exe" 2>/dev/null || echo "No Windows builds"
+          echo "---"
+          echo "Linux builds:"
+          find dist -name "*.AppImage" -o -name "*.deb" 2>/dev/null || echo "No Linux builds"
 
       - name: List build artifacts
         run: |
           echo "Build artifacts:"
           ls -la dist/ || echo "No dist directory found"
+          find dist -type f -name "*" || echo "No files found"
+          echo "---"
+          echo "All files in dist:"
           find dist -type f || echo "No files found"
 
       - name: Upload artifacts
