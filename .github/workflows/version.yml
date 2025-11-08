@@ -20,12 +20,28 @@ jobs:
           token: ${{ secrets.PAT }}
 
       - name: Fetch all tags
-        run: git fetch --tags --force
+        run: |
+          git fetch --tags --force
+          echo "All tags:"
+          git tag -l | sort -V || echo "No tags found"
 
-      - name: Check if current commit already has a tag
+      - name: Check latest tag and current commit
         id: check_tag
         run: |
           CURRENT_COMMIT=$(git rev-parse HEAD)
+          echo "Current commit: $CURRENT_COMMIT"
+          
+          # Get the latest version tag
+          LATEST_TAG=$(git tag -l 'v*.*.*' | sort -V | tail -n 1 || echo "")
+          if [ -n "$LATEST_TAG" ]; then
+            echo "Latest tag: $LATEST_TAG"
+            LATEST_TAG_COMMIT=$(git rev-list -n 1 "$LATEST_TAG" 2>/dev/null || echo "")
+            echo "Latest tag commit: $LATEST_TAG_COMMIT"
+          else
+            echo "No version tags found"
+          fi
+          
+          # Check if current commit already has a tag
           EXISTING_TAG=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || echo "")
           if [ -n "$EXISTING_TAG" ]; then
             echo "tag_exists=true" >> $GITHUB_OUTPUT
@@ -33,7 +49,13 @@ jobs:
             echo "Current commit already has tag: $EXISTING_TAG"
           else
             echo "tag_exists=false" >> $GITHUB_OUTPUT
-            echo "No existing tag found for current commit"
+            echo "No existing tag found for this commit"
+          fi
+          
+          # Check commits since latest tag
+          if [ -n "$LATEST_TAG" ] && [ -n "$LATEST_TAG_COMMIT" ]; then
+            COMMITS_SINCE_TAG=$(git rev-list --count "$LATEST_TAG_COMMIT..HEAD" 2>/dev/null || echo "0")
+            echo "Commits since $LATEST_TAG: $COMMITS_SINCE_TAG"
           fi
 
       - name: Set up Node.js
@@ -51,6 +73,18 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify tags are visible to semantic-release
+        if: steps.check_tag.outputs.tag_exists != 'true'
+        run: |
+          echo "Tags visible to git:"
+          git tag -l | sort -V
+          echo ""
+          echo "Latest tag details:"
+          LATEST_TAG=$(git tag -l 'v*.*.*' | sort -V | tail -n 1 || echo "")
+          if [ -n "$LATEST_TAG" ]; then
+            git show-ref --tags | grep "$LATEST_TAG" || echo "Tag $LATEST_TAG not found in refs"
+          fi
 
       - name: Run semantic-release
         id: semantic
