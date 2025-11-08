@@ -40,8 +40,9 @@ try {
   
   console.log(`Version updated from ${oldVersion} to ${version}`);
   console.log(`Updated ${packageJsonPath}`);
-} catch (error: any) {
-  console.error('Error updating version:', error.message);
+} catch (error: unknown) {
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  console.error('Error updating version:', errorMessage);
   process.exit(1);
 }
 
