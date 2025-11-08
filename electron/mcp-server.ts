@@ -7,7 +7,6 @@ import * as path from "path"
 import * as fs from "fs"
 import { App } from "electron"
 
-// Lazy load electron app to avoid crashes if not available
 let app: App | null = null
 function getApp(): App | null {
   if (!app) {
