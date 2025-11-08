@@ -145,7 +145,7 @@
     "next": "16.0.1",
     "next-themes": "^0.4.6",
     "react": "19.1.0",
-    "react-dom": "19.1.0",
+    "react-dom": "19.2.0",
     "recharts": "2.15.4",
     "sonner": "^1.7.4",
     "tailwind-merge": "^3.3.1"
@@ -164,7 +164,7 @@
     "@types/auto-launch": "^5.0.5",
     "@types/node": "^22.19.0",
     "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react-dom": "^19",
     "concurrently": "^9.1.2",
     "electron": "^39.0.0",
     "electron-builder": "^26.0.12",
