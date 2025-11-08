@@ -1,3 +1,7 @@
+## 1.1.0 (2025-11-08)
+
+* feat: added build folder with plist, icon, dmg background. ([3b3a0f9f1228d7057e55a885c4b66fd70de26cca](https://github.com/alexg-sh/LiquiDB/commit/3b3a0f9f1228d7057e55a885c4b66fd70de26cca))
+
 ## <small>1.0.2 (2025-11-08)</small>
 
 * fix: remove outdated lazy-load comment ([886273c46b6b7bd8f142b4935b9d9e0acf3d8c14](https://github.com/alexg-sh/LiquiDB/commit/886273c46b6b7bd8f142b4935b9d9e0acf3d8c14))
