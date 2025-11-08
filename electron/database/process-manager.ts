@@ -1243,8 +1243,8 @@ export async function startDatabaseProcessAsync(
     let redisStatusTimeout: NodeJS.Timeout | null = null
     
     // Capture error output for better error messages
-    let errorOutput: string[] = []
-    let stderrOutput: string[] = []
+    const errorOutput: string[] = []
+    const stderrOutput: string[] = []
 
     // For PostgreSQL, listen for "ready to accept connections" message
     if (type === "postgresql") {
