@@ -89,6 +89,7 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
     description: string
     isDevelopment: boolean
   } | null>(null)
+  const [appVersion, setAppVersion] = useState<string>("1.0.0")
   
   const loadHelperStatus = useCallback(async () => {
     const isInitialLoad = !helperStatus
@@ -171,6 +172,17 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
     }
   }, [])
 
+  const loadAppVersion = useCallback(async () => {
+    try {
+      const result = await window.electron?.getAppVersion?.()
+      if (result?.success && result.version) {
+        setAppVersion(result.version)
+      }
+    } catch (error) {
+      console.error("Failed to load app version:", error)
+    }
+  }, [])
+
   useEffect(() => {
     setMounted(true)
     const saved = localStorage.getItem("color-scheme") || "mono"
@@ -199,8 +211,9 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
     if (open) {
       loadHelperStatus()
       loadMCPConnectionInfo()
+      loadAppVersion()
     }
-  }, [open, loadHelperStatus, loadMCPConnectionInfo])
+  }, [open, loadHelperStatus, loadMCPConnectionInfo, loadAppVersion])
   
   useEffect(() => {
     if (!open) return
@@ -780,7 +793,7 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
                 <div className="space-y-3">
                   <div>
                     <Label className="text-xs text-muted-foreground">Version</Label>
-                    <p className="text-sm font-mono">1.0.0</p>
+                    <p className="text-sm font-mono">{appVersion}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Platform</Label>
