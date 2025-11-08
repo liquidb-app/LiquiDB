@@ -1,0 +1,70 @@
+name: Conflict Detection
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  detect-conflicts:
+    name: Detect Conflicts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Fetch base branch
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+
+      - name: Check for merge conflicts
+        id: merge-conflicts
+        run: |
+          git merge-tree $(git merge-base HEAD origin/${{ github.event.pull_request.base.ref }}) HEAD origin/${{ github.event.pull_request.base.ref }} > /tmp/merge-result.txt || true
+          if grep -q "<<<<<<< " /tmp/merge-result.txt; then
+            echo "has_conflicts=true" >> $GITHUB_OUTPUT
+            echo "Merge conflicts detected!"
+          else
+            echo "has_conflicts=false" >> $GITHUB_OUTPUT
+            echo "No merge conflicts detected"
+          fi
+
+      - name: Check for dependency conflicts
+        id: dependency-conflicts
+        run: |
+          npm ci
+          if npm audit --audit-level=moderate 2>&1 | grep -q "found"; then
+            echo "has_conflicts=true" >> $GITHUB_OUTPUT
+            echo "Dependency conflicts detected!"
+            npm audit --audit-level=moderate
+          else
+            echo "has_conflicts=false" >> $GITHUB_OUTPUT
+            echo "No dependency conflicts detected"
+          fi
+
+      - name: Comment on PR
+        if: steps.merge-conflicts.outputs.has_conflicts == 'true' || steps.dependency-conflicts.outputs.has_conflicts == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const conflicts = [];
+            if ('${{ steps.merge-conflicts.outputs.has_conflicts }}' === 'true') {
+              conflicts.push('⚠️ **Merge conflicts detected** - Please resolve conflicts with the base branch.');
+            }
+            if ('${{ steps.dependency-conflicts.outputs.has_conflicts }}' === 'true') {
+              conflicts.push('⚠️ **Dependency conflicts detected** - Please review and update dependencies.');
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: conflicts.join('\n\n')
+            });
+
