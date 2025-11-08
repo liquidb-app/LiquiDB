@@ -1,4 +1,4 @@
-name: Auto Version & Tag
+name: Auto Tag
 
 on:
   push:
@@ -8,10 +8,11 @@ on:
       - '**.md'
       - '.gitignore'
       - 'LICENSE'
+      - 'changelogs/**'
 
 jobs:
-  auto-version:
-    name: Auto Version and Tag
+  auto-tag:
+    name: Auto Create Tag
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
     permissions:
