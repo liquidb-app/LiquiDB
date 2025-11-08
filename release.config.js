@@ -1,5 +1,11 @@
 module.exports = {
-  branches: ['main'],
+  branches: [
+    {
+      name: 'main',
+      channel: false,
+      prerelease: false
+    }
+  ],
   // Ensure semantic-release can see all tags
   tagFormat: 'v${version}',
   plugins: [
