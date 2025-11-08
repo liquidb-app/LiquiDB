@@ -126,11 +126,18 @@ jobs:
           name: linux-artifacts
           path: release-artifacts/linux
 
+      - name: List downloaded artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find release-artifacts -type f 2>/dev/null || echo "No artifacts found"
+          ls -lah release-artifacts/ || echo "release-artifacts directory not found"
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: release-artifacts/**
+          files: |
+            release-artifacts/**/*
           draft: false
           prerelease: false
           make_latest: true
