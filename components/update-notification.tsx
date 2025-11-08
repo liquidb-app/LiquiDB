@@ -79,22 +79,22 @@ export function UpdateNotification({ className }: UpdateNotificationProps) {
     }
 
     // Listen for update events from Electron
-    const handleUpdateAvailable = (_event: unknown, info: UpdateInfo) => {
+    const handleUpdateAvailable = (info: UpdateInfo) => {
       setUpdateInfo(info)
       setIsVisible(true)
     }
 
-    const handleUpdateDownloaded = (_event: unknown, info: UpdateInfo) => {
+    const handleUpdateDownloaded = (info: UpdateInfo) => {
       setUpdateInfo(info)
       setIsDownloading(false)
       setDownloadProgress(100)
     }
 
-    const handleUpdateDownloadProgress = (_event: unknown, progress: { percent: number }) => {
+    const handleUpdateDownloadProgress = (progress: { percent: number }) => {
       setDownloadProgress(progress.percent)
     }
 
-    const handleUpdateError = (_event: unknown, error: { message: string }) => {
+    const handleUpdateError = (error: { message: string }) => {
       console.error("Update error:", error.message)
       setIsDownloading(false)
     }
