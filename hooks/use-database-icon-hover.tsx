@@ -6,13 +6,13 @@ interface AnimatedIconHandle {
 }
 
 export function useDatabaseIconHover() {
-  const hoverStates = useRef<Map<string, React.RefObject<AnimatedIconHandle>>>(new Map())
+  const hoverStates = useRef<Map<string, React.RefObject<AnimatedIconHandle | null>>>(new Map())
 
-  const getIconRef = useCallback((databaseId: string, iconType: string): React.RefObject<AnimatedIconHandle> => {
+  const getIconRef = useCallback((databaseId: string, iconType: string): React.RefObject<AnimatedIconHandle | null> => {
     const key = `${databaseId}-${iconType}`
     
     if (!hoverStates.current.has(key)) {
-      hoverStates.current.set(key, React.createRef<AnimatedIconHandle>())
+      hoverStates.current.set(key, React.createRef<AnimatedIconHandle | null>())
     }
     
     return hoverStates.current.get(key)!
@@ -35,7 +35,7 @@ export function useDatabaseIconHover() {
   const createHoverHandlers = useCallback((databaseId: string, iconType: string): {
     onMouseEnter: () => void
     onMouseLeave: () => void
-    iconRef: React.RefObject<AnimatedIconHandle>
+    iconRef: React.RefObject<AnimatedIconHandle | null>
   } => {
     const iconRef = getIconRef(databaseId, iconType)
     
