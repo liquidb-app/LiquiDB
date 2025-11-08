@@ -18,6 +18,8 @@ const eslintConfig = [
       "electron-dist/**",
       "helper-dist/**",
       "next-env.d.ts",
+      "eslint.config.js",
+      "postcss.config.js",
     ],
   },
   {
