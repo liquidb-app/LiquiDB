@@ -104,13 +104,15 @@ jobs:
         with:
           name: ${{ matrix.platform }}-builds
           path: |
-            dist/*.dmg
-            dist/*.zip
-            dist/*.exe
-            dist/*.portable.exe
-            dist/*.AppImage
-            dist/*.deb
-          if-no-files-found: warn
+            dist/**/*.dmg
+            dist/**/*.zip
+            dist/**/*.exe
+            dist/**/*.portable.exe
+            dist/**/*.AppImage
+            dist/**/*.deb
+            dist/**/*.app
+            dist/**/*.blockmap
+          if-no-files-found: error
           retention-days: 30
 
   create-release:
