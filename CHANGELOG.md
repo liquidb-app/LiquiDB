@@ -1,3 +1,7 @@
+## <small>1.0.2 (2025-11-08)</small>
+
+* fix: remove outdated lazy-load comment ([886273c46b6b7bd8f142b4935b9d9e0acf3d8c14](https://github.com/alexg-sh/LiquiDB/commit/886273c46b6b7bd8f142b4935b9d9e0acf3d8c14))
+
 ## <small>1.0.1 (2025-11-08)</small>
 
 * fix: normalize commit dates in release notes ([ea6c8736e7bea2e4c3600ccd1dc543e167c9a1e3](https://github.com/alexg-sh/LiquiDB/commit/ea6c8736e7bea2e4c3600ccd1dc543e167c9a1e3))
