@@ -44,3 +44,32 @@ jobs:
       - name: Build verification
         run: npm run build
 
+      - name: Dependency scan
+        id: audit
+        continue-on-error: true
+        run: |
+          echo "Running npm audit..."
+          npm audit --audit-level=moderate --json > audit-report.json || true
+          npm audit --audit-level=moderate || true
+          
+          # Check for critical vulnerabilities
+          if npm audit --audit-level=critical --json 2>/dev/null | grep -q '"vulnerabilities":{}'; then
+            echo "has_critical=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_critical=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-report
+          path: audit-report.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Fail on critical vulnerabilities
+        if: steps.audit.outputs.has_critical == 'true'
+        run: |
+          echo "Critical vulnerabilities found. Please review the audit report."
+          exit 1
