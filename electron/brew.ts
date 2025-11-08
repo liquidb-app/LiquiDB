@@ -17,7 +17,6 @@ export function isHomebrewInstalled(): boolean {
   try {
     const brewPath = findBrewPath()
     if (!brewPath) return false
-    // Quick check by trying to stat or just return true if path exists
     if (brewPath !== "brew") return true
     return true
   } catch {
