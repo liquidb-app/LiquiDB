@@ -140,8 +140,6 @@ jobs:
             dist/**/*.portable.exe
             dist/**/*.AppImage
             dist/**/*.deb
-            dist/**/*.app
-            dist/**/*.blockmap
           if-no-files-found: error
           retention-days: 30
 
@@ -200,20 +198,9 @@ jobs:
           merge-multiple: true
           continue-on-error: false
 
-      - name: List downloaded artifacts
+      - name: Verify downloaded artifacts
         run: |
-          echo "Downloaded artifacts structure:"
-          find dist -type f || echo "No artifacts found"
-          echo "---"
-          echo "Files in dist root:"
-          ls -la dist/ || echo "dist directory not found"
-          echo "---"
-          echo "Recursive listing:"
-          find dist -type f -exec ls -lh {} \;
-
-      - name: Verify artifacts exist
-        run: |
-          echo "Verifying artifacts exist before release creation..."
+          echo "Verifying downloaded artifacts..."
           ARTIFACT_COUNT=$(find dist -type f \( \
             -name "*.dmg" -o \
             -name "*.zip" -o \
@@ -224,13 +211,14 @@ jobs:
           \) 2>/dev/null | wc -l | tr -d ' ')
           
           if [ "$ARTIFACT_COUNT" -eq "0" ]; then
-            echo "ERROR: No build artifacts found!"
-            echo "All files in dist:"
-            find dist -type f || echo "dist directory is empty or doesn't exist"
+            echo "ERROR: No artifacts downloaded!"
+            echo "Contents of dist/:"
+            ls -la dist/ || echo "dist/ directory does not exist"
+            find dist -type f || echo "No files found"
             exit 1
           fi
           
-          echo "Found $ARTIFACT_COUNT artifact(s)"
+          echo "Downloaded $ARTIFACT_COUNT artifact(s)"
           find dist -type f \( \
             -name "*.dmg" -o \
             -name "*.zip" -o \
