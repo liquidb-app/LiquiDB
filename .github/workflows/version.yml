@@ -99,16 +99,72 @@ jobs:
             echo "Latest tag: $LATEST_TAG"
             git show-ref --tags 2>/dev/null | grep "$LATEST_TAG" || echo "Tag $LATEST_TAG not found in refs"
             git log --oneline -1 "$LATEST_TAG" 2>/dev/null || echo "Cannot show commit for tag $LATEST_TAG"
+            echo ""
+            echo "Commits since $LATEST_TAG:"
+            git log --oneline "$LATEST_TAG..HEAD" | head -20 || echo "No commits since tag"
           else
             echo "No version tags found"
           fi
           echo ""
           echo "Current package.json version:"
           grep '"version"' package.json || echo "No version found in package.json"
+          echo ""
+          echo "Git remote info:"
+          git remote -v
+          echo ""
+          echo "Git branch info:"
+          git branch -a
+
+      - name: Ensure tags are available for semantic-release
+        if: steps.check_tag.outputs.tag_exists != 'true'
+        run: |
+          # Ensure all tags are fetched and visible
+          git fetch origin --tags --force
+          # Verify semantic-release can see tags
+          LATEST_TAG=$(git tag -l 'v*.*.*' | sort -V | tail -n 1 || echo "")
+          if [ -n "$LATEST_TAG" ]; then
+            echo "Latest tag found: $LATEST_TAG"
+            TAG_COMMIT=$(git rev-list -n 1 "$LATEST_TAG" 2>/dev/null || echo "")
+            CURRENT_COMMIT=$(git rev-parse HEAD)
+            echo "Tag commit: $TAG_COMMIT"
+            echo "Current commit: $CURRENT_COMMIT"
+            COMMITS_SINCE=$(git rev-list --count "$LATEST_TAG..HEAD" 2>/dev/null || echo "0")
+            echo "Commits since tag: $COMMITS_SINCE"
+            
+            # Check if the tag exists on the current commit
+            if [ "$TAG_COMMIT" = "$CURRENT_COMMIT" ]; then
+              echo "Tag $LATEST_TAG already exists on current commit - semantic-release will skip"
+              echo "skip_release=true" >> $GITHUB_ENV
+            else
+              echo "Tag $LATEST_TAG exists on different commit - semantic-release will increment"
+              echo "skip_release=false" >> $GITHUB_ENV
+            fi
+          else
+            echo "No version tags found - semantic-release will create v1.0.0"
+            echo "skip_release=false" >> $GITHUB_ENV
+          fi
+          
+          # Verify tags are visible to git
+          echo ""
+          echo "All tags visible to git:"
+          git tag -l | sort -V || echo "No tags found"
+
+      - name: Check if release should be skipped
+        if: steps.check_tag.outputs.tag_exists != 'true'
+        id: should_skip
+        run: |
+          SKIP_RELEASE="${{ env.skip_release }}"
+          if [ "$SKIP_RELEASE" == "true" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skipping semantic-release - tag already exists on current commit"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "Running semantic-release - will increment from existing tag"
+          fi
 
       - name: Run semantic-release
         id: semantic
-        if: steps.check_tag.outputs.tag_exists != 'true'
+        if: steps.check_tag.outputs.tag_exists != 'true' && (steps.should_skip.outputs.skip != 'true' || steps.should_skip.outputs.skip == '')
         uses: cycjimmy/semantic-release-action@v4
         with:
           semantic_version: 23
