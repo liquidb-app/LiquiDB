@@ -31,7 +31,6 @@ interface InstallOptions {
 export function installHomebrew({ onStdout, onStderr }: InstallOptions = {}): Promise<boolean> {
   return new Promise((resolve, reject) => {
     console.log("[Homebrew] Starting Homebrew installation...")
-    // Non-interactive Homebrew install script
     const script =
       '/bin/bash -c "NONINTERACTIVE=1 /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""'
     const child = spawn("bash", ["-lc", script], { 
@@ -170,7 +169,6 @@ export async function getDatabaseVersions(dbType: string): Promise<string[]> {
       }
     }
   } catch (_e) {
-    // Fallback to defaults
   }
   if (dbType === "postgresql") return ["16", "15", "14", "13"]
   if (dbType === "mysql") return ["8.0", "5.7"]
@@ -180,12 +178,8 @@ export async function getDatabaseVersions(dbType: string): Promise<string[]> {
 }
 
 function formulaFor(dbType: string, version: string): string {
-  // Extract major version for Homebrew formulas
   const getMajorVersion = (version: string): string => {
     if (!version) return ""
-    // For versions like "9.4.0", extract "9.4"
-    // For versions like "8.0.35", extract "8.0"
-    // For versions like "16.1", extract "16"
     const parts = version.split('.')
     if (parts.length >= 2) {
       return `${parts[0]}.${parts[1]}`
