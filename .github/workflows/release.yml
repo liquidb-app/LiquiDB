@@ -50,10 +50,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Update version in package.json (for build only)
+      - name: Verify version in package.json
         run: |
-          npm run version:update -- ${{ steps.version.outputs.version }}
-          echo "Version updated in package.json for build (not committed)"
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          
+          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
+            echo "⚠️  Warning: package.json version ($PACKAGE_VERSION) doesn't match tag version ($TAG_VERSION)"
+            echo "Updating package.json to match tag version..."
+            npm run version:update -- $TAG_VERSION
+          else
+            echo "✅ Version in package.json matches tag version: $PACKAGE_VERSION"
+          fi
 
       - name: Build Electron app
         run: |
@@ -67,7 +75,8 @@ jobs:
         run: |
           set -e
           if [ "${{ matrix.platform }}" == "mac" ]; then
-            electron-builder --mac --publish never || (echo "macOS build failed" && exit 1)
+            # Build universal macOS binary (arm64 + x64)
+            electron-builder --mac --publish never || (echo "macOS universal build failed" && exit 1)
           elif [ "${{ matrix.platform }}" == "win" ]; then
             electron-builder --win --publish never || (echo "Windows build failed" && exit 1)
           else
@@ -244,7 +253,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-          name: liquiDB@${{ steps.version.outputs.version }}
+          name: liquidb@${{ steps.version.outputs.version }}
           body_path: release-notes.md
           files: |
             dist/**/*.dmg
@@ -257,6 +266,7 @@ jobs:
           prerelease: false
           fail_on_unmatched_files: true
           generate_release_notes: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
