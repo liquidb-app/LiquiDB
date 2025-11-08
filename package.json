@@ -41,7 +41,6 @@
     "version:bump:patch": "tsx scripts/bump-version.ts patch",
     "version:bump:tag": "tsx scripts/bump-version.ts --tag",
     "version:bump:tag:push": "tsx scripts/bump-version.ts --tag --push",
-    "release:notes": "tsx scripts/generate-release-notes.ts",
     "tag:create": "tsx scripts/create-tag.ts",
     "tag:create:push": "tsx scripts/create-tag.ts --push",
     "electron:build": "npm run electron:compile && next build && electron-builder",
