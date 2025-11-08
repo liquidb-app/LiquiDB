@@ -31,6 +31,7 @@ jobs:
           cache: 'npm'
 
       - name: Generate package-lock.json if missing
+        shell: bash
         run: |
           if [ ! -f package-lock.json ]; then
             echo "package-lock.json not found, generating..."
@@ -70,6 +71,7 @@ jobs:
           cache: 'npm'
 
       - name: Generate package-lock.json if missing
+        shell: bash
         run: |
           if [ ! -f package-lock.json ]; then
             echo "package-lock.json not found, generating..."
@@ -80,6 +82,7 @@ jobs:
         run: npm ci
 
       - name: Compile Electron, preload, and helper
+        shell: bash
         run: |
           npm run electron:compile
           npm run preload:build
