@@ -3,13 +3,13 @@
 /**
  * Automatically bump version based on commit messages (conventional commits)
  * Simplified version for use in GitHub Actions workflows
- * Usage: tsx scripts/auto-version-bump.ts [major|minor|patch]
+ * Usage: tsx scripts/auto-version-bump.ts [current_version] [major|minor|patch]
  * 
- * If no argument provided, defaults to patch bump
+ * If no bump type argument provided, defaults to patch bump
  */
 
-import { readFileSync, writeFileSync, appendFileSync } from 'fs';
-import { join } from 'path';
+import fs from 'fs';
+import path from 'path';
 
 type BumpType = 'major' | 'minor' | 'patch';
 
@@ -29,58 +29,28 @@ function bumpVersion(version: string, type: BumpType): string {
 }
 
 function main() {
-  const bumpType = (process.argv[2] as BumpType) || 'patch';
+  const currentVersion = process.argv[2];
+  const bumpType = (process.argv[3] as BumpType) || 'patch';
+
+  if (!currentVersion) {
+    console.error('Current version is required as the first argument.');
+    process.exit(1);
+  }
+
   if (!['major', 'minor', 'patch'].includes(bumpType)) {
     console.error('Invalid bump type. Use major, minor, or patch.');
     process.exit(1);
   }
 
-  const packageJsonPath = join(process.cwd(), 'package.json');
+  const newVersion = bumpVersion(currentVersion, bumpType);
 
-  try {
-    // Read package.json
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-    const currentVersion = packageJson.version;
-    
-    if (!currentVersion) {
-      console.error('Error: No version found in package.json');
-      process.exit(1);
-    }
-    
-    const newVersion = bumpVersion(currentVersion, bumpType);
-    
-    if (newVersion === currentVersion) {
-      console.log(`Version is already ${currentVersion}`);
-      // Output version for workflow use (GITHUB_OUTPUT format)
-      const githubOutput = process.env.GITHUB_OUTPUT;
-      if (githubOutput) {
-        const output = `version=${currentVersion}\nbump_type=none\n`;
-        appendFileSync(githubOutput, output);
-      }
-      process.exit(0);
-    }
-    
-    // Update version
-    packageJson.version = newVersion;
-    writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
-    
-    console.log(`✅ Version bumped from ${currentVersion} to ${newVersion} (${bumpType})`);
-    console.log(`Updated ${packageJsonPath}`);
-    
-    // Output in GITHUB_OUTPUT format (for GitHub Actions)
-    const githubOutput = process.env.GITHUB_OUTPUT;
-    if (githubOutput) {
-      const output = `version=${newVersion}\nold_version=${currentVersion}\nbump_type=${bumpType}\n`;
-      appendFileSync(githubOutput, output);
-    }
-    
-    // Output new version to stdout for easy capture
-    console.log(newVersion);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error bumping version:', errorMessage);
-    process.exit(1);
-  }
+  const packageJsonPath = path.join(process.cwd(), 'package.json');
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+  
+  packageJson.version = newVersion;
+  fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+
+  console.log(newVersion);
 }
 
 main();
