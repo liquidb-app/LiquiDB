@@ -141,7 +141,7 @@
     "electron-updater": "^6.6.2",
     "framer-motion": "*",
     "geist": "^1.5.1",
-    "lucide-react": "^0.454.0",
+    "lucide-react": "^0.553.0",
     "next": "15.5.4",
     "next-themes": "^0.4.6",
     "react": "19.1.0",
