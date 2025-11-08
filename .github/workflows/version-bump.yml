@@ -63,18 +63,18 @@ jobs:
           CURRENT_VERSION="${{ steps.current-version.outputs.version }}"
           LATEST_VERSION="${{ steps.latest-tag.outputs.version }}"
           
-          # Compare versions using sort -V
-          if [ "$(printf '%s\n' "$CURRENT_VERSION" "$LATEST_VERSION" | sort -V | head -n1)" = "$LATEST_VERSION" ] && [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
-            echo "Current version ($CURRENT_VERSION) is newer than latest tag ($LATEST_VERSION), no bump needed"
-            echo "needs_bump=false" >> $GITHUB_OUTPUT
-          else
-            echo "Version needs to be bumped."
+          # Compare versions using sort -V. If the latest tag is greater than or equal to the current version, we need to bump.
+          if [ "$(printf '%s\n' "$LATEST_VERSION" "$CURRENT_VERSION" | sort -V | head -n1)" = "$CURRENT_VERSION" ]; then
+            echo "Version needs to be bumped. Current: $CURRENT_VERSION, Latest Tag: $LATEST_VERSION"
             echo "needs_bump=true" >> $GITHUB_OUTPUT
+          else
+            echo "Current version ($CURRENT_VERSION) is newer than latest tag ($LATEST_VERSION), no bump needed."
+            echo "needs_bump=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Determine bump type and bump version
         id: bump-version
-        if: steps.check-bump.outputs.needs_bump != 'false'
+        if: steps.check-bump.outputs.needs_bump == 'true'
         run: |
           # Get commits since last tag
           LAST_TAG="${{ steps.latest-tag.outputs.tag }}"
