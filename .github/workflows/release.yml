@@ -105,11 +105,14 @@ jobs:
         run: npm run electron:build:linux
 
       - name: List build artifacts
+        shell: bash
         run: |
           echo "Build artifacts in dist/:"
-          find dist -type f 2>/dev/null | head -20 || echo "No files found in dist/"
           if [ -d dist ]; then
+            find dist -type f 2>/dev/null | head -20 || echo "No files found in dist/"
             ls -lah dist/ || echo "dist/ directory is empty"
+          else
+            echo "dist/ directory not found"
           fi
 
       - name: Upload macOS artifacts
@@ -191,11 +194,14 @@ jobs:
           path: release-artifacts/linux
 
       - name: List downloaded artifacts
+        shell: bash
         run: |
           echo "Downloaded artifacts:"
-          find release-artifacts -type f 2>/dev/null | head -20 || echo "No artifacts found"
           if [ -d release-artifacts ]; then
+            find release-artifacts -type f 2>/dev/null | head -20 || echo "No artifacts found"
             find release-artifacts -type f -exec ls -lh {} \; || echo "No files to list"
+          else
+            echo "release-artifacts directory not found"
           fi
 
       - name: Publish release
