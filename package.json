@@ -34,15 +34,22 @@
     "start": "next start",
     "lint": "eslint .",
     "electron": "tsx electron/main.ts",
+    "version:update": "tsx scripts/update-version.ts",
+    "release:notes": "tsx scripts/generate-release-notes.ts",
     "electron:build": "npm run electron:compile && next build && electron-builder",
     "electron:build:mac": "npm run electron:compile && next build && electron-builder --mac",
+    "electron:build:win": "npm run electron:compile && next build && electron-builder --win",
     "electron:build:linux": "npm run electron:compile && next build && electron-builder --linux",
     "electron:build:mac:verbose": "npm run electron:compile && next build && DEBUG=\"electron-builder\" electron-builder --mac",
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {
     "asar": true,
-    "publish": null,
+    "publish": {
+      "provider": "github",
+      "owner": "alexg-sh",
+      "repo": "LiquiDB"
+    },
     "appId": "com.liquidb.app",
     "productName": "LiquiDB",
     "files": [
@@ -76,8 +83,20 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "identity": null,
       "icon": "build/icon.icns",
