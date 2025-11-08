@@ -23,17 +23,17 @@ interface HeaderActionsProps {
   playIconHover: {
     onMouseEnter: () => void
     onMouseLeave: () => void
-    iconRef: React.RefObject<{ startAnimation: () => void; stopAnimation: () => void }>
+    iconRef: React.MutableRefObject<{ startAnimation: () => void; stopAnimation: () => void } | null>
   }
   plusIconHover: {
     onMouseEnter: () => void
     onMouseLeave: () => void
-    iconRef: React.RefObject<{ startAnimation: () => void; stopAnimation: () => void }>
+    iconRef: React.MutableRefObject<{ startAnimation: () => void; stopAnimation: () => void } | null>
   }
   gripIconHover: {
     onMouseEnter: () => void
     onMouseLeave: () => void
-    iconRef: React.RefObject<{ startAnimation: () => void; stopAnimation: () => void }>
+    iconRef: React.MutableRefObject<{ startAnimation: () => void; stopAnimation: () => void } | null>
   }
 }
 

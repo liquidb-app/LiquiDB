@@ -14,12 +14,12 @@ interface EmptyStateProps {
   plusIconHover: {
     onMouseEnter: () => void
     onMouseLeave: () => void
-    iconRef: React.RefObject<{ startAnimation: () => void; stopAnimation: () => void }>
+    iconRef: React.MutableRefObject<{ startAnimation: () => void; stopAnimation: () => void } | null>
   }
   fileTextIconHover: {
     onMouseEnter: () => void
     onMouseLeave: () => void
-    iconRef: React.RefObject<{ startAnimation: () => void; stopAnimation: () => void }>
+    iconRef: React.MutableRefObject<{ startAnimation: () => void; stopAnimation: () => void } | null>
   }
 }
 
