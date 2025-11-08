@@ -1,3 +1,171 @@
+## 1.0.0 (2025-11-08)
+
+
+### Features
+
+* add [@animate-ui](https://github.com/animate-ui) registry to components configuration ([0f9a745](https://github.com/alexg-sh/LiquiDB/commit/0f9a7451e004d20edb96575cb2a3c565f2562e7b))
+* add comprehensive database management system (auto-start, config, process-manager) ([a6c0314](https://github.com/alexg-sh/LiquiDB/commit/a6c03146cc60e6b916b8adc7c30b3d19f50aff28))
+* add comprehensive MongoDB startup validation and lock file cleanup ([b3e15ce](https://github.com/alexg-sh/LiquiDB/commit/b3e15ce74142e553c1656957705ebc21f5da711f))
+* add comprehensive orphan process cleanup on startup ([b661009](https://github.com/alexg-sh/LiquiDB/commit/b6610099a2815b59eb7dc2317058f1cf632585a3))
+* add comprehensive Redis startup validation and config file prevention ([572fa8f](https://github.com/alexg-sh/LiquiDB/commit/572fa8f4e96ef92ca9b2df1dd5f67dadb5eeccd5))
+* add core Electron app infrastructure (app-init, app-lifecycle, shared-state) ([67dadce](https://github.com/alexg-sh/LiquiDB/commit/67dadce153225eee826e8806537fe739daeaea95))
+* Add credential update functionality for running databases ([6169c2e](https://github.com/alexg-sh/LiquiDB/commit/6169c2e4ce61a32cc9d727977b2272c988edd6d9))
+* add dashboard ready notification and auto-start integration ([6001426](https://github.com/alexg-sh/LiquiDB/commit/600142688bd1a6f8e480b881ebde547163ebca80))
+* add database tab content components for active, all, and inactive views ([be9f4b2](https://github.com/alexg-sh/LiquiDB/commit/be9f4b2a784bcd55bc8c9df4139d2f047b81d80e))
+* add delete all database animation with complex visual effects ([a3838a8](https://github.com/alexg-sh/LiquiDB/commit/a3838a8db264e2a6b778d295d61dd3dda8d66f27))
+* add hover animations to icon buttons ([1ce3de1](https://github.com/alexg-sh/LiquiDB/commit/1ce3de1f8f632110741af83c7d07df5b9782cc84))
+* add individual permission prompt dialog to onboarding ([e0e7640](https://github.com/alexg-sh/LiquiDB/commit/e0e7640b00e92f2be7cf08a251dca93f371be5cb))
+* add LiquiDB helper build script and configuration ([1dfeebc](https://github.com/alexg-sh/LiquiDB/commit/1dfeebc0d8ceef0a64292ba46c9e4625168b27bc))
+* Add MCP server integration for LiquiDB database management ([ad30e41](https://github.com/alexg-sh/LiquiDB/commit/ad30e418e83bc6df4ca44c1453a4d7bb8354e188))
+* add new UI components (Confetti, EvervaultCard, Popover) ([3b485f2](https://github.com/alexg-sh/LiquiDB/commit/3b485f21606c27f05626e0de987ec2d0798fd946))
+* Add SVG icon assets for database types ([413dd52](https://github.com/alexg-sh/LiquiDB/commit/413dd52b9b72b795422c8cccf6f45c631864e047))
+* add system stats IPC to Electron backend ([fb18084](https://github.com/alexg-sh/LiquiDB/commit/fb18084545ff945a44982fb8b654d32b750cae43))
+* add SystemMetrics component for database system information display ([91b06d2](https://github.com/alexg-sh/LiquiDB/commit/91b06d2a108fa92c6d03ed1e4b016ee1d6d6abca))
+* add timeout handling for version fetching in add database dialog ([3ed4d8f](https://github.com/alexg-sh/LiquiDB/commit/3ed4d8f48fb521930f5d59696b83a4dad8ae967f))
+* add TypeScript configuration for Electron and preload ([be0dc20](https://github.com/alexg-sh/LiquiDB/commit/be0dc207084507a623ad188b66447383c66ac838))
+* **app-hooks:** add app initialization and dialog management hooks ([3842c4b](https://github.com/alexg-sh/LiquiDB/commit/3842c4b294e74cd2c9ca8da90b20648fd6625a4b))
+* **database-dialogs:** add port conflict resolution dialog ([9fbac44](https://github.com/alexg-sh/LiquiDB/commit/9fbac44125d156cabfb3360f69576ad5a7d6f99c))
+* **database-ui:** implement core database interface components ([68e548a](https://github.com/alexg-sh/LiquiDB/commit/68e548a1002c34c2bd9cb2dc3947e0bba20f2682))
+* **database-utils:** add database utilities and validation helpers ([dda7623](https://github.com/alexg-sh/LiquiDB/commit/dda7623b3f07bfdc4530b3304ce06ea4e2bd4c8a))
+* **electron/brew:** migrate from JavaScript to TypeScript with type safety ([8aa9f93](https://github.com/alexg-sh/LiquiDB/commit/8aa9f93e6d45908749560f2f57ba199814ef8a6b))
+* **electron/helper-service:** migrate from JavaScript to TypeScript with full type coverage ([a3f7b74](https://github.com/alexg-sh/LiquiDB/commit/a3f7b747edc3a3b0561c07d14ab2c3ef3b436245))
+* **electron/mcp-server:** migrate from JavaScript to TypeScript with enhanced type safety ([296bdd6](https://github.com/alexg-sh/LiquiDB/commit/296bdd63c801cc677d8d0f53227d78640b25cdcf))
+* **electron/permissions:** migrate from JavaScript to TypeScript with comprehensive type definitions ([174b6c8](https://github.com/alexg-sh/LiquiDB/commit/174b6c83e02fffa79daa796c219fbcbc715de8c6))
+* **electron/preload:** migrate from JavaScript to TypeScript with IPC type safety ([e743e84](https://github.com/alexg-sh/LiquiDB/commit/e743e8421bec8e91293b5dec48d38114c7c20e96))
+* **electron/storage:** migrate from JavaScript to TypeScript with enhanced exports ([42a6347](https://github.com/alexg-sh/LiquiDB/commit/42a6347e7777489683726ead3561a79bf4bdd527))
+* **electron:** Add core IPC handlers for application functionality ([5754e1a](https://github.com/alexg-sh/LiquiDB/commit/5754e1a6e6803078901351d03679dca6c0897e00))
+* **electron:** add MCP server backend integration ([f1a8346](https://github.com/alexg-sh/LiquiDB/commit/f1a8346e5c51d7275410297cd5e582c1100e10de))
+* **electron:** add TypeScript configuration for build system ([7575612](https://github.com/alexg-sh/LiquiDB/commit/757561295c9b2f24793c432c1fb45722e4104a11))
+* **electron:** Add utility functions for cleanup, file operations, port management, and versioning ([262406f](https://github.com/alexg-sh/LiquiDB/commit/262406f5aa84137c1bac5a8cd39bb65e6e98cb8b))
+* **empty-state:** add data attributes for testing and tour support ([fa8d68d](https://github.com/alexg-sh/LiquiDB/commit/fa8d68dd7642c0b67d0146a4a229b18f8c8f09d7))
+* enhance database icon components with file:// URL support ([d562d2b](https://github.com/alexg-sh/LiquiDB/commit/d562d2b0f41ca19e4678ba4f252704f103b150ba))
+* Enhance database process start error handling and logging ([dcffa0e](https://github.com/alexg-sh/LiquiDB/commit/dcffa0efe59ae49d9a188a1a9cebac2ec4a48e0a))
+* enhance database start operations with backend status checking ([e88185f](https://github.com/alexg-sh/LiquiDB/commit/e88185f58ecb51fd2bf0107fcd0c8295153801a0))
+* enhance profile menu with improved styling and accessibility ([21a531e](https://github.com/alexg-sh/LiquiDB/commit/21a531ecc6c66e493b6255175a9e19d714f52536))
+* Hide bulk actions button when no databases are present ([2632b39](https://github.com/alexg-sh/LiquiDB/commit/2632b396e7b2e00bbcb2cd040abc611f19d9ffde))
+* Implement database configuration during service startup ([b58755c](https://github.com/alexg-sh/LiquiDB/commit/b58755c4ef549f353be99383065d36306b3bd059))
+* implement SystemStats component ([6ede6e6](https://github.com/alexg-sh/LiquiDB/commit/6ede6e649608644e7cabb2ba51c5643f9522b8fe))
+* improve animated icon hook with proper TypeScript generics ([d7d5927](https://github.com/alexg-sh/LiquiDB/commit/d7d5927b7e2fcb09ff508fa6d6be06edda48c176))
+* improve database settings connection string handling ([b15dd55](https://github.com/alexg-sh/LiquiDB/commit/b15dd5578ed28ac468aa6eb405b8cc177863b0b5))
+* improve electron main API timeout handling ([40733f8](https://github.com/alexg-sh/LiquiDB/commit/40733f8de475af0499ae82f134febf8eed778c83))
+* Improve notification system robustness and toggle behavior ([7c159fd](https://github.com/alexg-sh/LiquiDB/commit/7c159fda363b42bdbc519c664439795ef71c577f))
+* improve port conflict detection with database awareness ([d8cf143](https://github.com/alexg-sh/LiquiDB/commit/d8cf143c366a2d6769f7b6ea070cc68100df48b3))
+* integrate SystemStats into dashboard ([107b178](https://github.com/alexg-sh/LiquiDB/commit/107b178469388d0d31807a08c3d3272d52db7179))
+* Make username immutable after database creation ([b88df03](https://github.com/alexg-sh/LiquiDB/commit/b88df0372d741da6291c009578d7969b6884aa7a))
+* Optimize image icon selection to prevent re-saving file URLs ([2fedd21](https://github.com/alexg-sh/LiquiDB/commit/2fedd2128a3c7e29d832322f39527d647d3fee0e))
+* Replace emoji database icons with SVG assets ([42a7fbd](https://github.com/alexg-sh/LiquiDB/commit/42a7fbddd7108dd56ef89fc89d863ad5588d5331))
+* replace Lucide icons with custom icon components ([0d7bc5b](https://github.com/alexg-sh/LiquiDB/commit/0d7bc5ba5e84f0833ba83cac43ce2a01dd26a578))
+* **settings:** add MCP configuration tab with setup guide ([7043f72](https://github.com/alexg-sh/LiquiDB/commit/7043f72dfd65035c9a783d552973fc56ed12c894))
+* **system-stats:** integrate MCP server status monitoring ([0a8fd40](https://github.com/alexg-sh/LiquiDB/commit/0a8fd4040b1d48aebd500607ca43c986ef77c796))
+* **ui-utilities:** add comprehensive UI utility functions ([d5c95e7](https://github.com/alexg-sh/LiquiDB/commit/d5c95e7caed72e280428aebe0ff478ad1e207c8f))
+
+
+### Bug Fixes
+
+* add missing databaseId parameter to port conflict functions ([9d626d6](https://github.com/alexg-sh/LiquiDB/commit/9d626d680509b7c1717fe15280beaa134a7c8eb8))
+* correct return values in file management check ([fce2be9](https://github.com/alexg-sh/LiquiDB/commit/fce2be9918e602b7d6f5cff139bc1964f8f27853))
+* correct useEffect dependency arrays across hooks ([857826e](https://github.com/alexg-sh/LiquiDB/commit/857826e3f975e87b2578f5f7d9b09f00df1a235a))
+* improve banned ports API response handling ([f509ea3](https://github.com/alexg-sh/LiquiDB/commit/f509ea36d2244e2080ea46d61c2bf58f677a5581))
+* improve database startup status tracking and error handling ([7b61bb3](https://github.com/alexg-sh/LiquiDB/commit/7b61bb3be22e1a13545ae7cbd7e18ca6e09d74a3))
+* improve helper service process verification ([998f51d](https://github.com/alexg-sh/LiquiDB/commit/998f51dbe6ebab6ada76c024ce9964a95d50ce6f))
+* improve port conflict warning logic and reduce flickering ([4453c33](https://github.com/alexg-sh/LiquiDB/commit/4453c3346baa6e045fbcb1ba347870a919378ea2))
+* improve PostgreSQL initialization with better directory handling ([f8bf6a9](https://github.com/alexg-sh/LiquiDB/commit/f8bf6a99ff5a250264909d537730e4ed681f7531))
+* improve quotes API robustness and error handling ([4879db9](https://github.com/alexg-sh/LiquiDB/commit/4879db9c71ab06c44d70ffb889ba11a2f324b603))
+* improve sidebar tour error handling and logging ([cbbfef0](https://github.com/alexg-sh/LiquiDB/commit/cbbfef08b27963eaae1bb52a103afcc8f65881cd))
+* lint errors and warnings ([77e30a1](https://github.com/alexg-sh/LiquiDB/commit/77e30a1d6e1796bc54a425e2e2341dd948c8a723))
+* remove auto-start UI option and improve startup notifications ([58bc175](https://github.com/alexg-sh/LiquiDB/commit/58bc175b711bacaa0cf3d5c04de520d4128e5f13))
+* remove Redis CONFIG REWRITE to prevent config file issues ([050f33a](https://github.com/alexg-sh/LiquiDB/commit/050f33a073dd4cf9a6c8021f37a4bcabfef78571))
+* Remove unused packages. ([227caee](https://github.com/alexg-sh/LiquiDB/commit/227caee979f301fddacc8747ed85ce0cc4e01d2b))
+* Removed Comment ([e4dc638](https://github.com/alexg-sh/LiquiDB/commit/e4dc6388a0293b19e4e33ea59790bad4b2cdcd19))
+* Resolve helper service path in development ([d452d36](https://github.com/alexg-sh/LiquiDB/commit/d452d3660b1f24379e7a7b1e916fa8e901e7c91f))
+* Set locale environment variables for PostgreSQL initialization ([9773145](https://github.com/alexg-sh/LiquiDB/commit/9773145faea82c82b6223e3f92d5c14fbef59e13))
+* standardize unused variable naming convention ([3113f19](https://github.com/alexg-sh/LiquiDB/commit/3113f19dc74740861bb1a8c7342ad2c053c85bb3))
+* suppress harmless DevTools Protocol errors in Electron ([191092f](https://github.com/alexg-sh/LiquiDB/commit/191092ff9f5fc1ca0352dc3c62ae0ec47ee8d8ad))
+* update onboarding check to support new storage key ([86cb303](https://github.com/alexg-sh/LiquiDB/commit/86cb3034178c7376ca7f0cbf7b74acaf35cb8f74))
+
+
+### Performance Improvements
+
+* add permission check throttling and cleanup ([a812419](https://github.com/alexg-sh/LiquiDB/commit/a8124198001a88775232298f7dc03c2b67accc79))
+* **ui:** improve number formatting and display consistency ([50607bf](https://github.com/alexg-sh/LiquiDB/commit/50607bfa4f16d627850ff09f10cc339dc5096547))
+
+
+### Code Refactoring
+
+* clean up CustomTour component functionality ([bb5b934](https://github.com/alexg-sh/LiquiDB/commit/bb5b934edf09b0b806aeedbaba0ff9ae3a136747))
+* clean up Electron IPC type annotations ([b4b7287](https://github.com/alexg-sh/LiquiDB/commit/b4b7287f13552d062f9dd1e500330bf5376ac717))
+* **database-utils:** remove unused database file check ([6c77af9](https://github.com/alexg-sh/LiquiDB/commit/6c77af90860ef089104976840048cc03e049ef23))
+* improve app termination with comprehensive cleanup ([25cba81](https://github.com/alexg-sh/LiquiDB/commit/25cba81b0506806a8aa39432616e43b85449e64c))
+* improve auto-start logic and remove timeout-based approach ([8454cfb](https://github.com/alexg-sh/LiquiDB/commit/8454cfb5013e91576d203dbd40c2eff6070710bb))
+* Improve Brew version fetching and command execution ([9c3a5b5](https://github.com/alexg-sh/LiquiDB/commit/9c3a5b5d51e3e34ece9cecf07565d6cd2e26447c))
+* improve database monitoring with refs and error handling ([f8cd4ad](https://github.com/alexg-sh/LiquiDB/commit/f8cd4addaf53fbc7af77b1144dd0ad96a9f3b6e8))
+* improve event listener management in port management hook ([e941b1d](https://github.com/alexg-sh/LiquiDB/commit/e941b1de97191216641eac13ae80eb471fc6a872))
+* Improve Homebrew installation error handling and formula resolution ([4b80593](https://github.com/alexg-sh/LiquiDB/commit/4b80593096472eb59f536f98d5efde35279f069e))
+* improve logger with better type safety and exports ([cd85b4a](https://github.com/alexg-sh/LiquiDB/commit/cd85b4a20c6911d29ac96c97dbfed4a7bc248050))
+* **logger:** make internal structures non-exported ([da65d10](https://github.com/alexg-sh/LiquiDB/commit/da65d10adcab40245d03ddb2ed89099460a1fa7d))
+* **logger:** remove unnecessary comments and fix export ([07bf511](https://github.com/alexg-sh/LiquiDB/commit/07bf511909c14a0326ea4145a1106496776032d7))
+* **notifications:** remove localStorage-related comments and streamline code ([0be1ea0](https://github.com/alexg-sh/LiquiDB/commit/0be1ea00f59b0e747908f55f029b62de5ff1c74d))
+* **notifications:** simplify notification access pattern ([93d76bf](https://github.com/alexg-sh/LiquiDB/commit/93d76bf32e47dfcb9e590e1bcaa34b06a6d5ec10))
+* **onboarding:** fix dependency issues and improve state management ([7dd61ab](https://github.com/alexg-sh/LiquiDB/commit/7dd61abcfb3f66c116ec0bc564785d22044453f0))
+* **preferences:** remove unused tour and auto-launch features ([1bfa587](https://github.com/alexg-sh/LiquiDB/commit/1bfa587dc81e1d1cc9e3176b55abddbc5bf96a81))
+* remove explanatory code comments across components ([d3d4626](https://github.com/alexg-sh/LiquiDB/commit/d3d46261298841d564a0d52edc3d7eb36b9b0ae6))
+* Remove unnecessary comments from bulk operations hook ([f4cc28c](https://github.com/alexg-sh/LiquiDB/commit/f4cc28cea1cc0214a1ac22ea3b21ea39f1593816))
+* **sidebar-tour:** improve tour steps and add smooth transitions ([5294e23](https://github.com/alexg-sh/LiquiDB/commit/5294e230ec8446dbb9b1b4706b9901d99a92fc13))
+* Speed up app quit and process cleanup ([c8dd27f](https://github.com/alexg-sh/LiquiDB/commit/c8dd27ffb25673bea046f0b3839d4437b3f5a4e8))
+* standardize database icons with BoxesIcon ([1eb9cb3](https://github.com/alexg-sh/LiquiDB/commit/1eb9cb3b8bbf8cb94b24283dbed5ef43d72ead70))
+* **system-stats:** optimize polling intervals and reduce UI footprint ([e7d8fab](https://github.com/alexg-sh/LiquiDB/commit/e7d8fab9e1c1be7c6af3303b8b24db456d37413a))
+* update Switch component import path across components ([a205332](https://github.com/alexg-sh/LiquiDB/commit/a205332a05085872356201216674e6a6ff3e70e3))
+* Use dedicated notification helper functions ([8c8390c](https://github.com/alexg-sh/LiquiDB/commit/8c8390c46d801d050a1b7dcf2da67134d2ba72a5))
+* **use-app-initialization:** remove unnecessary comments to improve code clarity ([475e332](https://github.com/alexg-sh/LiquiDB/commit/475e3327263ea413d0e25b25dbfce9f24401f15a))
+
+
+### Styles
+
+* remove scaling transitions from button hover effects ([eae476e](https://github.com/alexg-sh/LiquiDB/commit/eae476eb591d28ae54c63e8cf5638a9c5f66ea50))
+
+
+### Miscellaneous Chores
+
+* add auto-version-bump script for conventional commit-based versioning ([47f949c](https://github.com/alexg-sh/LiquiDB/commit/47f949cf3f45f67e65c3a0b67c147e8a90015b5f))
+* add conventional-changelog-conventionalcommits dev dependency ([d84f05b](https://github.com/alexg-sh/LiquiDB/commit/d84f05b1ebddaa0e77c1d401ca31701c47b1475b))
+* add sync-version script to align package metadata ([180df4e](https://github.com/alexg-sh/LiquiDB/commit/180df4e2d802d22185153764d4290f42d88c2426))
+* add trailing newline in switch component ([6d535b7](https://github.com/alexg-sh/LiquiDB/commit/6d535b76c39d3638402d35606b0b6cb63f307306))
+* **add-database-dialog:** remove console logging and update data path handling ([858cc83](https://github.com/alexg-sh/LiquiDB/commit/858cc836b86bc1b1efb5e19493a405252321d781))
+* added extra files for .gitignore ([1e213e9](https://github.com/alexg-sh/LiquiDB/commit/1e213e9ee9e826c47625b40203b202af335e0ccd))
+* adjust macOS packaging to use universal binaries ([09ac2a0](https://github.com/alexg-sh/LiquiDB/commit/09ac2a04c97184598474f5b08278c94d1f6f16ff))
+* **release:** 1.0.0 [skip ci] ([5106c9d](https://github.com/alexg-sh/LiquiDB/commit/5106c9dd67dc12d85f8a886f069431a4cab8914e))
+* **release:** 1.0.0 [skip ci] ([ec30c93](https://github.com/alexg-sh/LiquiDB/commit/ec30c93f5f4ba2533a2b579aa31e2f183edfc87b))
+* remove unused workflow and tidy dependabot config ([4f95963](https://github.com/alexg-sh/LiquiDB/commit/4f959630b2c86e187a7f9e6577d71ca7c4fb8851))
+* removed comments ([c4e97fc](https://github.com/alexg-sh/LiquiDB/commit/c4e97fcb4946ce0e4b86d8204c36c998bb983a99))
+* simplify and enhance semantic-release configuration ([c5c4f03](https://github.com/alexg-sh/LiquiDB/commit/c5c4f039541787532e24d81667b86316d682f76c))
+* update .gitignore and ESLint configuration ([43a06b9](https://github.com/alexg-sh/LiquiDB/commit/43a06b9fb0a040e68f31aa9be6ca2e8eef3d60f8))
+* update build configuration and dependencies ([a2680d9](https://github.com/alexg-sh/LiquiDB/commit/a2680d9ddc2a91456e6e704be79c10af64dc5fb5))
+* update Electron API type definitions ([1bdde0f](https://github.com/alexg-sh/LiquiDB/commit/1bdde0f0c74f3c93cd1a21c033e0d1b7952c10a7))
+* update lockfile for conventional-changelog-conventionalcommits ([c3140dc](https://github.com/alexg-sh/LiquiDB/commit/c3140dc8558d3e20d442a50850d1e8a9dd6688a7))
+* update package dependencies and build configuration ([a40aa85](https://github.com/alexg-sh/LiquiDB/commit/a40aa85b64ae6b258da5a4d1c6893f28a12d9b5d))
+
+
+### Tests
+
+* verify automatic commit signing ([869eea4](https://github.com/alexg-sh/LiquiDB/commit/869eea4e2b555db37ae52dca73ec16b0c22fddb8))
+
+
+### Build System
+
+* drop release notes npm script dependency ([9ef8a2d](https://github.com/alexg-sh/LiquiDB/commit/9ef8a2d778ecd9b5a77329a2a6c2e1c66a8b7b1b))
+* remove unused release scripts ([3b5b314](https://github.com/alexg-sh/LiquiDB/commit/3b5b3144ab2ab48c4ae64d5ed7b8afbbd83a8b5c))
+
+
+### Continuous Integration
+
+* add PR checks workflow for commit messages, conflicts, lint, and builds ([355e32b](https://github.com/alexg-sh/LiquiDB/commit/355e32b70c4f18e7c0d5886c1e651a159a830ab7))
+* consolidate release and version workflows using semantic-release ([384baf3](https://github.com/alexg-sh/LiquiDB/commit/384baf3439e1ba1be7b1f0ad9075a1cc61d2c1a7))
+* convert auto-tag workflow into automated version bump with commit safeguards ([e24e74d](https://github.com/alexg-sh/LiquiDB/commit/e24e74d541d9e9b272171b0e3ca9350fe0d264d8))
+* integrate dependency scanning into main CI pipeline ([d1caf73](https://github.com/alexg-sh/LiquiDB/commit/d1caf733db2cda85c41f5136e318ce23110e303b))
+* refine release workflow version handling and macOS build configuration ([42aa310](https://github.com/alexg-sh/LiquiDB/commit/42aa310cf9d409cfe03b6c0be2a5517d3e976b2c))
+* remove existing GitHub Actions workflows ([d031c40](https://github.com/alexg-sh/LiquiDB/commit/d031c4064fe68f143c65c9724f9454de2bec2eae))
+* split lint and TypeScript checks and improve merge conflict reporting ([263755e](https://github.com/alexg-sh/LiquiDB/commit/263755e35872f01e936df493f696f7ff3304e9f9))
+
 # 1.0.0 (2025-11-08)
 
 
