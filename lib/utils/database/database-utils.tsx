@@ -27,7 +27,6 @@ export const formatUptime = (seconds: number) => {
   }
 }
 
-// Helper function to render database icons (emoji or custom image)
 export const renderDatabaseIcon = (icon: string | undefined, className: string = "w-full h-full object-cover") => {
   if (!icon) {
     return <BoxesIcon size={14} />
