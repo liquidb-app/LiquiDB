@@ -1,3 +1,12 @@
+## 1.2.0 (2025-11-08)
+
+* feat: add script to patch npm tar vulnerability ([aa70e752a00a719f03c9c575632844daa516dfe0](https://github.com/alexg-sh/LiquiDB/commit/aa70e752a00a719f03c9c575632844daa516dfe0))
+* fix: run tar vulnerability fix script postinstall and enforce override ([edbac0ba665044e78cd98c0dc1f50a3bbf8862d7](https://github.com/alexg-sh/LiquiDB/commit/edbac0ba665044e78cd98c0dc1f50a3bbf8862d7))
+* chore: bump app version to 1.1.0 ([be47680323d51f4ed10a4989d6c8db82376f7dda](https://github.com/alexg-sh/LiquiDB/commit/be47680323d51f4ed10a4989d6c8db82376f7dda))
+* chore: update tar dependency and related packages to secure versions ([6734bcb5ee34fee2502f2b5c44f8d1325078cd5a](https://github.com/alexg-sh/LiquiDB/commit/6734bcb5ee34fee2502f2b5c44f8d1325078cd5a))
+* ci: improve release workflow caching and build efficiency ([2d23dd59542f556422a89b7f9a27d51eae3888e6](https://github.com/alexg-sh/LiquiDB/commit/2d23dd59542f556422a89b7f9a27d51eae3888e6))
+* ci: optimize caches and parallelize CI build steps ([7c4305ca797247b0d93bab84e50477748423eef0](https://github.com/alexg-sh/LiquiDB/commit/7c4305ca797247b0d93bab84e50477748423eef0))
+
 ## 1.1.0 (2025-11-08)
 
 * feat: added build folder with plist, icon, dmg background. ([3b3a0f9f1228d7057e55a885c4b66fd70de26cca](https://github.com/alexg-sh/LiquiDB/commit/3b3a0f9f1228d7057e55a885c4b66fd70de26cca))
