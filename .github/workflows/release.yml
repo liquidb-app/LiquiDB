@@ -168,13 +168,47 @@ jobs:
           path: dist
           pattern: '*-builds'
           merge-multiple: true
-          continue-on-error: true
+          continue-on-error: false
 
       - name: List downloaded artifacts
         run: |
-          echo "Downloaded artifacts:"
-          find dist -type f -name "*" || echo "No artifacts found"
+          echo "Downloaded artifacts structure:"
+          find dist -type f || echo "No artifacts found"
+          echo "---"
+          echo "Files in dist root:"
           ls -la dist/ || echo "dist directory not found"
+          echo "---"
+          echo "Recursive listing:"
+          find dist -type f -exec ls -lh {} \;
+
+      - name: Verify artifacts exist
+        run: |
+          echo "Verifying artifacts exist before release creation..."
+          ARTIFACT_COUNT=$(find dist -type f \( \
+            -name "*.dmg" -o \
+            -name "*.zip" -o \
+            -name "*.exe" -o \
+            -name "*.AppImage" -o \
+            -name "*.deb" -o \
+            -name "*.portable.exe" \
+          \) 2>/dev/null | wc -l | tr -d ' ')
+          
+          if [ "$ARTIFACT_COUNT" -eq "0" ]; then
+            echo "ERROR: No build artifacts found!"
+            echo "All files in dist:"
+            find dist -type f || echo "dist directory is empty or doesn't exist"
+            exit 1
+          fi
+          
+          echo "Found $ARTIFACT_COUNT artifact(s)"
+          find dist -type f \( \
+            -name "*.dmg" -o \
+            -name "*.zip" -o \
+            -name "*.exe" -o \
+            -name "*.AppImage" -o \
+            -name "*.deb" -o \
+            -name "*.portable.exe" \
+          \) -exec ls -lh {} \;
 
       - name: Create or Update Release
         uses: softprops/action-gh-release@v1
