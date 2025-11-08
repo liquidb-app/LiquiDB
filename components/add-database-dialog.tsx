@@ -702,7 +702,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
         setForceUpdate(prev => prev + 1)
         console.log("Installation process completed, UI should update")
       }, 500)
-    } catch (error: any) {
+    } catch (error: unknown) {
       setInstalling(false)
       setInstallMsg("")
       setInstallProgress(0)
@@ -710,7 +710,7 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
       
       // Extract meaningful error message
       let errorMessage = "Failed to install the selected database via Homebrew."
-      if (error?.message) {
+      if (error instanceof Error && error.message) {
         errorMessage = error.message
       } else if (typeof error === 'string' && error) {
         errorMessage = error
