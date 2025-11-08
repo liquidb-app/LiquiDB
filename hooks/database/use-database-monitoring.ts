@@ -15,7 +15,6 @@ export const useDatabaseMonitoring = (
   startDatabaseWithErrorHandlingRef: MutableRefObject<(id: string) => Promise<void>>,
   checkDatabasesFileExists: () => Promise<boolean>
 ) => {
-  // Update databases ref whenever databases state changes
   useEffect(() => {
     databasesRef.current = databases
   }, [databases, databasesRef])
