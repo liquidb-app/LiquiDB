@@ -9,14 +9,32 @@ jobs:
   version:
     runs-on: ubuntu-latest
     outputs:
-      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
-      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+      new_release_published: ${{ steps.release_status.outputs.new_release_published }}
+      new_release_version: ${{ steps.release_status.outputs.new_release_version }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.PAT }}
+
+      - name: Fetch all tags
+        run: git fetch --tags --force
+
+      - name: Check if current commit already has a tag
+        id: check_tag
+        run: |
+          CURRENT_COMMIT=$(git rev-parse HEAD)
+          EXISTING_TAG=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || echo "")
+          if [ -n "$EXISTING_TAG" ]; then
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+            echo "existing_tag=$EXISTING_TAG" >> $GITHUB_OUTPUT
+            echo "Current commit already has tag: $EXISTING_TAG"
+          else
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+            echo "No existing tag found for current commit"
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -29,6 +47,7 @@ jobs:
 
       - name: Run semantic-release
         id: semantic
+        if: steps.check_tag.outputs.tag_exists != 'true'
         uses: cycjimmy/semantic-release-action@v4
         with:
           semantic_version: 23
@@ -37,4 +56,25 @@ jobs:
             @semantic-release/git@10.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.PAT }}
+
+      - name: Set release status outputs
+        id: release_status
+        run: |
+          if [ "${{ steps.check_tag.outputs.tag_exists }}" == "true" ]; then
+            echo "new_release_published=false" >> $GITHUB_OUTPUT
+            echo "new_release_version=${{ steps.check_tag.outputs.existing_tag }}" >> $GITHUB_OUTPUT
+            echo "Skipping release - tag ${{ steps.check_tag.outputs.existing_tag }} already exists for this commit"
+          else
+            # Use semantic-release outputs if available, otherwise default to false
+            NEW_RELEASE_PUBLISHED="${{ steps.semantic.outputs.new_release_published }}"
+            NEW_RELEASE_VERSION="${{ steps.semantic.outputs.new_release_version }}"
+            if [ -z "$NEW_RELEASE_PUBLISHED" ]; then
+              NEW_RELEASE_PUBLISHED="false"
+            fi
+            if [ -z "$NEW_RELEASE_VERSION" ]; then
+              NEW_RELEASE_VERSION=""
+            fi
+            echo "new_release_published=$NEW_RELEASE_PUBLISHED" >> $GITHUB_OUTPUT
+            echo "new_release_version=$NEW_RELEASE_VERSION" >> $GITHUB_OUTPUT
+          fi
 
