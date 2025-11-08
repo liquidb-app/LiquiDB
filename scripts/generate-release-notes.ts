@@ -67,8 +67,9 @@ try {
 
   // Output to stdout (will be captured by GitHub Actions)
   console.log(releaseNotes);
-} catch (error: any) {
-  console.error('Error generating release notes:', error.message);
+} catch (error: unknown) {
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  console.error('Error generating release notes:', errorMessage);
   // Fallback release notes
   console.log(`# Release ${version}\n\n## Changes\n\n- See commit history for details\n`);
   process.exit(0); // Don't fail the build if release notes generation fails
