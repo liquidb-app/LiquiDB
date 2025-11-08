@@ -643,7 +643,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const applyBannedPortsFix = () => {
     const validation = validateAndParsePorts(bannedPortsInput)
     
@@ -679,7 +678,6 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const clearBannedPorts = () => {
     setBannedPortsInput("")
     setBannedPortsLocal([])

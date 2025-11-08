@@ -483,7 +483,6 @@ export const usePortManagement = (
         freeConfirmationsRef.current = 0
         clearInterval(interval)
       }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [port, databaseId, databaseStatus, cachedState, conflictInfo])
 
     const displayInfo = conflictInfo || cachedState?.info || null
