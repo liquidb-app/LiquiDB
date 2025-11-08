@@ -249,6 +249,17 @@ export async function startDatabaseProcessAsync(
       env.TMPDIR = tempDir
       env.TMP = tempDir
       env.TEMP = tempDir
+      
+      // Set locale environment variables for PostgreSQL to prevent "postmaster became multithreaded" error
+      // PostgreSQL requires consistent locale settings
+      env.LC_ALL = process.env.LC_ALL || process.env.LANG || "C"
+      env.LANG = process.env.LANG || "C"
+      env.LC_CTYPE = process.env.LC_CTYPE || process.env.LC_ALL || process.env.LANG || "C"
+      env.LC_COLLATE = process.env.LC_COLLATE || process.env.LC_ALL || process.env.LANG || "C"
+      env.LC_MESSAGES = process.env.LC_MESSAGES || process.env.LC_ALL || process.env.LANG || "C"
+      env.LC_MONETARY = process.env.LC_MONETARY || process.env.LC_ALL || process.env.LANG || "C"
+      env.LC_NUMERIC = process.env.LC_NUMERIC || process.env.LC_ALL || process.env.LANG || "C"
+      env.LC_TIME = process.env.LC_TIME || process.env.LC_ALL || process.env.LANG || "C"
 
       // Check if database directory already exists and is initialized
       const pgVersionPath = `${dataDir}/PG_VERSION`
@@ -326,11 +337,17 @@ export async function startDatabaseProcessAsync(
 
           console.log(`[PostgreSQL] Initializing database with ${initdbPath}`)
           // Use spawn instead of execSync to prevent blocking
+          // Ensure locale is set consistently for initdb
+          const initEnv = {
+            ...env,
+            LC_ALL: env.LC_ALL || "C",
+            LANG: env.LANG || "C",
+          }
           const initProcess = spawn(
             initdbPath,
             ["-D", dataDir, "-U", "postgres"],
             {
-              env: { ...env, LC_ALL: "C" },
+              env: initEnv,
               stdio: "pipe",
             },
           )
