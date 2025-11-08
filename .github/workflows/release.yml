@@ -68,6 +68,12 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: List build artifacts
+        run: |
+          echo "Build artifacts:"
+          ls -la dist/ || echo "No dist directory found"
+          find dist -type f || echo "No files found"
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -79,12 +85,14 @@ jobs:
             dist/*.portable.exe
             dist/*.AppImage
             dist/*.deb
+          if-no-files-found: warn
           retention-days: 30
 
   create-release:
     name: Create GitHub Release
     needs: release
     runs-on: ubuntu-latest
+    if: always()
     permissions:
       contents: write
 
@@ -113,7 +121,13 @@ jobs:
       - name: Generate release notes
         id: release-notes
         run: |
-          npm run release:notes -- ${{ steps.version.outputs.version }} > release-notes.md || echo "# Release ${{ steps.version.outputs.version }}\n\n## Changes\n\nSee commit history for details." > release-notes.md
+          if npm run release:notes -- ${{ steps.version.outputs.version }} > release-notes.md 2>&1; then
+            echo "Release notes generated successfully"
+          else
+            echo "# Release ${{ steps.version.outputs.version }}\n\n## Changes\n\nSee commit history for details." > release-notes.md
+            echo "Using fallback release notes"
+          fi
+          cat release-notes.md
 
       - name: Save changelog
         run: |
@@ -125,17 +139,33 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist
+          pattern: '*-builds'
+          merge-multiple: true
+          continue-on-error: true
 
-      - name: Create Release
+      - name: List downloaded artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find dist -type f -name "*" || echo "No artifacts found"
+          ls -la dist/ || echo "dist directory not found"
+
+      - name: Create or Update Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ steps.version.outputs.version }}
           body_path: release-notes.md
           files: |
-            dist/**/*
+            dist/**/*.dmg
+            dist/**/*.zip
+            dist/**/*.exe
+            dist/**/*.AppImage
+            dist/**/*.deb
+            dist/**/*.portable.exe
           draft: false
           prerelease: false
+          fail_on_unmatched_files: false
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
