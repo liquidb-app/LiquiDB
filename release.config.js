@@ -43,6 +43,49 @@ module.exports = {
             { type: 'build', section: 'Build System', hidden: false },
             { type: 'ci', section: 'Continuous Integration', hidden: false }
           ]
+        },
+        writerOpts: {
+          transform: (commit, context) => {
+            // Handle invalid commit dates - normalize to valid ISO strings
+            const normalizeDate = (dateValue) => {
+              if (!dateValue) return new Date().toISOString();
+              
+              // Try to parse the date
+              let date;
+              if (typeof dateValue === 'string') {
+                date = new Date(dateValue);
+              } else if (dateValue instanceof Date) {
+                date = dateValue;
+              } else {
+                date = new Date(dateValue);
+              }
+              
+              // Check if date is valid
+              if (isNaN(date.getTime()) || !isFinite(date.getTime())) {
+                // Use current date as fallback for invalid dates
+                return new Date().toISOString();
+              }
+              
+              // Ensure date is within reasonable bounds (not before 1970 or too far in future)
+              const minDate = new Date('1970-01-01');
+              const maxDate = new Date('2100-01-01');
+              if (date < minDate || date > maxDate) {
+                return new Date().toISOString();
+              }
+              
+              return date.toISOString();
+            };
+            
+            // Normalize dates if they exist
+            if (commit.committerDate !== undefined) {
+              commit.committerDate = normalizeDate(commit.committerDate);
+            }
+            if (commit.authorDate !== undefined) {
+              commit.authorDate = normalizeDate(commit.authorDate);
+            }
+            
+            return commit;
+          }
         }
       }
     ],
