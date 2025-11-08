@@ -9,7 +9,6 @@ function findBrewPath(): string {
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate
   }
-  // Fallback to PATH resolution
   return "brew"
 }
 
