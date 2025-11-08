@@ -158,6 +158,7 @@
     "@semantic-release/github": "^9.2.6",
     "@semantic-release/npm": "^12.0.0",
     "@semantic-release/release-notes-generator": "^12.0.0",
+    "conventional-changelog-conventionalcommits": "^7.0.0",
     "@tailwindcss/postcss": "^4.1.9",
     "@types/archiver": "^7.0.0",
     "@types/auto-launch": "^5.0.5",
