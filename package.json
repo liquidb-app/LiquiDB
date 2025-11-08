@@ -2,7 +2,10 @@
   "name": "liquidb",
   "version": "1.0.2",
   "description": "Modern Database Management for macOS",
-  "author": "LiquidB",
+  "author": {
+    "name": "LiquidB",
+    "email": "support@liquidb.app"
+  },
   "license": "MIT",
   "homepage": "https://liquidb.app",
   "repository": {

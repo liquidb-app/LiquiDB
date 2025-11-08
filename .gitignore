@@ -13,7 +13,6 @@
 /out/
 
 # production
-/build
 /dist
 
 # electron
