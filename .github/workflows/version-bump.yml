@@ -142,7 +142,7 @@ jobs:
           else
             git add package.json
             git commit -m "Bump version to ${{ steps.bump-version.outputs.version }}"
-            git push origin main
+            git push https://x-access-token:${{ secrets.PAT }}@github.com/${{ github.repository }} HEAD:main
             echo "✅ Committed and pushed version change"
           fi
 
