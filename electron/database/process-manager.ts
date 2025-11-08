@@ -105,6 +105,15 @@ export async function startDatabaseProcessAsync(
       const dbRecord = databases.find((d) => d.id === id)
       let postgresPath, initdbPath
 
+      // Extract major version from config version (e.g., "16.1" -> "16", "15.4" -> "15")
+      const getMajorVersion = (version: string): string => {
+        if (!version) return ""
+        const parts = version.split('.')
+        return parts[0] // Return major version (e.g., "16" from "16.1")
+      }
+
+      const majorVersion = getMajorVersion(config.version || dbRecord?.version || "")
+
       if (dbRecord?.homebrewPath) {
         // Use stored Homebrew path
         postgresPath = `${dbRecord.homebrewPath}/postgres`
@@ -112,27 +121,27 @@ export async function startDatabaseProcessAsync(
         console.log(
           `[PostgreSQL] Using stored Homebrew path: ${dbRecord.homebrewPath}`,
         )
-      } else {
-        // Fallback to finding PostgreSQL binary path for the specific version (async)
-        // Try to find the specific version first
+      } else if (majorVersion) {
+        // Try to find the specific version from config
         try {
-          // Look for postgresql@16 specifically
+          console.log(`[PostgreSQL] Looking for PostgreSQL version ${majorVersion}...`)
           const { stdout: versionPath } = await execAsync(
-            "find /opt/homebrew -path '*/postgresql@16/*' -name postgres -type f 2>/dev/null | head -1",
+            `find /opt/homebrew -path "*/postgresql@${majorVersion}/*" -name postgres -type f 2>/dev/null | head -1`,
           )
           const { stdout: versionInitdbPath } = await execAsync(
-            "find /opt/homebrew -path '*/postgresql@16/*' -name initdb -type f 2>/dev/null | head -1",
+            `find /opt/homebrew -path "*/postgresql@${majorVersion}/*" -name initdb -type f 2>/dev/null | head -1`,
           )
 
           if (versionPath.trim() && versionInitdbPath.trim()) {
             postgresPath = versionPath.trim()
             initdbPath = versionInitdbPath.trim()
-            console.log(`[PostgreSQL] Found PostgreSQL 16 at ${postgresPath}`)
+            console.log(`[PostgreSQL] Found PostgreSQL ${majorVersion} at ${postgresPath}`)
           } else {
-            throw new Error("PostgreSQL 16 not found")
+            throw new Error(`PostgreSQL ${majorVersion} not found`)
           }
         } catch (_e: unknown) {
           // Fallback to any PostgreSQL version
+          console.log(`[PostgreSQL] Version ${majorVersion} not found, trying any version...`)
           try {
             const { stdout: postgresOut } = await execAsync("which postgres")
             const { stdout: initdbOut } = await execAsync("which initdb")
@@ -155,6 +164,32 @@ export async function startDatabaseProcessAsync(
                 "PostgreSQL not found. Please ensure it's installed via Homebrew.",
               )
             }
+          }
+        }
+      } else {
+        // No version specified, try to find any PostgreSQL version
+        console.log(`[PostgreSQL] No version specified, trying to find any PostgreSQL version...`)
+        try {
+          const { stdout: postgresOut } = await execAsync("which postgres")
+          const { stdout: initdbOut } = await execAsync("which initdb")
+          postgresPath = postgresOut.trim()
+          initdbPath = initdbOut.trim()
+        } catch (_e2: unknown) {
+          // Try Homebrew paths
+          try {
+            const { stdout: postgresOut } = await execAsync(
+              "find /opt/homebrew -name postgres -type f 2>/dev/null | head -1",
+            )
+            const { stdout: initdbOut } = await execAsync(
+              "find /opt/homebrew -name initdb -type f 2>/dev/null | head -1",
+            )
+            postgresPath = postgresOut.trim()
+            initdbPath = initdbOut.trim()
+          } catch (_e3: unknown) {
+            console.error("PostgreSQL not found in PATH or Homebrew")
+            throw new Error(
+              "PostgreSQL not found. Please ensure it's installed via Homebrew.",
+            )
           }
         }
       }
@@ -393,12 +428,58 @@ export async function startDatabaseProcessAsync(
       const databases = storage.loadDatabases(app)
       const dbRecord = databases.find((d) => d.id === id)
 
+      // Extract major version from config version (e.g., "8.0.35" -> "8.0")
+      const getMajorVersion = (version: string): string => {
+        if (!version) return ""
+        const parts = version.split('.')
+        if (parts.length >= 2) {
+          return `${parts[0]}.${parts[1]}` // Return major.minor (e.g., "8.0" from "8.0.35")
+        }
+        return parts[0] // Return major version if no minor version
+      }
+
+      const majorVersion = getMajorVersion(config.version || dbRecord?.version || "")
+
       if (dbRecord?.homebrewPath) {
         // Use stored Homebrew path
         mysqldPath = `${dbRecord.homebrewPath}/mysqld`
         console.log(`[MySQL] Using stored Homebrew path: ${dbRecord.homebrewPath}`)
+      } else if (majorVersion) {
+        // Try to find the specific version from config
+        try {
+          console.log(`[MySQL] Looking for MySQL version ${majorVersion}...`)
+          const versionPath = execSync(
+            `find /opt/homebrew -path "*/mysql@${majorVersion}/*" -name mysqld -type f 2>/dev/null | head -1`,
+            { encoding: "utf8" },
+          ).trim()
+          if (versionPath) {
+            mysqldPath = versionPath
+            console.log(`[MySQL] Found MySQL ${majorVersion} at ${mysqldPath}`)
+          } else {
+            throw new Error(`MySQL ${majorVersion} not found`)
+          }
+        } catch (_e) {
+          // Fallback to finding MySQL binary path
+          console.log(`[MySQL] Version ${majorVersion} not found, trying any version...`)
+          try {
+            mysqldPath = execSync("which mysqld", { encoding: "utf8" }).trim()
+          } catch (_e2) {
+            try {
+              mysqldPath = execSync(
+                "find /opt/homebrew -name mysqld -type f 2>/dev/null | head -1",
+                { encoding: "utf8" },
+              ).trim()
+            } catch (_e3) {
+              console.error("MySQL not found in PATH or Homebrew")
+              throw new Error(
+                "MySQL not found. Please ensure it's installed via Homebrew.",
+              )
+            }
+          }
+        }
       } else {
-        // Fallback to finding MySQL binary path
+        // No version specified, try to find any MySQL version
+        console.log(`[MySQL] No version specified, trying to find any MySQL version...`)
         try {
           mysqldPath = execSync("which mysqld", { encoding: "utf8" }).trim()
         } catch (_e) {
@@ -636,14 +717,60 @@ export async function startDatabaseProcessAsync(
       const dbRecord = databases.find((d) => d.id === id)
       let mongodPath: string
 
+      // Extract major version from config version (e.g., "8.0.1" -> "8.0")
+      const getMajorVersion = (version: string): string => {
+        if (!version) return ""
+        const parts = version.split('.')
+        if (parts.length >= 2) {
+          return `${parts[0]}.${parts[1]}` // Return major.minor (e.g., "8.0" from "8.0.1")
+        }
+        return parts[0] // Return major version if no minor version
+      }
+
+      const majorVersion = getMajorVersion(config.version || dbRecord?.version || "")
+
       if (dbRecord?.homebrewPath) {
         // Use stored Homebrew path
         mongodPath = `${dbRecord.homebrewPath}/mongod`
         console.log(
           `[MongoDB] Using stored Homebrew path: ${dbRecord.homebrewPath}`,
         )
+      } else if (majorVersion) {
+        // Try to find the specific version from config
+        try {
+          console.log(`[MongoDB] Looking for MongoDB version ${majorVersion}...`)
+          const versionPath = execSync(
+            `find /opt/homebrew -path "*/mongodb-community@${majorVersion}/*" -name mongod -type f 2>/dev/null | head -1`,
+            { encoding: "utf8" },
+          ).trim()
+          if (versionPath) {
+            mongodPath = versionPath
+            console.log(`[MongoDB] Found MongoDB ${majorVersion} at ${mongodPath}`)
+          } else {
+            throw new Error(`MongoDB ${majorVersion} not found`)
+          }
+        } catch (_e) {
+          // Fallback to finding MongoDB binary path
+          console.log(`[MongoDB] Version ${majorVersion} not found, trying any version...`)
+          try {
+            mongodPath = execSync("which mongod", { encoding: "utf8" }).trim()
+          } catch (_e2) {
+            try {
+              mongodPath = execSync(
+                "find /opt/homebrew -name mongod -type f 2>/dev/null | head -1",
+                { encoding: "utf8" },
+              ).trim()
+            } catch (_e3) {
+              console.error("MongoDB not found in PATH or Homebrew")
+              throw new Error(
+                "MongoDB not found. Please ensure it's installed via Homebrew.",
+              )
+            }
+          }
+        }
       } else {
-        // Fallback to finding MongoDB binary path
+        // No version specified, try to find any MongoDB version
+        console.log(`[MongoDB] No version specified, trying to find any MongoDB version...`)
         try {
           mongodPath = execSync("which mongod", { encoding: "utf8" }).trim()
         } catch (_e) {
@@ -758,12 +885,63 @@ export async function startDatabaseProcessAsync(
       const dbRecord = databases.find((d) => d.id === id)
       let redisPath
 
+      // Extract major version from config version (e.g., "7.2.1" -> "7.2")
+      const getMajorVersion = (version: string): string => {
+        if (!version) return ""
+        const parts = version.split('.')
+        if (parts.length >= 2) {
+          return `${parts[0]}.${parts[1]}` // Return major.minor (e.g., "7.2" from "7.2.1")
+        }
+        return parts[0] // Return major version if no minor version
+      }
+
+      const majorVersion = getMajorVersion(config.version || dbRecord?.version || "")
+
       if (dbRecord?.homebrewPath) {
         // Use stored Homebrew path
         redisPath = `${dbRecord.homebrewPath}/redis-server`
         console.log(`[Redis] Using stored Homebrew path: ${dbRecord.homebrewPath}`)
+      } else if (majorVersion) {
+        // Try to find the specific version from config
+        // Note: Redis doesn't use versioned formulas like postgresql@16, but we can try
+        try {
+          console.log(`[Redis] Looking for Redis version ${majorVersion}...`)
+          // Redis might be installed as redis@7.2 or just redis
+          const versionPath = execSync(
+            `find /opt/homebrew -path "*/redis@${majorVersion}/*" -name redis-server -type f 2>/dev/null | head -1`,
+            { encoding: "utf8" },
+          ).trim()
+          if (versionPath) {
+            redisPath = versionPath
+            console.log(`[Redis] Found Redis ${majorVersion} at ${redisPath}`)
+          } else {
+            // Redis is usually installed as just "redis" without version suffix
+            throw new Error(`Redis ${majorVersion} not found, trying default`)
+          }
+        } catch (_e) {
+          // Fallback to finding Redis binary path
+          console.log(`[Redis] Version ${majorVersion} not found, trying any version...`)
+          try {
+            redisPath = execSync("which redis-server", {
+              encoding: "utf8",
+            }).trim()
+          } catch (_e2) {
+            try {
+              redisPath = execSync(
+                "find /opt/homebrew -name redis-server -type f 2>/dev/null | head -1",
+                { encoding: "utf8" },
+              ).trim()
+            } catch (_e3) {
+              console.error("Redis not found in PATH or Homebrew")
+              throw new Error(
+                "Redis not found. Please ensure it's installed via Homebrew.",
+              )
+            }
+          }
+        }
       } else {
-        // Fallback to finding Redis binary path
+        // No version specified, try to find any Redis version
+        console.log(`[Redis] No version specified, trying to find any Redis version...`)
         try {
           redisPath = execSync("which redis-server", {
             encoding: "utf8",

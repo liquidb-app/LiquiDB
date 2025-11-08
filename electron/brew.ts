@@ -218,7 +218,13 @@ export async function installDatabase({ dbType, version, onStdout, onStderr }: I
   
   if (dbType === "mongodb") {
     console.log("[Homebrew] Adding MongoDB tap...")
-    await ensureTap("mongodb/brew")
+    try {
+      await ensureTap("mongodb/brew")
+      console.log("[Homebrew] MongoDB tap ensured")
+    } catch (tapError: any) {
+      console.error(`[Homebrew] Error ensuring MongoDB tap:`, tapError.message)
+      // Continue anyway - tap might already exist
+    }
   }
   
   const formula = formulaFor(dbType, version)
@@ -227,44 +233,64 @@ export async function installDatabase({ dbType, version, onStdout, onStderr }: I
   }
   console.log(`[Homebrew] Installing formula: ${formula}`)
   
+  // For MongoDB, use the full tap path
+  const fullFormula = dbType === "mongodb" ? `mongodb/brew/${formula}` : formula
+  
   // Check if already installed first
   try {
-    const { stdout } = await execBrew(["list", formula])
-    if (stdout.includes(formula)) {
-      console.log(`[Homebrew] ${formula} is already installed, skipping installation`)
+    const { stdout } = await execBrew(["list", fullFormula])
+    if (stdout.includes(formula) || stdout.includes(fullFormula)) {
+      console.log(`[Homebrew] ${fullFormula} is already installed, skipping installation`)
       return { 
-        stdout: `${formula} already installed`, 
+        stdout: `${fullFormula} already installed`, 
         stderr: "",
         alreadyInstalled: true 
       }
     }
   } catch (_e) {
-    console.log(`[Homebrew] ${formula} not found in list, will install`)
+    console.log(`[Homebrew] ${fullFormula} not found in list, will install`)
     // Not installed, continue with installation
   }
   
   // Use --formula flag to explicitly install as a formula (not cask)
   // This prevents Homebrew from trying to migrate casks to formulae
-  const result = await execBrew(["install", "--formula", formula], { 
-    onStdout: (data: string) => {
-      console.log(`[Homebrew Install] ${data.trim()}`)
-      onStdout?.(data)
-    },
-    onStderr: (data: string) => {
-      console.log(`[Homebrew Install Error] ${data.trim()}`)
-      onStderr?.(data)
+  try {
+    const result = await execBrew(["install", "--formula", fullFormula], { 
+      onStdout: (data: string) => {
+        console.log(`[Homebrew Install] ${data.trim()}`)
+        onStdout?.(data)
+      },
+      onStderr: (data: string) => {
+        console.log(`[Homebrew Install Error] ${data.trim()}`)
+        onStderr?.(data)
+      }
+    })
+    
+    // Check if the installation was successful or if it was already installed
+    if (result.stderr && result.stderr.includes("already installed")) {
+      console.log(`[Homebrew] ${fullFormula} was already installed (detected from stderr)`)
+      return {
+        ...result,
+        alreadyInstalled: true
+      }
     }
-  })
-  
-  // Check if the installation was successful or if it was already installed
-  if (result.stderr && result.stderr.includes("already installed")) {
-    console.log(`[Homebrew] ${formula} was already installed (detected from stderr)`)
-    return {
-      ...result,
-      alreadyInstalled: true
+    
+    return result
+  } catch (installError: any) {
+    // Provide more detailed error message
+    let errorMessage = installError.message || `Failed to install ${fullFormula}`
+    
+    // Extract more details from stderr if available
+    if (installError.stderr) {
+      const stderrLines = installError.stderr.split('\n').filter((line: string) => line.trim())
+      const lastErrorLine = stderrLines[stderrLines.length - 1]
+      if (lastErrorLine && lastErrorLine.length > 0) {
+        errorMessage = lastErrorLine
+      }
     }
+    
+    console.error(`[Homebrew] Installation failed for ${fullFormula}:`, errorMessage)
+    throw new Error(errorMessage)
   }
-  
-  return result
 }
 

@@ -702,12 +702,31 @@ export function AddDatabaseDialog({ open, onOpenChange, onAdd }: AddDatabaseDial
         setForceUpdate(prev => prev + 1)
         console.log("Installation process completed, UI should update")
       }, 500)
-    } catch (_error) {
+    } catch (error: any) {
       setInstalling(false)
       setInstallMsg("")
       setInstallProgress(0)
       setCanStart(false)
-      alert("Failed to install the selected database via Homebrew.")
+      
+      // Extract meaningful error message
+      let errorMessage = "Failed to install the selected database via Homebrew."
+      if (error?.message) {
+        errorMessage = error.message
+      } else if (typeof error === 'string' && error) {
+        errorMessage = error
+      }
+      
+      // Provide more specific error messages for common issues
+      if (errorMessage.includes("tap") || errorMessage.includes("mongodb/brew")) {
+        errorMessage = `MongoDB tap installation failed. Please ensure Homebrew is properly configured. Error: ${errorMessage}`
+      } else if (errorMessage.includes("formula") || errorMessage.includes("not found")) {
+        errorMessage = `Database formula not found. The version ${version} may not be available. Error: ${errorMessage}`
+      } else if (errorMessage.includes("permission") || errorMessage.includes("Permission")) {
+        errorMessage = `Permission denied. Please check your system permissions. Error: ${errorMessage}`
+      }
+      
+      console.error(`[Install] Failed to install ${selectedType} ${version}:`, error)
+      alert(errorMessage)
       return
     }
   }, [name, port, selectedType, version, username, password, selectedIcon, autoStart, availableVersions, onAdd, validateName, validatePort, handleReset])
