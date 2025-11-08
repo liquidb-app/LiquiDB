@@ -27,4 +27,3 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "electron-builder"
         update-types: ["version-update:semver-major"]
-
