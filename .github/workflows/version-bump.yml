@@ -138,9 +138,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          git add package.json
-          git commit -m "Bump version to ${{ steps.bump-version.outputs.version }}" || echo "No changes to commit"
-          git push origin main || echo "Nothing to push"
+          # Check if there are changes to commit
+          if git diff --quiet package.json; then
+            echo "No changes to commit in package.json"
+          else
+            git add package.json
+            git commit -m "Bump version to ${{ steps.bump-version.outputs.version }}"
+            git push origin main
+            echo "✅ Committed and pushed version change"
+          fi
 
       - name: Create and push tag
         if: steps.bump-version.outputs.version != '' && steps.check-tag.outputs.exists == 'false'
