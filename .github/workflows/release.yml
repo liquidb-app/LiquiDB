@@ -64,24 +64,7 @@ jobs:
           fi
 
       - name: Build Electron app
-        run: |
-          npm run electron:compile
-          npm run preload:build
-          npm run helper:build
-          npm run build
-
-      - name: Build for platform
-        shell: bash
-        run: |
-          set -e
-          if [ "${{ matrix.platform }}" == "mac" ]; then
-            # Build universal macOS binary (arm64 + x64)
-            electron-builder --mac --publish never || (echo "macOS universal build failed" && exit 1)
-          elif [ "${{ matrix.platform }}" == "win" ]; then
-            electron-builder --win --publish never || (echo "Windows build failed" && exit 1)
-          else
-            electron-builder --linux --publish never || (echo "Linux build failed" && exit 1)
-          fi
+        run: npm run electron:build:${{ matrix.platform }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
