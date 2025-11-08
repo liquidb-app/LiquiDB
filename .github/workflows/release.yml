@@ -70,7 +70,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-artifacts
-          path: dist/
+          path: |
+            dist/*.exe
+            dist/*.nsis.*
+            dist/*.blockmap
+            dist/win-universal/**
+          if-no-files-found: warn
           retention-days: 30
 
       - name: Upload Linux artifacts
@@ -78,7 +83,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-artifacts
-          path: dist/
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.blockmap
+            dist/linux-universal/**
+          if-no-files-found: warn
           retention-days: 30
 
   publish:
