@@ -1,12 +1,10 @@
 import { app } from "electron"
 
-// Import core modules
 import sharedState from "./core/shared-state"
 import { initializeAppLock, initializeAutoLauncher, setupAppLifecycleHandlers, setupProcessSignalHandlers } from "./core/app-init"
 import { handleAppReady, registerDashboardReadyHandler } from "./core/app-lifecycle"
 import { registerAppProtocol } from "./window/window-manager"
 
-// Import IPC handlers
 import { registerAutoLaunchHandlers } from "./ipc/auto-launch-handlers"
 import { registerDatabaseHandlers } from "./ipc/database-handlers"
 import { registerPortHandlers } from "./ipc/port-handlers"
@@ -19,20 +17,15 @@ import { registerSystemHandlers } from "./ipc/system-handlers"
 import { registerUpdateHandlers } from "./ipc/update-handlers"
 import { initializeAutoUpdater } from "./auto-update"
 
-// Initialize app instance lock handling
 initializeAppLock()
 
-// Initialize auto-launcher
 const autoLauncher = initializeAutoLauncher()
 sharedState.setAutoLauncher(autoLauncher)
 
-// Setup app lifecycle event handlers
 setupAppLifecycleHandlers(app)
 
-// Setup process signal handlers
 setupProcessSignalHandlers(app)
 
-// Register custom protocol scheme BEFORE app is ready (required for registerSchemesAsPrivileged)
 if (!process.argv.includes('--mcp')) {
   registerAppProtocol(app)
 }
