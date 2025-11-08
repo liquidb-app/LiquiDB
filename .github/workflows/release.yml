@@ -67,11 +67,11 @@ jobs:
         run: |
           set -e
           if [ "${{ matrix.platform }}" == "mac" ]; then
-            npm run electron:build:mac || (echo "macOS build failed" && exit 1)
+            electron-builder --mac --publish never || (echo "macOS build failed" && exit 1)
           elif [ "${{ matrix.platform }}" == "win" ]; then
-            npm run electron:build:win || (echo "Windows build failed" && exit 1)
+            electron-builder --win --publish never || (echo "Windows build failed" && exit 1)
           else
-            npm run electron:build:linux || (echo "Linux build failed" && exit 1)
+            electron-builder --linux --publish never || (echo "Linux build failed" && exit 1)
           fi
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
