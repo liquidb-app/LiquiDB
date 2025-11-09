@@ -202,8 +202,16 @@ export function SystemStats() {
 
 
   useEffect(() => {
+    let resizeTimeout: NodeJS.Timeout | null = null
+    
     const handleResize = () => {
-      setWindowWidth(window.innerWidth)
+      // Debounce resize to prevent excessive state updates during rapid resizing
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout)
+      }
+      resizeTimeout = setTimeout(() => {
+        setWindowWidth(window.innerWidth)
+      }, 100)
     }
 
     if (typeof window !== 'undefined') {
@@ -212,6 +220,9 @@ export function SystemStats() {
     }
 
     return () => {
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout)
+      }
       if (typeof window !== 'undefined') {
         window.removeEventListener('resize', handleResize)
       }
