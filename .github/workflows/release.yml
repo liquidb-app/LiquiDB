@@ -295,14 +295,16 @@ jobs:
             
             # Verify the configuration
             echo "=== Git Configuration Verification ==="
-            git config --global --get user.name
-            git config --global --get user.email
-            git remote get-url origin | sed "s|${GITHUB_TOKEN}|***|g"
+            echo "Git author (from env): $GIT_AUTHOR_NAME <$GIT_AUTHOR_EMAIL>"
+            echo "Git committer (from env): $GIT_COMMITTER_NAME <$GIT_COMMITTER_EMAIL>"
+            echo "Git signing key: $(git config --global --get user.signingkey || echo 'not set')"
+            git remote get-url origin | sed "s|${GITHUB_TOKEN}|***|g" || echo "Could not get remote URL"
           fi
           
-          echo "=== Git Configuration (for semantic-release commits) ==="
-          echo "User: $GIT_NAME <$GIT_EMAIL>"
-          echo "This ensures commits are made by $GIT_NAME, not semantic-release-bot"
+          echo "=== Git Configuration (for automatic versioning commits) ==="
+          echo "Author: $GIT_AUTHOR_NAME <$GIT_AUTHOR_EMAIL>"
+          echo "Committer: $GIT_COMMITTER_NAME <$GIT_COMMITTER_EMAIL>"
+          echo "This ensures commits are made by $GIT_AUTHOR_NAME (author) and $GIT_COMMITTER_NAME (committer)"
           
           if [ -n "$GPG_PRIVATE_KEY" ] && [ "$GPG_PRIVATE_KEY" != "" ] && [ -n "$GPG_KEY_ID" ]; then
             # Configure GPG first
@@ -499,6 +501,8 @@ jobs:
           # Commit changes
           echo "=== Committing version bump ==="
           git add package.json CHANGELOG.md
+          # Use environment variables for author/committer (these are already exported)
+          # GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL are set
           git commit -m "chore(release): ${NEW_VERSION} [skip ci]"
           
           # Create git tag
