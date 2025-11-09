@@ -1,3 +1,7 @@
+## 🎉 Release v${VERSION}
+
+---
+
 ## 🎉 What's New
 
 <!-- Auto-populated from semantic-release notes -->
