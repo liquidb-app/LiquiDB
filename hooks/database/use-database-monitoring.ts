@@ -541,6 +541,19 @@ export const useDatabaseMonitoring = (
             })
           }
           
+          // Set up databases-updated listener
+          if (window.electron?.onDatabasesUpdated) {
+            log.debug(`Setting up databases updated listener`)
+            window.electron.onDatabasesUpdated(() => {
+              if (!isMounted) return
+              
+              log.debug(`Databases updated event received, reloading databases`)
+              
+              // Reload databases from file
+              load()
+            })
+          }
+          
           // Set up auto-start event listeners (remove existing listeners first to prevent leaks)
           if (window.electron?.removeAllListeners) {
             window.electron.removeAllListeners('auto-start-port-conflicts')
@@ -638,6 +651,7 @@ export const useDatabaseMonitoring = (
         
         if (window.electron?.removeAllListeners) {
           window.electron.removeAllListeners('database-status-changed')
+          window.electron.removeDatabasesUpdatedListener?.()
           window.electron.removeAllListeners('auto-start-port-conflicts')
           window.electron.removeAllListeners('auto-start-completed')
         }

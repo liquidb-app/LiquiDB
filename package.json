@@ -70,7 +70,8 @@
       "build/**",
       "out/**",
       "helper/**",
-      "helper-dist/**"
+      "helper-dist/**",
+      "public/**"
     ],
     "directories": {
       "buildResources": "build"
@@ -99,7 +100,7 @@
         }
       ],
       "identity": null,
-      "icon": "build/icon.icns",
+      "icon": "build/icon.png",
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist"
@@ -108,7 +109,8 @@
       "target": [
         "nsis",
         "portable"
-      ]
+      ],
+      "icon": "build/icon.png"
     },
     "linux": {
       "target": [
@@ -116,11 +118,11 @@
         "deb"
       ],
       "category": "Development",
-      "vendor": "LiquidB"
+      "vendor": "LiquidB",
+      "icon": "build/icon.png"
     }
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.21.0",
     "@radix-ui/react-alert-dialog": "1.1.4",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "2.1.16",

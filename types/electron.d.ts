@@ -13,8 +13,6 @@ declare global {
       startHelper?: () => Promise<{ success: boolean; error?: string }>
       startHelperOnDemand?: () => Promise<{ success: boolean; error?: string }>
       cleanupHelper?: () => Promise<{ success: boolean; data?: { method?: string; cleanedCount?: number; timestamp?: number }; error?: string }>
-      getMCPStatus?: () => Promise<{ success: boolean; data?: { running: boolean; name: string }; error?: string }>
-      getMCPConnectionInfo?: () => Promise<{ success: boolean; data?: { name: string; command: string; args: string[]; description: string; isDevelopment: boolean }; error?: string }>
       getBannedPorts?: () => Promise<{ success: boolean; data?: number[]; error?: string }>
       setBannedPorts?: (ports: number[]) => Promise<{ success: boolean; error?: string }>
       getSystemStats?: () => Promise<{
@@ -79,6 +77,8 @@ declare global {
       exportDatabase?: (databaseConfig: DatabaseContainer) => Promise<{ success: boolean; canceled?: boolean; error?: string }>
       onDatabaseStatusChanged?: <T extends { id: string; status: DatabaseStatus | string; pid?: number | null; exitCode?: number | null; error?: string; ready?: boolean }>(callback: (data: T) => void) => void
       removeDatabaseStatusListener?: () => void
+      onDatabasesUpdated?: (callback: () => void) => void
+      removeDatabasesUpdatedListener?: () => void
       removeAllListeners?: (channel: string) => void
       onAutoStartPortConflicts?: (callback: (event: unknown, data: { conflicts: Array<{ databaseName: string; originalPort: number; newPort: number; conflictingDatabase: string }> }) => void) => void
       onAutoStartCompleted?: (callback: (event: unknown, data: { successful: number; failed: number; portConflicts: number }) => void) => void

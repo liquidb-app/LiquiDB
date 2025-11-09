@@ -27,6 +27,12 @@ contextBridge.exposeInMainWorld("electron", {
   removeDatabaseStatusListener: () => {
     ipcRenderer.removeAllListeners('database-status-changed')
   },
+  onDatabasesUpdated: (callback: () => void) => {
+    ipcRenderer.on('databases-updated', () => callback())
+  },
+  removeDatabasesUpdatedListener: () => {
+    ipcRenderer.removeAllListeners('databases-updated')
+  },
   removeAllListeners: (channel: string) => {
     ipcRenderer.removeAllListeners(channel)
   },
@@ -68,9 +74,6 @@ contextBridge.exposeInMainWorld("electron", {
   getHelperStatus: () => ipcRenderer.invoke("helper:status"),
   getHelperHealth: () => ipcRenderer.invoke("helper:health"),
   
-  // MCP server methods
-  getMCPStatus: () => ipcRenderer.invoke("mcp:status"),
-  getMCPConnectionInfo: () => ipcRenderer.invoke("mcp:connection-info"),
   installHelper: () => ipcRenderer.invoke("helper:install"),
   startHelper: () => ipcRenderer.invoke("helper:start"),
   startHelperOnDemand: () => ipcRenderer.invoke("helper:start-on-demand"),

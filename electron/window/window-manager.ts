@@ -95,7 +95,6 @@ export function validateNextJsStaticExport(outDir: string): ValidationResult {
  */
 export function registerAppProtocol(app: App): void {
   // Register custom protocol scheme BEFORE app is ready (required for registerSchemesAsPrivileged)
-  if (!process.argv.includes('--mcp')) {
     protocol.registerSchemesAsPrivileged([
       {
         scheme: 'app',
@@ -109,7 +108,6 @@ export function registerAppProtocol(app: App): void {
       }
     ])
     log.info("[Protocol] Registered app:// scheme as privileged")
-  }
 }
 
 /**
@@ -117,7 +115,6 @@ export function registerAppProtocol(app: App): void {
  * @param {object} app - Electron app instance
  */
 export function registerAppProtocolHandler(app: App): void {
-  if (!process.argv.includes('--mcp')) {
     const isDev = !app.isPackaged
     const useDevServer = isDev && process.env.USE_DEV_SERVER === 'true'
     
@@ -250,7 +247,6 @@ export function registerAppProtocolHandler(app: App): void {
       })
       
       log.info("[Protocol] Registered app:// protocol handler")
-    }
   }
 }
 
@@ -266,29 +262,29 @@ export function createWindow(app: App): BrowserWindow {
   
   if (isDev) {
     // Development: use relative path from electron directory
-    iconPath = path.join(__dirname, '..', 'public', 'icon.png')
+    iconPath = path.join(__dirname, '..', 'public', 'liquiDB.png')
   } else {
     // Production: check multiple possible locations
     const appPath = app.getAppPath()
     
     // Try public folder (should be accessible)
-    let publicPath = path.join(appPath, 'public', 'icon.png')
+    let publicPath = path.join(appPath, 'public', 'liquiDB.png')
     
     // Check if appPath points to app.asar
     if (appPath.endsWith('.asar')) {
       // In asar, public folder should be unpacked or accessible
       // Try unpacked location first
       const unpackedPath = appPath.replace('.asar', '.asar.unpacked')
-      publicPath = path.join(unpackedPath, 'public', 'icon.png')
+      publicPath = path.join(unpackedPath, 'public', 'liquiDB.png')
       
       if (!fs.existsSync(publicPath)) {
         // Fallback to asar location
-        publicPath = path.join(appPath, 'public', 'icon.png')
+        publicPath = path.join(appPath, 'public', 'liquiDB.png')
       }
     }
     
-    // Also check if icon.png is in the out directory (copied from public)
-    const outPath = path.join(appPath, 'out', 'icon.png')
+    // Also check if liquiDB.png is in the out directory (copied from public)
+    const outPath = path.join(appPath, 'out', 'liquiDB.png')
     
     if (fs.existsSync(publicPath)) {
       iconPath = publicPath
@@ -296,9 +292,9 @@ export function createWindow(app: App): BrowserWindow {
       iconPath = outPath
     } else {
       // Fallback: try relative path (for development builds)
-      iconPath = path.join(__dirname, '..', 'public', 'icon.png')
+      iconPath = path.join(__dirname, '..', 'public', 'liquiDB.png')
       if (!fs.existsSync(iconPath)) {
-        log.warn(`[Window] icon.png not found in expected locations`)
+        log.warn(`[Window] liquiDB.png not found in expected locations`)
         iconPath = null
       }
     }
