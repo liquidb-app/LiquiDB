@@ -194,13 +194,15 @@ jobs:
             fi
           fi
 
-      - name: Setup GPG for semantic-release
+      - name: Setup GPG and run semantic-release
+        id: semantic
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           GPG_KEY_ID: ${{ steps.verify_gpg.outputs.gpg_key_id_normalized != '' && steps.verify_gpg.outputs.gpg_key_id_normalized || secrets.GPG_KEY_ID }}
           GIT_USER_NAME: ${{ secrets.GIT_USER_NAME }}
           GIT_USER_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
+          GITHUB_TOKEN: ${{ secrets.PAT }}
         run: |
           if [ -n "$GPG_PRIVATE_KEY" ] && [ "$GPG_PRIVATE_KEY" != "" ] && [ -n "$GPG_KEY_ID" ]; then
             # Import GPG key
@@ -231,22 +233,38 @@ jobs:
             
             # Verify the key is accessible
             gpg --list-secret-keys --keyid-format LONG
-            echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --default-key "$GPG_KEY_ID" > /dev/null 2>&1 && echo "✓ GPG signing verified" || echo "⚠ GPG signing verification failed"
+            # Test signing (with or without passphrase)
+            if [ -n "$GPG_PASSPHRASE" ] && [ "$GPG_PASSPHRASE" != "" ]; then
+              echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --default-key "$GPG_KEY_ID" > /dev/null 2>&1 && echo "✓ GPG signing verified" || echo "⚠ GPG signing verification failed"
+            else
+              echo "test" | gpg --clearsign --pinentry-mode loopback --default-key "$GPG_KEY_ID" > /dev/null 2>&1 && echo "✓ GPG signing verified (no passphrase)" || echo "⚠ GPG signing verification failed"
+            fi
           fi
-
-      - name: Run semantic-release
-        id: semantic
-        uses: cycjimmy/semantic-release-action@v4
-        with:
-          semantic_version: 23
-          extra_plugins: |
-            @semantic-release/changelog@6.0.3
-            @semantic-release/git@10.0.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.PAT }}
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          GPG_KEY_ID: ${{ steps.verify_gpg.outputs.gpg_key_id_normalized != '' && steps.verify_gpg.outputs.gpg_key_id_normalized || secrets.GPG_KEY_ID }}
+          
+          # Get the latest tag before running semantic-release
+          LATEST_TAG_BEFORE=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          # Run semantic-release
+          npx semantic-release@23 --extends ./release.config.js
+          EXIT_CODE=$?
+          
+          # Get the latest tag after running semantic-release
+          LATEST_TAG_AFTER=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          # Check if a new release was published
+          if [ "$LATEST_TAG_BEFORE" != "$LATEST_TAG_AFTER" ] && [ -n "$LATEST_TAG_AFTER" ]; then
+            echo "new_release_published=true" >> $GITHUB_OUTPUT
+            # Extract version from tag (remove 'v' prefix)
+            VERSION=$(echo "$LATEST_TAG_AFTER" | sed 's/^v//')
+            echo "new_release_version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Published new release: $VERSION"
+          else
+            echo "new_release_published=false" >> $GITHUB_OUTPUT
+            echo "No new release published"
+          fi
+          
+          # Exit with the semantic-release exit code
+          exit $EXIT_CODE
 
   build:
     needs: version
