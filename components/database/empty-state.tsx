@@ -3,7 +3,7 @@
 import React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { BoxesIcon } from "@/components/ui/boxes"
+import { Logo } from "@/components/ui/logo"
 import { FileTextIcon } from "@/components/ui/file-text"
 import { PlusIcon } from "@/components/ui/plus"
 import { notifyInfo } from "@/lib/notifications"
@@ -45,7 +45,7 @@ export function EmptyState({
   return (
     <Card className="border-dashed dotted-grid min-h-[320px] items-center justify-center !gap-0">
       <CardContent className="flex flex-col items-center justify-center w-full py-8">
-        <BoxesIcon size={48} className="text-muted-foreground mb-3" />
+        <Logo size={48} className="mb-3 opacity-80" />
         <h3 className="text-base font-semibold mb-1">No databases yet</h3>
         <p className="text-sm text-muted-foreground mb-4 text-center max-w-md text-pretty">
           Get started by adding your first database container.
