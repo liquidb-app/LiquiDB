@@ -8,7 +8,7 @@ import storage from "../storage"
  * Register file/image IPC handlers
  */
 export function registerFileHandlers(app: App): void {
-  if (process.argv.includes('--mcp') || !ipcMain) {
+  if (!ipcMain) {
     return
   }
 
