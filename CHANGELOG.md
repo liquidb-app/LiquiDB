@@ -1,3 +1,8 @@
+## [1.5.5](https://github.com/alexg-sh/LiquiDB/compare/v1.5.4...v1.5.5) (2025-11-09)
+
+- fix: test ([f467f0a](https://github.com/alexg-sh/LiquiDB/commit/f467f0a1cb5fbc82214dd10fc29127ccf25092da))
+- ci: remove skip ci flag from release commit ([0340cec](https://github.com/alexg-sh/LiquiDB/commit/0340ceca4d52d2b1da041326c1d150e8a1f1f3c4))
+
 ## [1.5.4](https://github.com/alexg-sh/LiquiDB/compare/v1.5.3...v1.5.4) (2025-11-09)
 
 - fix: removed github actions commiter (pmo) ([43d71f1](https://github.com/alexg-sh/LiquiDB/commit/43d71f1344a29ff29e2a136af2f6d83087ee47fe))
