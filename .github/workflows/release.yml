@@ -41,6 +41,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Import GPG key
+        if: secrets.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" || true
+          gpg --list-secret-keys --keyid-format LONG
+
+      - name: Configure Git for signing
+        if: secrets.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+        run: |
+          git config --global user.signingkey "$GPG_KEY_ID"
+          git config --global commit.gpgsign true
+          git config --global gpg.program gpg
+
       - name: Run semantic-release
         id: semantic
         uses: cycjimmy/semantic-release-action@v4
