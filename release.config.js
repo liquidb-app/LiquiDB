@@ -76,15 +76,17 @@ module.exports = {
               return date.toISOString();
             };
             
-            // Normalize dates if they exist
-            if (commit.committerDate !== undefined) {
-              commit.committerDate = normalizeDate(commit.committerDate);
+            // Normalize dates if they exist - return a new object instead of modifying the immutable commit
+            const normalizedCommit = { ...commit };
+            
+            if (normalizedCommit.committerDate !== undefined) {
+              normalizedCommit.committerDate = normalizeDate(normalizedCommit.committerDate);
             }
-            if (commit.authorDate !== undefined) {
-              commit.authorDate = normalizeDate(commit.authorDate);
+            if (normalizedCommit.authorDate !== undefined) {
+              normalizedCommit.authorDate = normalizeDate(normalizedCommit.authorDate);
             }
             
-            return commit;
+            return normalizedCommit;
           }
         }
       }
