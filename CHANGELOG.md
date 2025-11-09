@@ -1,3 +1,8 @@
+## <small>1.3.1 (2025-11-09)</small>
+
+* fix: configure git user and strengthen gpg signing setup ([dfc6468dac2ade35ee48eb380d4379bac0ca37c1](https://github.com/alexg-sh/LiquiDB/commit/dfc6468dac2ade35ee48eb380d4379bac0ca37c1))
+* ci: add gpg verification notices to release workflow ([6880e82f29f195befe2ace80a557eebd4da9c64a](https://github.com/alexg-sh/LiquiDB/commit/6880e82f29f195befe2ace80a557eebd4da9c64a))
+
 ## 1.3.0 (2025-11-09)
 
 * fix: make GPG signing setup conditional on secrets ([9ab9276310c20451c962193fb4658527e4d7ba67](https://github.com/alexg-sh/LiquiDB/commit/9ab9276310c20451c962193fb4658527e4d7ba67))
