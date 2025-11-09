@@ -1,3 +1,12 @@
+## 1.3.0 (2025-11-09)
+
+* fix: make GPG signing setup conditional on secrets ([9ab9276310c20451c962193fb4658527e4d7ba67](https://github.com/alexg-sh/LiquiDB/commit/9ab9276310c20451c962193fb4658527e4d7ba67))
+* feat: add structured changelog parsing and rich display ([1f99fe9f502456f5c6e17656550bdcaaaaa1299b](https://github.com/alexg-sh/LiquiDB/commit/1f99fe9f502456f5c6e17656550bdcaaaaa1299b))
+* feat: enhance changelog dialog header and layout ([6bd37fb28c99b8cc3d5e9b1f3044c0c96a3c800e](https://github.com/alexg-sh/LiquiDB/commit/6bd37fb28c99b8cc3d5e9b1f3044c0c96a3c800e))
+* chore: enable signed release commits in semantic-release ([71797ed340d14ac313e5f396562d2eca68209b91](https://github.com/alexg-sh/LiquiDB/commit/71797ed340d14ac313e5f396562d2eca68209b91))
+* ci: expose gpg secrets to semantic-release ([0f33f3913758b82d7acd09bf8b62b9292fa85ae8](https://github.com/alexg-sh/LiquiDB/commit/0f33f3913758b82d7acd09bf8b62b9292fa85ae8))
+* ci: import and configure gpg key for release signing ([4bf1d9fa1a59d7f3e3dcd0f85f69b08e237d1f6e](https://github.com/alexg-sh/LiquiDB/commit/4bf1d9fa1a59d7f3e3dcd0f85f69b08e237d1f6e))
+
 ## 1.2.0 (2025-11-08)
 
 * feat: add script to patch npm tar vulnerability ([aa70e752a00a719f03c9c575632844daa516dfe0](https://github.com/alexg-sh/LiquiDB/commit/aa70e752a00a719f03c9c575632844daa516dfe0))
