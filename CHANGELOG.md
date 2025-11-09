@@ -1,3 +1,8 @@
+## [1.5.0](https://github.com/alexg-sh/LiquiDB/compare/v1.4.3...v1.5.0) (2025-11-09)
+
+- fix: new new new new release ([ba4dd5a](https://github.com/alexg-sh/LiquiDB/commit/ba4dd5a21421335ac6977f9627011de9ab5b0427))
+- feat: lets try this one last time ([2b50c1d](https://github.com/alexg-sh/LiquiDB/commit/2b50c1de011cb47e15ad944b6fc0f2ba8f755fa9))
+
 ## [1.4.3](https://github.com/alexg-sh/LiquiDB/compare/v1.4.2...v1.4.3) (2025-11-09)
 
 ### fix
