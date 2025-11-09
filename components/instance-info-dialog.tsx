@@ -14,20 +14,18 @@ import { Area, AreaChart, Line, LineChart, Pie, PieChart, Cell, XAxis, YAxis, Ca
 interface SystemInfo {
   success: boolean
   pid?: number | null
-  memory?: {
-    rss?: number
-    vsz?: number
-    cpu?: number
-    pmem?: number
-    time?: string
-  } | null
+  memory?: number | null // RSS memory in bytes
+  cpu?: number | null // CPU percentage
   systemMemory?: {
     free?: number
     active?: number
     inactive?: number
     wired?: number
     total?: number
+    used?: number
   } | null
+  connections?: number
+  uptime?: number
   isRunning?: boolean
   killed?: boolean
   exitCode?: number | null
@@ -45,7 +43,7 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null)
   const [, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [memoryHistory, setMemoryHistory] = useState<Array<{ time: string, rss: number, vsz: number }>>([])
+  const [memoryHistory, setMemoryHistory] = useState<Array<{ time: string, memory: number }>>([])
   const [cpuHistory, setCpuHistory] = useState<Array<{ time: string, cpu: number }>>([])
   const lastMemoryValues = useRef({ rss: 120000000, vsz: 250000000 })
   const lastCpuValue = useRef(1.5)
@@ -103,28 +101,24 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
     }
     
     const now = new Date()
-    const sampleMemoryData: Array<{ time: string, rss: number, vsz: number }> = []
+    const sampleMemoryData: Array<{ time: string, memory: number }> = []
     const sampleCpuData: Array<{ time: string, cpu: number }> = []
     
-    let currentRss = 120000000
-    let currentVsz = 250000000
+    let currentMemory = 120000000
     let currentCpu = 1.5
     
     for (let i = 0; i < 20; i++) {
       const time = new Date(now.getTime() - (19 - i) * 1000).toLocaleTimeString()
       
-      currentRss += (Math.random() - 0.5) * 2000000
-      currentVsz += (Math.random() - 0.5) * 5000000
+      currentMemory += (Math.random() - 0.5) * 2000000
       currentCpu += (Math.random() - 0.5) * 0.5
       
-      currentRss = Math.max(80000000, Math.min(200000000, currentRss))
-      currentVsz = Math.max(150000000, Math.min(400000000, currentVsz))
+      currentMemory = Math.max(80000000, Math.min(200000000, currentMemory))
       currentCpu = Math.max(0, Math.min(8, currentCpu))
       
       sampleMemoryData.push({
         time,
-        rss: currentRss,
-        vsz: currentVsz
+        memory: currentMemory
       })
       sampleCpuData.push({
         time,
@@ -132,7 +126,7 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
       })
     }
     
-    lastMemoryValues.current = { rss: currentRss, vsz: currentVsz }
+    lastMemoryValues.current = { rss: currentMemory, vsz: currentMemory * 1.5 } // Keep vsz for backward compatibility with generateSmoothMemoryData
     lastCpuValue.current = currentCpu
     
     setMemoryHistory(sampleMemoryData)
@@ -145,13 +139,16 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
         const now = new Date()
         const time = now.toLocaleTimeString()
         
+        // Fetch system info periodically and use it for charts
+        fetchSystemInfo()
+        
+        // Use generated data for smooth chart animation
         const memoryData = generateSmoothMemoryData()
         
         setMemoryHistory(prev => {
           const newData = [...prev, {
             time,
-            rss: memoryData.rss ?? 0,
-            vsz: memoryData.vsz ?? 0
+            memory: memoryData.rss
           }]
           return newData.slice(-15)
         })
@@ -165,10 +162,6 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
           }]
           return newData.slice(-15)
         })
-        
-        if (Math.floor(Date.now() / 1000) % 15 === 0) {
-          fetchSystemInfo()
-        }
       } catch (error) {
         console.error('Error updating chart data:', error)
       }
@@ -192,6 +185,14 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
 
   const formatPercentage = (value: number | null | undefined) => {
     return (value ?? 0).toFixed(1) + '%'
+  }
+
+  const formatUptime = (seconds: number | null | undefined) => {
+    const value = seconds ?? 0
+    if (value < 60) return `${value}s`
+    if (value < 3600) return `${Math.floor(value / 60)}m`
+    if (value < 86400) return `${Math.floor(value / 3600)}h ${Math.floor((value % 3600) / 60)}m`
+    return `${Math.floor(value / 86400)}d ${Math.floor((value % 86400) / 3600)}h`
   }
 
   return (
@@ -266,7 +267,7 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
               </Card>
 
               {/* Memory Usage */}
-              {systemInfo.memory && (
+              {systemInfo.memory !== null && systemInfo.memory !== undefined && (
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm flex items-center gap-2">
@@ -278,28 +279,27 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-muted-foreground">RSS (Resident Set Size):</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.memory?.rss)}</div>
+                        <div className="font-mono text-lg">{formatBytes(systemInfo.memory)}</div>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground">VSZ (Virtual Size):</span>
-                        <div className="font-mono text-lg">{formatBytes(systemInfo.memory?.vsz)}</div>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">CPU Usage:</span>
-                        <div className="font-mono text-lg">{formatPercentage(systemInfo.memory?.cpu)}</div>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Memory %:</span>
-                        <div className="font-mono text-lg">{formatPercentage(systemInfo.memory?.pmem)}</div>
-                      </div>
+                      {systemInfo.cpu !== null && systemInfo.cpu !== undefined && (
+                        <div>
+                          <span className="text-muted-foreground">CPU Usage:</span>
+                          <div className="font-mono text-lg">{formatPercentage(systemInfo.cpu)}</div>
+                        </div>
+                      )}
+                      {systemInfo.connections !== null && systemInfo.connections !== undefined && (
+                        <div>
+                          <span className="text-muted-foreground">Connections:</span>
+                          <div className="font-mono text-lg">{systemInfo.connections}</div>
+                        </div>
+                      )}
+                      {systemInfo.uptime !== null && systemInfo.uptime !== undefined && (
+                        <div>
+                          <span className="text-muted-foreground">Uptime:</span>
+                          <div className="font-mono text-lg">{formatUptime(systemInfo.uptime)}</div>
+                        </div>
+                      )}
                     </div>
-                    <Separator />
-                    {systemInfo.memory?.time && (
-                      <div>
-                        <span className="text-muted-foreground">CPU Time:</span>
-                        <div className="font-mono text-sm">{systemInfo.memory.time}</div>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               )}
@@ -367,13 +367,9 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                         <h4 className="text-sm font-medium text-muted-foreground">Memory Usage Over Time</h4>
                         <ChartContainer
                           config={{
-                            rss: {
-                              label: "RSS Memory",
+                            memory: {
+                              label: "Memory (RSS)",
                               color: "#3b82f6",
-                            },
-                            vsz: {
-                              label: "Virtual Memory",
-                              color: "#10b981",
                             },
                           }}
                           className="h-[200px] w-full"
@@ -395,11 +391,8 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                             <ChartTooltip 
                               content={<ChartTooltipContent 
                                 formatter={(value, name) => {
-                                  if (name === 'rss') {
-                                    return [formatBytes(Number(value)), 'RSS Memory']
-                                  }
-                                  if (name === 'vsz') {
-                                    return [formatBytes(Number(value)), 'Virtual Memory']
+                                  if (name === 'memory') {
+                                    return [formatBytes(Number(value)), 'Memory (RSS)']
                                   }
                                   return [value, name]
                                 }}
@@ -407,19 +400,9 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                             />
                             <Area
                               type="monotone"
-                              dataKey="rss"
-                              stackId="1"
+                              dataKey="memory"
                               stroke="#3b82f6"
                               fill="#3b82f6"
-                              fillOpacity={0.8}
-                              strokeWidth={2}
-                            />
-                            <Area
-                              type="monotone"
-                              dataKey="vsz"
-                              stackId="2"
-                              stroke="#10b981"
-                              fill="#10b981"
                               fillOpacity={0.8}
                               strokeWidth={2}
                             />
@@ -484,13 +467,9 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                         <h4 className="text-sm font-medium text-muted-foreground">Memory Distribution</h4>
                         <ChartContainer
                           config={{
-                            rss: {
-                              label: "RSS Memory",
+                            memory: {
+                              label: "Memory (RSS)",
                               color: "#3b82f6",
-                            },
-                            vsz: {
-                              label: "Virtual Memory",
-                              color: "#10b981",
                             },
                           }}
                           className="h-[200px] w-full"
@@ -498,8 +477,7 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                           <PieChart>
                             <Pie
                               data={[
-                                { name: "RSS Memory", value: systemInfo.memory?.rss ?? 0, fill: "#3b82f6" },
-                                { name: "Virtual Memory", value: (systemInfo.memory?.vsz ?? 0) - (systemInfo.memory?.rss ?? 0), fill: "#10b981" },
+                                { name: "Memory (RSS)", value: systemInfo.memory ?? 0, fill: "#3b82f6" },
                               ]}
                               cx="50%"
                               cy="50%"
@@ -511,8 +489,7 @@ export function InstanceInfoDialog({ open, onOpenChange, databaseId, databaseNam
                               strokeWidth={2}
                             >
                               {[
-                                { name: "RSS Memory", value: systemInfo.memory?.rss ?? 0, fill: "#3b82f6" },
-                                { name: "Virtual Memory", value: (systemInfo.memory?.vsz ?? 0) - (systemInfo.memory?.rss ?? 0), fill: "#10b981" },
+                                { name: "Memory (RSS)", value: systemInfo.memory ?? 0, fill: "#3b82f6" },
                               ].map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={entry.fill ?? "#3b82f6"} />
                               ))}
