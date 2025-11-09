@@ -1,3 +1,8 @@
+## [1.5.8](https://github.com/alexg-sh/LiquiDB/compare/v1.5.7...v1.5.8) (2025-11-09)
+
+- Merge remote-tracking branch 'origin/main' ([2a2484e](https://github.com/alexg-sh/LiquiDB/commit/2a2484ee81968e2df254d6d395f837b08c850eb2))
+- fix: skip ([e8deb3b](https://github.com/alexg-sh/LiquiDB/commit/e8deb3bd39a2031d67619008b8b176753bb947b0))
+
 ## [1.5.7](https://github.com/alexg-sh/LiquiDB/compare/v1.5.6...v1.5.7) (2025-11-09)
 
 - fix: document skip-ci behavior for auto release commits ([16ead51](https://github.com/alexg-sh/LiquiDB/commit/16ead5138e2be2e2ed48dcf9ee81cc1f35d60219))
