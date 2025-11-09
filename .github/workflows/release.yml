@@ -216,6 +216,43 @@ jobs:
             export GPG_TTY=$(tty || echo /dev/tty)
             export GPG_AGENT_INFO=""
             
+            # Import GPG key and capture output
+            echo "=== Importing GPG Key ==="
+            IMPORT_OUTPUT=$(echo "$GPG_PRIVATE_KEY" | gpg --batch --import 2>&1)
+            echo "$IMPORT_OUTPUT"
+            
+            # Check if import was successful
+            if echo "$IMPORT_OUTPUT" | grep -q "imported\|unchanged"; then
+              echo "✓ GPG key imported successfully"
+            else
+              echo "⚠ GPG key import may have failed"
+            fi
+            
+            # List all keys (public and secret) to debug
+            echo "=== All GPG Keys (Public) ==="
+            gpg --list-keys --keyid-format LONG
+            
+            echo "=== All GPG Keys (Secret) ==="
+            gpg --list-secret-keys --keyid-format LONG || echo "No secret keys found"
+            
+            # Get the actual key ID from the secret keyring
+            ACTUAL_KEY_ID=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -E "^sec" | head -1 | awk '{print $2}' | cut -d'/' -f2)
+            
+            if [ -z "$ACTUAL_KEY_ID" ]; then
+              # Try to get from public keys if secret keys aren't available
+              ACTUAL_KEY_ID=$(gpg --list-keys --keyid-format LONG 2>/dev/null | grep -E "^pub" | head -1 | awk '{print $2}' | cut -d'/' -f2)
+            fi
+            
+            if [ -n "$ACTUAL_KEY_ID" ]; then
+              echo "Found key ID in keyring: $ACTUAL_KEY_ID"
+              GPG_KEY_ID="$ACTUAL_KEY_ID"
+            else
+              echo "⚠ Could not find key ID in keyring, using provided: $GPG_KEY_ID"
+            fi
+            
+            # Trust the key
+            echo -e "5\ny\n" | gpg --batch --command-fd 0 --edit-key "$GPG_KEY_ID" trust 2>&1 || echo "Trust command completed"
+            
             # Get email from GPG key or use default
             GPG_EMAIL=$(gpg --list-keys --keyid-format LONG "$GPG_KEY_ID" 2>/dev/null | grep -oE '<[^>]+@[^>]+>' | head -1 | tr -d '<>')
             GIT_EMAIL="${GIT_USER_EMAIL:-${GPG_EMAIL:-semantic-release-bot@users.noreply.github.com}}"
