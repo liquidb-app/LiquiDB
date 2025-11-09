@@ -76,27 +76,50 @@ export const useDatabaseMonitoring = (
       
       log.verbose(`Raw system info for ${databaseId}:`, systemInfo)
       
-      if (systemInfo?.success && systemInfo.memory) {
-        // Extract RSS (Resident Set Size) - this is the actual memory used by THIS specific process/instance
-        // RSS is process-specific, so each instance will have its own independent value
-        const instanceMemoryRss = systemInfo.memory.rss || 0
+      if (systemInfo?.success) {
+        // systemInfo.memory is already a number (RSS in bytes), not an object
+        // systemInfo.cpu is already a number (CPU percentage)
+        // Only update if we have valid values (not null/undefined)
+        const instanceMemoryRss = systemInfo.memory !== null && systemInfo.memory !== undefined ? systemInfo.memory : null
+        const cpuUsage = systemInfo.cpu !== null && systemInfo.cpu !== undefined ? systemInfo.cpu : null
+        
+        // Get current database to preserve existing values if new ones are null
+        const db = databasesRef.current.find((d: DatabaseContainer) => d.id === databaseId)
+        
+        // Calculate uptime from lastStarted if available
+        const uptimeSeconds = db?.lastStarted 
+          ? Math.floor((Date.now() - db.lastStarted) / 1000)
+          : (db?.systemInfo?.uptime || 0)
+        
+        // Only update values that are not null - preserve existing values if new ones are null
+        // Ensure we always have numbers, not objects
+        const existingMemoryValue = db?.systemInfo?.memory
+        const existingMemory = typeof existingMemoryValue === 'number' ? existingMemoryValue : 0
+        const existingCpuValue = db?.systemInfo?.cpu
+        const existingCpu = typeof existingCpuValue === 'number' ? existingCpuValue : 0
+        const existingConnectionsValue = db?.systemInfo?.connections
+        const existingConnections = typeof existingConnectionsValue === 'number' ? existingConnectionsValue : 0
         
         const newSystemInfo = {
-          cpu: Math.max(0, systemInfo.memory.cpu || 0), // Ensure non-negative
-          memory: Math.max(0, instanceMemoryRss), // RSS memory for THIS specific instance - independent for each database
-          connections: Math.max(0, systemInfo.connections || 0), // Use real connections from API
-          uptime: Math.max(0, systemInfo.uptime || 0) // Use calculated uptime from API
+          cpu: cpuUsage !== null && cpuUsage !== undefined ? Math.max(0, cpuUsage) : existingCpu,
+          memory: instanceMemoryRss !== null && instanceMemoryRss !== undefined ? Math.max(0, instanceMemoryRss) : existingMemory,
+          connections: systemInfo.connections !== null && systemInfo.connections !== undefined 
+            ? Math.max(0, systemInfo.connections) 
+            : existingConnections,
+          uptime: Math.max(0, uptimeSeconds)
         }
         
         log.debug(`Processed system info for ${databaseId} (instance-specific):`, {
           ...newSystemInfo,
-          memoryRss: `${formatBytes(instanceMemoryRss)} (process-specific)`
+          memoryRss: `${formatBytes(instanceMemoryRss ?? 0)} (process-specific)`
         })
         
         // Debug CPU values specifically
         log.debug(`CPU debug for ${databaseId}:`, {
-          rawCpu: systemInfo.memory.cpu,
-          processedCpu: newSystemInfo.cpu
+          rawCpu: systemInfo.cpu,
+          processedCpu: newSystemInfo.cpu,
+          rawMemory: systemInfo.memory,
+          processedMemory: newSystemInfo.memory
         })
         
         // Update only the specific database - ensure complete independence
@@ -413,8 +436,8 @@ export const useDatabaseMonitoring = (
                   const now = Date.now()
                   const lastCheck = lastSystemInfoCheckRef.current[db.id] || 0
                   
-                  // Update system info every 20 seconds for live updates (reduced frequency to save CPU)
-                  if (now - lastCheck > 20000) {
+                  // Update system info every 10 seconds for live updates
+                  if (now - lastCheck > 10000) {
                     log.debug(`Updating system info for database ${db.id}`)
                     setLastSystemInfoCheck((prev: Record<string, number>) => ({ ...prev, [db.id]: now }))
                     
@@ -436,7 +459,7 @@ export const useDatabaseMonitoring = (
               } finally {
                 isRunning = false
               }
-            }, 20000) // Update every 20 seconds (reduced from 10s to save CPU/memory)
+            }, 10000) // Update every 10 seconds
           }
           
           systemInfoInterval = startSystemInfoMonitoring()
