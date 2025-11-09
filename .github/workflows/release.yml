@@ -52,9 +52,11 @@ jobs:
           fi
 
       - name: Install dependencies
+        if: steps.check_version_commit.outputs.skip_workflow != 'true'
         run: npm ci
 
       - name: Import GPG key
+        if: steps.check_version_commit.outputs.skip_workflow != 'true'
         id: gpg_import
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
@@ -127,6 +129,7 @@ jobs:
           fi
 
       - name: Configure Git for signing
+        if: steps.check_version_commit.outputs.skip_workflow != 'true'
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
@@ -189,6 +192,7 @@ jobs:
           fi
 
       - name: Verify GPG key before semantic-release
+        if: steps.check_version_commit.outputs.skip_workflow != 'true'
         id: verify_gpg
         env:
           GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
@@ -236,6 +240,7 @@ jobs:
           fi
 
       - name: Setup GPG and run automatic versioning
+        if: steps.check_version_commit.outputs.skip_workflow != 'true'
         id: version
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
