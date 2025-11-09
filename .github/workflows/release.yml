@@ -1048,6 +1048,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.version.outputs.new_release_version }}
+          name: Release v${{ needs.version.outputs.new_release_version }}
           files: |
             release-artifacts/**/*
           draft: false
