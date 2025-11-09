@@ -24,13 +24,26 @@ jobs:
           token: ${{ secrets.PAT }}
           fetch-tags: true
 
+      - name: Check if version update commit
+        id: check_version_commit
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s" HEAD)
+          if echo "$COMMIT_MSG" | grep -qE "^chore\(release\):"; then
+            echo "Version update commit detected, skipping workflow"
+            echo "skip_workflow=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip_workflow=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Node.js
+        if: steps.check_version_commit.outputs.skip_workflow != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
       - name: Generate package-lock.json if missing
+        if: steps.check_version_commit.outputs.skip_workflow != 'true'
         shell: bash
         run: |
           if [ ! -f package-lock.json ]; then
