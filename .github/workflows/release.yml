@@ -514,10 +514,50 @@ jobs:
           git push origin HEAD
           git push origin "$NEW_TAG"
           
-          # Create draft GitHub release
-          echo "=== Creating draft GitHub release ==="
-          # Generate release notes from template
-          # (This will be done in the publish step)
+          # Create GitHub release immediately (draft, will be updated in publish step)
+          echo "=== Creating GitHub release ==="
+          
+          # Get previous version for changelog link
+          PREV_VERSION="1.0.0"
+          if [ -n "$LATEST_TAG_BEFORE" ]; then
+            PREV_VERSION=$(echo "$LATEST_TAG_BEFORE" | sed 's/^v//')
+          fi
+          
+          # Build release body using echo (avoiding heredoc to prevent YAML parsing issues)
+          RELEASE_BODY_FILE=$(mktemp)
+          echo "## 🎉 Release v${NEW_VERSION}" > "$RELEASE_BODY_FILE"
+          echo "" >> "$RELEASE_BODY_FILE"
+          echo "This release includes automatic versioning and changelog updates." >> "$RELEASE_BODY_FILE"
+          echo "" >> "$RELEASE_BODY_FILE"
+          echo "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for detailed release notes." >> "$RELEASE_BODY_FILE"
+          echo "" >> "$RELEASE_BODY_FILE"
+          echo "**Full Changelog**: [v${PREV_VERSION}...v${NEW_VERSION}](https://github.com/${{ github.repository }}/compare/v${PREV_VERSION}...v${NEW_VERSION})" >> "$RELEASE_BODY_FILE"
+          
+          # Create JSON payload using jq
+          RELEASE_JSON=$(jq -n \
+            --arg tag_name "$NEW_TAG" \
+            --arg name "Release ${NEW_VERSION}" \
+            --rawfile body "$RELEASE_BODY_FILE" \
+            '{tag_name: $tag_name, name: $name, body: $body, draft: true, prerelease: false}')
+          
+          # Create draft release using GitHub API
+          RELEASE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases" \
+            -d "$RELEASE_JSON")
+          
+          HTTP_CODE=$(echo "$RELEASE_RESPONSE" | tail -n1)
+          if [ "$HTTP_CODE" = "201" ]; then
+            echo "✓ Draft release created successfully"
+          else
+            echo "⚠ Failed to create draft release (HTTP $HTTP_CODE)"
+            echo "Response: $(echo "$RELEASE_RESPONSE" | head -n-1)"
+          fi
+          
+          # Clean up
+          rm -f "$RELEASE_BODY_FILE"
           
           echo "new_release_published=true" >> $GITHUB_OUTPUT
           echo "new_release_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
