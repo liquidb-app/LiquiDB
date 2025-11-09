@@ -50,6 +50,8 @@ jobs:
             echo "$GPG_PRIVATE_KEY" | gpg --batch --import
             echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" || true
             gpg --list-secret-keys --keyid-format LONG
+            echo "::notice::To verify commits, upload the public GPG key to your GitHub account:"
+            echo "::notice::Run: gpg --armor --export <KEY_ID>"
           else
             echo "GPG_PRIVATE_KEY not set, skipping GPG key import"
           fi
