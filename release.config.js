@@ -45,6 +45,7 @@ module.exports = {
           ]
         },
         writerOpts: {
+          commitPartial: `* {{#if scope}}**{{scope}}:** {{/if}}{{subject}}{{#if references}} ({{#each references}}{{#if @root.repository}}[#{{this.action}}]({{@root.host}}/{{#if this.owner}}{{this.owner}}/{{/if}}{{@root.repository}}/issues/{{this.action}}){{/if}}{{/each}}){{/if}} ([{{shortHash}}](https://github.com/alexg-sh/LiquiDB/commit/{{hash}}))`,
           transform: (commit, context) => {
             // Handle invalid commit dates - normalize to valid ISO strings
             const normalizeDate = (dateValue) => {
