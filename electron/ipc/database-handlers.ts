@@ -163,11 +163,26 @@ export function registerDatabaseHandlers(app: App): void {
         }
       }
       
+      // Calculate uptime from database config in storage
+      let uptime = 0
+      try {
+        const databases = storage.loadDatabases(app)
+        const dbConfig = databases.find((d: any) => d.id === id)
+        if (dbConfig?.lastStarted) {
+          uptime = Math.floor((Date.now() - dbConfig.lastStarted) / 1000)
+        }
+      } catch (error) {
+        log.debug(`Could not get lastStarted for database ${id}:`, error)
+        // Uptime will be calculated on frontend from lastStarted
+      }
+      
       return {
         success: true,
         pid: pid,
         memory: memoryUsage,
-        cpu: cpuUsage
+        cpu: cpuUsage,
+        connections: 0, // Database-specific connection counting would require DB-specific queries
+        uptime: uptime
       }
     } catch (error: unknown) {
       const typedError = error instanceof Error ? error : new Error(String(error))
@@ -232,6 +247,9 @@ export function registerDatabaseHandlers(app: App): void {
           error: `Container ID "${db.containerId}" already exists. Please try again.` 
         }
       }
+      
+      // Ensure databases directory exists before saving
+      storage.ensureDatabasesDirectory(app)
       
       // Always set dataPath to the correct absolute path using the app's userData directory
       // This ensures consistency regardless of where the app is installed
