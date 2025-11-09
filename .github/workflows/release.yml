@@ -70,6 +70,9 @@ jobs:
             @semantic-release/git@10.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.PAT }}
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
 
   build:
     needs: version
