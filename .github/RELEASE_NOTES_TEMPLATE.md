@@ -1,38 +1,24 @@
 ## 🎉 What's New
 
-<!-- List new features with emojis (✨ for features, 🚀 for improvements) -->
-<!-- This section can be auto-populated from semantic-release notes -->
+<!-- Auto-populated from semantic-release notes -->
 
 ${SEMANTIC_FEATURES}
-
-<!-- Manual entries (will be merged with auto-generated ones) -->
-- ✨ **Feature Name**: Brief description of the new feature
-- 🚀 **Improvement Name**: Brief description of the improvement
 
 ---
 
 ## 🐛 Bug Fixes
 
-<!-- List bug fixes with the 🐛 emoji and include issue references if applicable -->
-<!-- This section can be auto-populated from semantic-release notes -->
+<!-- Auto-populated from semantic-release notes -->
 
 ${SEMANTIC_FIXES}
-
-<!-- Manual entries (will be merged with auto-generated ones) -->
-- 🐛 Fixed issue description (#123)
-- 🐛 Fixed another issue description (#456)
 
 ---
 
 ## ⚠️ Breaking Changes
 
-<!-- Highlight any breaking changes with warnings and provide migration instructions if needed -->
-<!-- This section can be auto-populated from semantic-release notes -->
+<!-- Auto-populated from semantic-release notes -->
 
 ${SEMANTIC_BREAKING}
-
-<!-- Manual entries (will be merged with auto-generated ones) -->
-<!-- If no breaking changes, remove this section or leave it empty -->
 
 ---
 

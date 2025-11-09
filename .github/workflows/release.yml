@@ -218,14 +218,21 @@ jobs:
           GIT_USER_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
           GITHUB_TOKEN: ${{ secrets.PAT }}
         run: |
-          # Ensure we're using the PAT token, not the default GITHUB_TOKEN
+          # CRITICAL: Unset the default GITHUB_TOKEN that GitHub Actions provides
+          # This token is associated with the bot account
+          unset GITHUB_TOKEN || true
+          
+          # Use the PAT token instead (this is associated with your account)
+          export GITHUB_TOKEN="${{ secrets.PAT }}"
+          
           if [ -z "$GITHUB_TOKEN" ] || [ "$GITHUB_TOKEN" = "" ]; then
-            echo "⚠ GITHUB_TOKEN is not set, using PAT"
-            export GITHUB_TOKEN="${{ secrets.PAT }}"
+            echo "⚠ ERROR: PAT token is not set in secrets!"
+            exit 1
           fi
           
-          # Verify we're using the correct token (should be PAT, not the default)
-          echo "Using GITHUB_TOKEN for semantic-release"
+          # Verify we're using the PAT token, not the default bot token
+          echo "Using PAT token for semantic-release (length: ${#GITHUB_TOKEN} characters)"
+          echo "This ensures commits are made by your account, not semantic-release-bot"
           
           # Configure git user BEFORE semantic-release runs (always, not just for GPG)
           # Use provided values or default to alexg-sh
@@ -236,17 +243,33 @@ jobs:
           git config --global user.name "$GIT_NAME"
           git config --global user.email "$GIT_EMAIL"
           
-          # Update git remote URL to use PAT token for authentication
+          # Configure git to use PAT token for authentication
           # This ensures commits are authenticated with your account, not the bot
           if [ -n "$GITHUB_TOKEN" ] && [ "$GITHUB_TOKEN" != "" ]; then
+            # Get the current remote URL
             CURRENT_REMOTE=$(git remote get-url origin)
-            # Replace https://github.com/ with https://token@github.com/
-            # Or if it's already using a token, replace it
-            if echo "$CURRENT_REMOTE" | grep -q "^https://"; then
-              NEW_REMOTE=$(echo "$CURRENT_REMOTE" | sed "s|https://\([^@]*@\)\?github.com/|https://${GITHUB_TOKEN}@github.com/|")
-              git remote set-url origin "$NEW_REMOTE"
-              echo "Updated git remote URL to use PAT token for authentication"
-            fi
+            echo "Current remote URL: ${CURRENT_REMOTE//$GITHUB_TOKEN/***}"
+            
+            # Extract repo path (owner/repo)
+            REPO_PATH=$(echo "$CURRENT_REMOTE" | sed -E 's|.*github.com[:/]([^/]+/[^/]+)(\.git)?$|\1|')
+            
+            # Set up git credential helper to use the token
+            git config --global credential.helper store
+            echo "https://${GITHUB_TOKEN}@github.com" > ~/.git-credentials
+            chmod 600 ~/.git-credentials
+            
+            # Update remote URL to use HTTPS with token
+            NEW_REMOTE="https://${GITHUB_TOKEN}@github.com/${REPO_PATH}"
+            git remote set-url origin "$NEW_REMOTE"
+            
+            echo "Updated git remote URL to use PAT token for authentication"
+            echo "New remote URL: https://***@github.com/${REPO_PATH}"
+            
+            # Verify the configuration
+            echo "=== Git Configuration Verification ==="
+            git config --global --get user.name
+            git config --global --get user.email
+            git remote get-url origin | sed "s|${GITHUB_TOKEN}|***|g"
           fi
           
           echo "=== Git Configuration (for semantic-release commits) ==="
@@ -401,7 +424,28 @@ jobs:
             echo "⚠ Could not determine proposed version from dry-run, proceeding anyway"
           fi
           
+          # Verify git configuration one more time before running semantic-release
+          echo "=== Final Git Configuration Check ==="
+          echo "Git user.name: $(git config --global --get user.name)"
+          echo "Git user.email: $(git config --global --get user.email)"
+          echo "Git remote URL: $(git remote get-url origin | sed 's|https://[^@]*@|https://***@|g')"
+          
+          # Test that git is configured correctly by making a test commit (dry-run)
+          echo "=== Testing Git Configuration ==="
+          TEST_COMMIT_AUTHOR=$(git log -1 --format='%an <%ae>' 2>/dev/null || echo "No commits found")
+          echo "Last commit author: $TEST_COMMIT_AUTHOR"
+          
+          # Ensure GITHUB_TOKEN is set and exported
+          if [ -z "$GITHUB_TOKEN" ] || [ "$GITHUB_TOKEN" = "" ]; then
+            echo "⚠ ERROR: GITHUB_TOKEN is not set!"
+            exit 1
+          fi
+          
+          export GITHUB_TOKEN
+          echo "GITHUB_TOKEN is set (length: ${#GITHUB_TOKEN} characters)"
+          
           # Run semantic-release
+          echo "=== Running semantic-release ==="
           npx semantic-release@23 --extends ./release.config.js
           EXIT_CODE=$?
           
@@ -621,23 +665,84 @@ jobs:
             # Generate release notes from template
             TEMPLATE_FILE=".github/RELEASE_NOTES_TEMPLATE.md"
             if [ -f "$TEMPLATE_FILE" ]; then
-              # Replace placeholders in template
-              RELEASE_BODY=$(sed -e "s/\${VERSION}/${VERSION}/g" \
-                                  -e "s/\${PREVIOUS_VERSION}/${PREVIOUS_VERSION}/g" \
-                                  -e "s|\${REPO}|${REPO}|g" \
-                                  "$TEMPLATE_FILE")
-              
-              # Try to get semantic-release notes and inject them
+              # Get semantic-release notes from the draft release
+              echo "Fetching semantic-release notes from draft release..."
               SEMANTIC_NOTES=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
                 "https://api.github.com/repos/${REPO}/releases/tags/${TAG}" \
                 | jq -r '.body // empty' 2>/dev/null || echo "")
               
-              # If we have semantic-release notes, try to parse and inject them
+              # Parse semantic-release notes and extract features, fixes, breaking changes
               if [ -n "$SEMANTIC_NOTES" ] && [ "$SEMANTIC_NOTES" != "null" ] && [ "$SEMANTIC_NOTES" != "" ]; then
-                # Extract features, fixes, etc. from semantic-release notes
-                # This is a simple approach - you may want to enhance this
-                echo "Found semantic-release notes, merging with template"
+                echo "Parsing semantic-release notes..."
+                
+                # Extract features section (### feat or ### Features)
+                SEMANTIC_FEATURES=$(echo "$SEMANTIC_NOTES" | awk '/^### (feat|Features)/,/^### / {if (!/^### /) print}' | grep -E '^\*' | sed 's/^\*/- ✨ /' | sed 's/^[[:space:]]*//' || echo "")
+                
+                # Extract fixes section (### fix or ### Bug Fixes)
+                SEMANTIC_FIXES=$(echo "$SEMANTIC_NOTES" | awk '/^### (fix|Bug Fixes)/,/^### / {if (!/^### /) print}' | grep -E '^\*' | sed 's/^\*/- 🐛 /' | sed 's/^[[:space:]]*//' || echo "")
+                
+                # Extract breaking changes
+                SEMANTIC_BREAKING=$(echo "$SEMANTIC_NOTES" | awk '/BREAKING/,/^### / {if (!/^### / && /^\*/) print}' | sed 's/^\*/- ⚠️ **/' | sed 's/$/**/' | sed 's/^[[:space:]]*//' || echo "")
+                
+                # If no content found, try alternative parsing
+                if [ -z "$SEMANTIC_FEATURES" ] && [ -z "$SEMANTIC_FIXES" ]; then
+                  echo "Trying alternative parsing method..."
+                  # Try to extract all bullet points and categorize them
+                  ALL_ITEMS=$(echo "$SEMANTIC_NOTES" | grep -E '^\*' || echo "")
+                  if [ -n "$ALL_ITEMS" ]; then
+                    # Simple extraction - just get all items
+                    SEMANTIC_FEATURES=$(echo "$ALL_ITEMS" | head -5 | sed 's/^\*/- ✨ /' || echo "")
+                    SEMANTIC_FIXES=$(echo "$ALL_ITEMS" | tail -n +6 | sed 's/^\*/- 🐛 /' || echo "")
+                  fi
+                fi
+                
+                echo "Found ${#SEMANTIC_FEATURES} features, ${#SEMANTIC_FIXES} fixes, ${#SEMANTIC_BREAKING} breaking changes"
+              else
+                SEMANTIC_FEATURES=""
+                SEMANTIC_FIXES=""
+                SEMANTIC_BREAKING=""
+                echo "No semantic-release notes found"
               fi
+              
+              # Replace placeholders in template with actual content
+              # Use a temporary file to handle multiline replacements
+              TEMP_TEMPLATE=$(mktemp)
+              cp "$TEMPLATE_FILE" "$TEMP_TEMPLATE"
+              
+              # Replace simple placeholders
+              sed -i.bak "s/\${VERSION}/${VERSION}/g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+              sed -i.bak "s/\${PREVIOUS_VERSION}/${PREVIOUS_VERSION}/g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+              sed -i.bak "s|\${REPO}|${REPO}|g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+              
+              # Replace multiline placeholders (features, fixes, breaking)
+              if [ -n "$SEMANTIC_FEATURES" ]; then
+                # Use perl for multiline replacement (works on both Linux and macOS)
+                perl -i -pe "s|\${SEMANTIC_FEATURES}|$SEMANTIC_FEATURES|g" "$TEMP_TEMPLATE" 2>/dev/null || \
+                sed -i.bak "s|\${SEMANTIC_FEATURES}|$SEMANTIC_FEATURES|g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+              else
+                # Remove the entire "What's New" section if empty
+                sed -i.bak '/## 🎉 What'\''s New/,/^---$/d' "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+              fi
+              
+              if [ -n "$SEMANTIC_FIXES" ]; then
+                perl -i -pe "s|\${SEMANTIC_FIXES}|$SEMANTIC_FIXES|g" "$TEMP_TEMPLATE" 2>/dev/null || \
+                sed -i.bak "s|\${SEMANTIC_FIXES}|$SEMANTIC_FIXES|g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+              else
+                # Remove the entire "Bug Fixes" section if empty
+                sed -i.bak '/## 🐛 Bug Fixes/,/^---$/d' "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+              fi
+              
+              if [ -n "$SEMANTIC_BREAKING" ]; then
+                perl -i -pe "s|\${SEMANTIC_BREAKING}|$SEMANTIC_BREAKING|g" "$TEMP_TEMPLATE" 2>/dev/null || \
+                sed -i.bak "s|\${SEMANTIC_BREAKING}|$SEMANTIC_BREAKING|g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+              else
+                # Remove the entire "Breaking Changes" section if empty
+                sed -i.bak '/## ⚠️ Breaking Changes/,/^---$/d' "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+              fi
+              
+              # Read the final release body
+              RELEASE_BODY=$(cat "$TEMP_TEMPLATE")
+              rm -f "$TEMP_TEMPLATE"
               
               echo "release_body<<EOF" >> $GITHUB_OUTPUT
               echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
