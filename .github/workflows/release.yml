@@ -172,21 +172,26 @@ jobs:
             echo "Available GPG keys:"
             gpg --list-secret-keys --keyid-format LONG
             
-            # Get the key ID in long format (16 hex characters, no spaces)
-            KEY_ID_LONG=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -E "^sec|^ssb" | head -1 | awk '{print $2}' | cut -d'/' -f2)
-            if [ -n "$KEY_ID_LONG" ]; then
-              echo "Found key ID in keyring: $KEY_ID_LONG"
-              # Normalize the key ID (remove spaces, uppercase)
-              KEY_ID_NORMALIZED=$(echo "$GPG_KEY_ID" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
-              KEY_ID_LONG_NORMALIZED=$(echo "$KEY_ID_LONG" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+            # Get the PRIMARY key ID (the one with [SC] capability, not subkeys)
+            # First check if the provided key ID is the primary key
+            if gpg --list-secret-keys --keyid-format LONG "$GPG_KEY_ID" 2>/dev/null | grep -q "^sec"; then
+              KEY_ID_LONG=$(echo "$GPG_KEY_ID" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+              echo "Provided key ID is primary key: $KEY_ID_LONG"
+            else
+              # Extract the primary key ID (sec line with [SC] capability)
+              KEY_ID_LONG=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -E "^sec.*\[SC\]" | head -1 | awk '{print $2}' | cut -d'/' -f2)
               
-              # Use the key ID from keyring if it's different
-              if [ "$KEY_ID_NORMALIZED" != "$KEY_ID_LONG_NORMALIZED" ]; then
-                echo "Using key ID from keyring: $KEY_ID_LONG"
-                echo "gpg_key_id_normalized=$KEY_ID_LONG" >> $GITHUB_OUTPUT
-              else
-                echo "gpg_key_id_normalized=$KEY_ID_NORMALIZED" >> $GITHUB_OUTPUT
+              if [ -z "$KEY_ID_LONG" ]; then
+                # Fallback: get the first primary key (sec line, not ssb)
+                KEY_ID_LONG=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -E "^sec" | head -1 | awk '{print $2}' | cut -d'/' -f2)
               fi
+            fi
+            
+            if [ -n "$KEY_ID_LONG" ]; then
+              echo "Found primary key ID in keyring: $KEY_ID_LONG"
+              # Normalize the key ID
+              KEY_ID_NORMALIZED=$(echo "$KEY_ID_LONG" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+              echo "gpg_key_id_normalized=$KEY_ID_NORMALIZED" >> $GITHUB_OUTPUT
               
               # Test signing (with or without passphrase)
               if [ -n "$GPG_PASSPHRASE" ] && [ "$GPG_PASSPHRASE" != "" ]; then
@@ -195,10 +200,11 @@ jobs:
                 echo "test" | gpg --clearsign --pinentry-mode loopback --default-key "$KEY_ID_LONG" > /dev/null 2>&1 && echo "✓ GPG signing test passed (no passphrase)" || echo "⚠ GPG signing test failed"
               fi
             else
-              echo "⚠ Could not find key ID in keyring"
+              echo "⚠ Could not find primary key ID in keyring"
               # Normalize the provided key ID
               KEY_ID_NORMALIZED=$(echo "$GPG_KEY_ID" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
               echo "gpg_key_id_normalized=$KEY_ID_NORMALIZED" >> $GITHUB_OUTPUT
+              echo "⚠ Make sure GPG_KEY_ID secret is set to the primary key: C4F95877A6D59D30"
             fi
           fi
 
