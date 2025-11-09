@@ -72,16 +72,24 @@ jobs:
           GIT_USER_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
         run: |
           if [ -n "$GPG_PRIVATE_KEY" ] && [ "$GPG_PRIVATE_KEY" != "" ] && [ -n "$GPG_KEY_ID" ]; then
-            # Use provided values or default to repository owner
-            GIT_NAME="${GIT_USER_NAME:-alexg-sh}"
-            GIT_EMAIL="${GIT_USER_EMAIL:-alexg-sh@users.noreply.github.com}"
+            # Use provided values or default to semantic-release-bot
+            GIT_NAME="${GIT_USER_NAME:-semantic-release-bot}"
+            # Use email from GPG key if available, otherwise use provided or default
+            GPG_EMAIL_FROM_KEY="${{ steps.gpg_import.outputs.gpg_email }}"
+            if [ -n "$GPG_EMAIL_FROM_KEY" ] && [ -z "$GIT_USER_EMAIL" ]; then
+              GIT_EMAIL="$GPG_EMAIL_FROM_KEY"
+              echo "Using email from GPG key: $GIT_EMAIL"
+            else
+              GIT_EMAIL="${GIT_USER_EMAIL:-semantic-release-bot@users.noreply.github.com}"
+            fi
             git config --global user.name "$GIT_NAME"
             git config --global user.email "$GIT_EMAIL"
             git config --global user.signingkey "$GPG_KEY_ID"
             git config --global commit.gpgsign true
             git config --global gpg.program gpg
             echo "Configured Git user: $GIT_NAME <$GIT_EMAIL>"
-            echo "::notice::Make sure the public GPG key (ID: $GPG_KEY_ID) is uploaded to the GitHub account: $GIT_NAME"
+            echo "Using GPG key ID: $GPG_KEY_ID"
+            echo "::notice::Make sure the email '$GIT_EMAIL' is associated with the GPG key and uploaded to semantic-release-bot account"
           else
             echo "GPG keys not configured, skipping Git signing setup"
           fi
