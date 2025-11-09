@@ -83,8 +83,12 @@ jobs:
               # Trust the key
               echo -e "5\ny\n" | gpg --batch --command-fd 0 --edit-key "$ACTUAL_KEY_ID" trust || true
               
-              # Test signing with the key
-              echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --default-key "$ACTUAL_KEY_ID" > /dev/null 2>&1 && echo "✓ GPG signing test passed" || echo "⚠ GPG signing test failed"
+              # Test signing with the key (with or without passphrase)
+              if [ -n "$GPG_PASSPHRASE" ] && [ "$GPG_PASSPHRASE" != "" ]; then
+                echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --default-key "$ACTUAL_KEY_ID" > /dev/null 2>&1 && echo "✓ GPG signing test passed" || echo "⚠ GPG signing test failed"
+              else
+                echo "test" | gpg --clearsign --pinentry-mode loopback --default-key "$ACTUAL_KEY_ID" > /dev/null 2>&1 && echo "✓ GPG signing test passed (no passphrase)" || echo "⚠ GPG signing test failed"
+              fi
               
               # Extract email from GPG key
               GPG_EMAIL=$(gpg --list-keys --keyid-format LONG "$ACTUAL_KEY_ID" 2>/dev/null | grep -oE '<[^>]+@[^>]+>' | head -1 | tr -d '<>')
@@ -176,8 +180,12 @@ jobs:
                 echo "gpg_key_id_normalized=$KEY_ID_NORMALIZED" >> $GITHUB_OUTPUT
               fi
               
-              # Test signing
-              echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --default-key "$KEY_ID_LONG" > /dev/null 2>&1 && echo "✓ GPG signing test passed" || echo "⚠ GPG signing test failed"
+              # Test signing (with or without passphrase)
+              if [ -n "$GPG_PASSPHRASE" ] && [ "$GPG_PASSPHRASE" != "" ]; then
+                echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --default-key "$KEY_ID_LONG" > /dev/null 2>&1 && echo "✓ GPG signing test passed" || echo "⚠ GPG signing test failed"
+              else
+                echo "test" | gpg --clearsign --pinentry-mode loopback --default-key "$KEY_ID_LONG" > /dev/null 2>&1 && echo "✓ GPG signing test passed (no passphrase)" || echo "⚠ GPG signing test failed"
+              fi
             else
               echo "⚠ Could not find key ID in keyring"
               # Normalize the provided key ID
