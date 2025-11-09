@@ -1,3 +1,10 @@
+## [1.5.3](https://github.com/alexg-sh/LiquiDB/compare/v1.5.2...v1.5.3) (2025-11-09)
+
+- fix: set release name using new version in GitHub release step ([b027bfa](https://github.com/alexg-sh/LiquiDB/commit/b027bfafc00616cc460e6aad91fba65b3b2a2493))
+- ci: refine semantic parsing of commits for release notes ([0ad1993](https://github.com/alexg-sh/LiquiDB/commit/0ad1993b1dbc2992b271a55a2094d39664ddfea6))
+- ci: ensure changelog is created and robustly parsed for releases ([a6db3d7](https://github.com/alexg-sh/LiquiDB/commit/a6db3d7a57976adafe6c6df30096e3ac43cd0e27))
+- docs: improve release notes template with version heading ([4f99400](https://github.com/alexg-sh/LiquiDB/commit/4f99400b8b040f7418f5bfb80a4e25cef9057356))
+
 ## [1.5.2](https://github.com/alexg-sh/LiquiDB/compare/v1.5.1...v1.5.2) (2025-11-09)
 
 - fix: integrate changelog extraction into release notes template generation ([82aaa01](https://github.com/alexg-sh/LiquiDB/commit/82aaa01ba05e53ec9fca5b5a04583d6781d5cbe5))
