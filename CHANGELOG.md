@@ -1,3 +1,12 @@
+## [1.4.0](https://github.com/alexg-sh/LiquiDB/compare/v1.3.3...v1.4.0) (2025-11-09)
+
+### feat
+
+* new stuff ([](https://github.com/alexg-sh/LiquiDB/commit/fc400480ac51ffa62abf5256c669f4d679faa46f))
+### fix
+
+* more release fixes ([](https://github.com/alexg-sh/LiquiDB/commit/4902068a7a997df63c6dd25300d1cc20850ecbd8))
+
 ## [1.3.3](https://github.com/alexg-sh/LiquiDB/compare/v1.3.2...v1.3.3) (2025-11-09)
 
 ### fix
