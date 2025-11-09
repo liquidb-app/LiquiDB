@@ -2,7 +2,8 @@ import * as path from "path"
 import { spawn, ChildProcess, exec, execSync } from "child_process"
 import * as fs from "fs"
 import { promisify } from "util"
-import { app as electronApp } from "electron"
+// Import Electron app
+const { app: electronApp } = require("electron")
 import storage from "../storage"
 import { log } from "../logger"
 import * as os from "os"
@@ -107,12 +108,21 @@ export async function startDatabaseProcessAsync(
 
       // Extract major version from config version (e.g., "16.1" -> "16", "15.4" -> "15")
       const getMajorVersion = (version: string): string => {
-        if (!version) return ""
+        if (!version || version === "latest") return ""
         const parts = version.split('.')
         return parts[0] // Return major version (e.g., "16" from "16.1")
       }
 
-      const majorVersion = getMajorVersion(config.version || dbRecord?.version || "")
+      // Resolve "latest" version to actual version if needed
+      let resolvedVersion = config.version || dbRecord?.version || ""
+      if (resolvedVersion === "latest") {
+        // Note: "latest" version resolution is not available
+        // User should specify an explicit version
+        console.warn(`[PostgreSQL] "latest" version specified, but version resolution is not available`)
+        resolvedVersion = "16" // Fallback to PostgreSQL 16
+      }
+
+      const majorVersion = getMajorVersion(resolvedVersion)
 
       if (dbRecord?.homebrewPath) {
         // Use stored Homebrew path
@@ -440,6 +450,71 @@ export async function startDatabaseProcessAsync(
           )
         }
       }
+
+      // Check for and remove PostgreSQL lock file that might prevent startup
+      // An unclean shutdown can leave a postmaster.pid file preventing PostgreSQL from starting
+      const postmasterPidPath = path.join(dataDir, "postmaster.pid")
+      if (fsSync.existsSync(postmasterPidPath)) {
+        console.log(
+          `[PostgreSQL] ${id} Found postmaster.pid file, checking if process is running...`,
+        )
+        try {
+          // Read the PID from the lock file
+          const pidContent = fsSync.readFileSync(postmasterPidPath, "utf8")
+          const lines = pidContent.trim().split("\n")
+          if (lines.length > 0) {
+            const pid = parseInt(lines[0], 10)
+            if (!isNaN(pid) && pid > 0) {
+              // Check if the process is actually running
+              try {
+                process.kill(pid, 0) // Signal 0 doesn't kill, just checks if process exists
+                // Process exists, so it might be a real running instance
+                console.log(
+                  `[PostgreSQL] ${id} Process ${pid} from postmaster.pid is still running, not removing lock file`,
+                )
+                // Don't remove the lock file if the process is actually running
+                // This prevents starting a second instance when one is already running
+              } catch (killError: any) {
+                // ESRCH means process doesn't exist - safe to remove lock file
+                if (killError.code === "ESRCH") {
+                  console.log(
+                    `[PostgreSQL] ${id} Process ${pid} from postmaster.pid doesn't exist, removing stale lock file`,
+                  )
+                  fsSync.unlinkSync(postmasterPidPath)
+                  console.log(`[PostgreSQL] ${id} Removed stale postmaster.pid file`)
+                } else {
+                  // Some other error - log it but try to remove the lock file anyway
+                  console.warn(
+                    `[PostgreSQL] ${id} Error checking process ${pid}: ${killError.message}, removing lock file anyway`,
+                  )
+                  fsSync.unlinkSync(postmasterPidPath)
+                  console.log(`[PostgreSQL] ${id} Removed postmaster.pid file`)
+                }
+              }
+            } else {
+              // Invalid PID in lock file, safe to remove
+              console.log(
+                `[PostgreSQL] ${id} Invalid PID in postmaster.pid, removing lock file`,
+              )
+              fsSync.unlinkSync(postmasterPidPath)
+              console.log(`[PostgreSQL] ${id} Removed postmaster.pid file`)
+            }
+          } else {
+            // Empty or malformed lock file, safe to remove
+            console.log(
+              `[PostgreSQL] ${id} Empty or malformed postmaster.pid, removing lock file`,
+            )
+            fsSync.unlinkSync(postmasterPidPath)
+            console.log(`[PostgreSQL] ${id} Removed postmaster.pid file`)
+          }
+        } catch (error: unknown) {
+          console.warn(
+            `[PostgreSQL] ${id} Could not remove postmaster.pid file:`,
+            (error as Error).message,
+          )
+          // Continue anyway - PostgreSQL might handle it or we'll see the error
+        }
+      }
     } else if (type === "mysql") {
       // Get MySQL binary path from database record or find it
       const databases = storage.loadDatabases(app)
@@ -516,6 +591,7 @@ export async function startDatabaseProcessAsync(
 
       // Create data directory (async)
       const fsPromises = fs.promises
+      const fsSync = fs
       const dataDir = storage.getDatabaseDataDir(app, containerId)
 
       // Get the MySQL base directory from the mysqld path
@@ -536,6 +612,61 @@ export async function startDatabaseProcessAsync(
         await fsPromises.mkdir(tempDir, { recursive: true })
       } catch (_e) {
         // Directory might already exist
+      }
+
+      // Check for and remove MySQL lock file that might prevent startup
+      // An unclean shutdown can leave a mysql.pid file preventing MySQL from starting
+      const mysqlPidPath = path.join(dataDir, "mysql.pid")
+      if (fsSync.existsSync(mysqlPidPath)) {
+        console.log(
+          `[MySQL] ${id} Found mysql.pid file, checking if process is running...`,
+        )
+        try {
+          // Read the PID from the lock file
+          const pidContent = fsSync.readFileSync(mysqlPidPath, "utf8")
+          const pid = parseInt(pidContent.trim(), 10)
+          if (!isNaN(pid) && pid > 0) {
+            // Check if the process is actually running
+            try {
+              process.kill(pid, 0) // Signal 0 doesn't kill, just checks if process exists
+              // Process exists, so it might be a real running instance
+              console.log(
+                `[MySQL] ${id} Process ${pid} from mysql.pid is still running, not removing lock file`,
+              )
+              // Don't remove the lock file if the process is actually running
+              // This prevents starting a second instance when one is already running
+            } catch (killError: any) {
+              // ESRCH means process doesn't exist - safe to remove lock file
+              if (killError.code === "ESRCH") {
+                console.log(
+                  `[MySQL] ${id} Process ${pid} from mysql.pid doesn't exist, removing stale lock file`,
+                )
+                fsSync.unlinkSync(mysqlPidPath)
+                console.log(`[MySQL] ${id} Removed stale mysql.pid file`)
+              } else {
+                // Some other error - log it but try to remove the lock file anyway
+                console.warn(
+                  `[MySQL] ${id} Error checking process ${pid}: ${killError.message}, removing lock file anyway`,
+                )
+                fsSync.unlinkSync(mysqlPidPath)
+                console.log(`[MySQL] ${id} Removed mysql.pid file`)
+              }
+            }
+          } else {
+            // Invalid PID in lock file, safe to remove
+            console.log(
+              `[MySQL] ${id} Invalid PID in mysql.pid, removing lock file`,
+            )
+            fsSync.unlinkSync(mysqlPidPath)
+            console.log(`[MySQL] ${id} Removed mysql.pid file`)
+          }
+        } catch (error: unknown) {
+          console.warn(
+            `[MySQL] ${id} Could not remove mysql.pid file:`,
+            (error as Error).message,
+          )
+          // Continue anyway - MySQL might handle it or we'll see the error
+        }
       }
 
       cmd = mysqldPath
@@ -2190,7 +2321,6 @@ export async function killAllDatabaseProcesses(
   }
 
   // Also check storage for PIDs that might not be in runningDatabases (orphaned processes)
-  // Skip if app is not available (e.g., in MCP mode during cleanup)
   if (app) {
     try {
       const databases = storage.loadDatabases(app)
@@ -2221,7 +2351,6 @@ export async function killAllDatabaseProcesses(
 
   // Scan for ALL database processes that might be orphaned (not tracked anywhere)
   // Only kill processes that belong to our app (verify by checking command line contains our data directory)
-  // Skip if app is not available (e.g., in MCP mode during cleanup)
   if (app) {
     try {
       const appDataDir = app.getPath("userData") // e.g., ~/Library/Application Support/LiquiDB
@@ -2349,7 +2478,6 @@ export async function killAllDatabaseProcesses(
   }
 
   // Final scan to ensure no database processes belonging to our app are left running
-  // Skip if app is not available (e.g., in MCP mode during cleanup)
   if (app) {
     try {
       const appDataDir = app.getPath("userData") // e.g., ~/Library/Application Support/LiquiDB
