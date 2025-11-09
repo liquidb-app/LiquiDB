@@ -60,11 +60,20 @@ jobs:
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+          GIT_USER_NAME: ${{ secrets.GIT_USER_NAME }}
+          GIT_USER_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
         run: |
           if [ -n "$GPG_PRIVATE_KEY" ] && [ "$GPG_PRIVATE_KEY" != "" ] && [ -n "$GPG_KEY_ID" ]; then
+            # Use provided values or default to repository owner
+            GIT_NAME="${GIT_USER_NAME:-alexg-sh}"
+            GIT_EMAIL="${GIT_USER_EMAIL:-alexg-sh@users.noreply.github.com}"
+            git config --global user.name "$GIT_NAME"
+            git config --global user.email "$GIT_EMAIL"
             git config --global user.signingkey "$GPG_KEY_ID"
             git config --global commit.gpgsign true
             git config --global gpg.program gpg
+            echo "Configured Git user: $GIT_NAME <$GIT_EMAIL>"
+            echo "::notice::Make sure the public GPG key (ID: $GPG_KEY_ID) is uploaded to the GitHub account: $GIT_NAME"
           else
             echo "GPG keys not configured, skipping Git signing setup"
           fi
