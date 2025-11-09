@@ -1,4 +1,29 @@
-import { autoUpdater, UpdateInfo } from "electron-updater"
+// Lazy import electron-updater to avoid accessing app before it's available
+// electron-updater accesses app during module initialization, so we need to delay the import
+let autoUpdaterModule: any = null
+let autoUpdater: any = null
+let UpdateInfo: any = null
+
+async function getAutoUpdater() {
+  if (!autoUpdaterModule) {
+    try {
+      // Check if app is available before importing electron-updater
+      const { app } = require("electron")
+      if (!app || typeof app.getVersion !== 'function') {
+        return null
+      }
+      
+      autoUpdaterModule = await import("electron-updater")
+      autoUpdater = autoUpdaterModule.autoUpdater
+      UpdateInfo = autoUpdaterModule.UpdateInfo
+    } catch (error) {
+      // If import fails or app is not available, return null
+      return null
+    }
+  }
+  return autoUpdater
+}
+
 import { app, BrowserWindow } from "electron"
 import { log } from "./logger"
 import sharedState from "./core/shared-state"
@@ -7,9 +32,25 @@ let updateCheckInterval: NodeJS.Timeout | null = null
 const CHECK_INTERVAL = 1000 * 60 * 60 * 4 // Check every 4 hours
 const INITIAL_CHECK_DELAY = 1000 * 60 * 5 // Check 5 minutes after app start
 
-// Configure auto-updater
-autoUpdater.autoDownload = false
-autoUpdater.autoInstallOnAppQuit = true
+// Configure auto-updater (only if app is available)
+let autoUpdaterConfigured = false
+async function configureAutoUpdater(): Promise<void> {
+  if (autoUpdaterConfigured) {
+    return
+  }
+  
+  try {
+    const updater = await getAutoUpdater()
+    if (updater && app && typeof app.getVersion === 'function') {
+      updater.autoDownload = false
+      updater.autoInstallOnAppQuit = true
+      autoUpdaterConfigured = true
+    }
+  } catch (error) {
+    // If app is not available, skip configuration
+    log.debug("[Auto-Update] Skipping auto-updater configuration - app not available")
+  }
+}
 
 // For GitHub releases, electron-updater will automatically detect the configuration
 // from package.json build.publish section
@@ -17,10 +58,15 @@ autoUpdater.autoInstallOnAppQuit = true
 /**
  * Check for updates
  */
-export async function checkForUpdates(): Promise<{ available: boolean; info?: UpdateInfo; error?: string }> {
+export async function checkForUpdates(): Promise<{ available: boolean; info?: any; error?: string }> {
   try {
+    const updater = await getAutoUpdater()
+    if (!updater) {
+      return { available: false, error: "Auto-updater not available" }
+    }
+    
     log.info("[Auto-Update] Checking for updates...")
-    const result = await autoUpdater.checkForUpdates()
+    const result = await updater.checkForUpdates()
     
     if (result && result.updateInfo) {
       const currentVersion = app.getVersion()
@@ -49,8 +95,13 @@ export async function checkForUpdates(): Promise<{ available: boolean; info?: Up
  */
 export async function downloadUpdate(): Promise<{ success: boolean; error?: string }> {
   try {
+    const updater = await getAutoUpdater()
+    if (!updater) {
+      return { success: false, error: "Auto-updater not available" }
+    }
+    
     log.info("[Auto-Update] Downloading update...")
-    await autoUpdater.downloadUpdate()
+    await updater.downloadUpdate()
     return { success: true }
   } catch (error: any) {
     log.error("[Auto-Update] Error downloading update:", error.message)
@@ -61,10 +112,16 @@ export async function downloadUpdate(): Promise<{ success: boolean; error?: stri
 /**
  * Install update and restart
  */
-export function installUpdateAndRestart(): void {
+export async function installUpdateAndRestart(): Promise<void> {
   try {
+    const updater = await getAutoUpdater()
+    if (!updater) {
+      log.warn("[Auto-Update] Cannot install update - auto-updater not available")
+      return
+    }
+    
     log.info("[Auto-Update] Installing update and restarting...")
-    autoUpdater.quitAndInstall(false, true)
+    updater.quitAndInstall(false, true)
   } catch (error: any) {
     log.error("[Auto-Update] Error installing update:", error.message)
   }
@@ -81,8 +138,13 @@ export function getUpdateProgress(): { percent: number; transferred: number; tot
 /**
  * Setup auto-update event listeners
  */
-export function setupAutoUpdateListeners(): void {
-  autoUpdater.on("checking-for-update", () => {
+export async function setupAutoUpdateListeners(): Promise<void> {
+  const updater = await getAutoUpdater()
+  if (!updater) {
+    return
+  }
+  
+  updater.on("checking-for-update", () => {
     log.info("[Auto-Update] Checking for update...")
     const mainWindow = sharedState.getMainWindow()
     if (mainWindow) {
@@ -90,7 +152,7 @@ export function setupAutoUpdateListeners(): void {
     }
   })
 
-  autoUpdater.on("update-available", (info: UpdateInfo) => {
+  updater.on("update-available", (info: any) => {
     log.info(`[Auto-Update] Update available: ${info.version}`)
     const mainWindow = sharedState.getMainWindow()
     if (mainWindow) {
@@ -102,7 +164,7 @@ export function setupAutoUpdateListeners(): void {
     }
   })
 
-  autoUpdater.on("update-not-available", (info: UpdateInfo) => {
+  updater.on("update-not-available", (info: any) => {
     log.info(`[Auto-Update] Update not available. Current version: ${info.version}`)
     const mainWindow = sharedState.getMainWindow()
     if (mainWindow) {
@@ -110,7 +172,7 @@ export function setupAutoUpdateListeners(): void {
     }
   })
 
-  autoUpdater.on("error", (error: Error) => {
+  updater.on("error", (error: Error) => {
     log.error("[Auto-Update] Error:", error.message)
     const mainWindow = sharedState.getMainWindow()
     if (mainWindow) {
@@ -118,7 +180,7 @@ export function setupAutoUpdateListeners(): void {
     }
   })
 
-  autoUpdater.on("download-progress", (progressObj: { percent: number; transferred: number; total: number }) => {
+  updater.on("download-progress", (progressObj: { percent: number; transferred: number; total: number }) => {
     log.info(`[Auto-Update] Download progress: ${progressObj.percent}%`)
     const mainWindow = sharedState.getMainWindow()
     if (mainWindow) {
@@ -126,7 +188,7 @@ export function setupAutoUpdateListeners(): void {
     }
   })
 
-  autoUpdater.on("update-downloaded", (info: UpdateInfo) => {
+  updater.on("update-downloaded", (info: any) => {
     log.info(`[Auto-Update] Update downloaded: ${info.version}`)
     const mainWindow = sharedState.getMainWindow()
     if (mainWindow) {
@@ -182,20 +244,30 @@ export function stopPeriodicUpdateChecks(): void {
 /**
  * Initialize auto-updater
  */
-export function initializeAutoUpdater(): void {
-  if (process.argv.includes('--mcp')) {
-    return
-  }
+export async function initializeAutoUpdater(): Promise<void> {
+  // Check if app is available before initializing
+  try {
+    if (!app || typeof app.getVersion !== 'function') {
+      log.debug("[Auto-Update] Skipping auto-update - app not available")
+      return
+    }
 
-  // Only enable auto-update in production
-  if (!app.isPackaged) {
-    log.debug("[Auto-Update] Skipping auto-update in development mode")
-    return
-  }
+    // Only enable auto-update in production
+    if (!app.isPackaged) {
+      log.debug("[Auto-Update] Skipping auto-update in development mode")
+      return
+    }
 
-  setupAutoUpdateListeners()
-  startPeriodicUpdateChecks()
-  
-  log.info("[Auto-Update] Auto-updater initialized")
+    // Configure auto-updater if not already configured
+    await configureAutoUpdater()
+
+    await setupAutoUpdateListeners()
+    startPeriodicUpdateChecks()
+    
+    log.info("[Auto-Update] Auto-updater initialized")
+  } catch (error) {
+    // If initialization fails, log and continue
+    log.warn("[Auto-Update] Failed to initialize auto-updater:", error)
+  }
 }
 

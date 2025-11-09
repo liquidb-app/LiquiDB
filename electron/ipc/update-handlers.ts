@@ -5,7 +5,7 @@ import { checkForUpdates, downloadUpdate, installUpdateAndRestart } from "../aut
  * Register update IPC handlers
  */
 export function registerUpdateHandlers(): void {
-  if (process.argv.includes('--mcp') || !ipcMain) {
+  if (!ipcMain) {
     return
   }
 
@@ -29,7 +29,7 @@ export function registerUpdateHandlers(): void {
 
   ipcMain.handle("update:install", async () => {
     try {
-      installUpdateAndRestart()
+      await installUpdateAndRestart()
       return { success: true }
     } catch (error: any) {
       console.error("[Update IPC] Error installing update:", error)
