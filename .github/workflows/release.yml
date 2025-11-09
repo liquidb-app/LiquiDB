@@ -56,10 +56,14 @@ jobs:
             echo "=== Imported GPG keys ==="
             gpg --list-secret-keys --keyid-format LONG
             
-            # Extract the actual key ID from the keyring
-            KEY_ID_FROM_KEYRING=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -E "^sec" | head -1 | awk '{print $2}' | cut -d'/' -f2)
+            # Extract the PRIMARY key ID from the keyring (the one with [SC] capability)
+            KEY_ID_FROM_KEYRING=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -E "^sec.*\[SC\]" | head -1 | awk '{print $2}' | cut -d'/' -f2)
+            if [ -z "$KEY_ID_FROM_KEYRING" ]; then
+              # Fallback: get the first primary key (sec line, not ssb)
+              KEY_ID_FROM_KEYRING=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -E "^sec" | head -1 | awk '{print $2}' | cut -d'/' -f2)
+            fi
             if [ -n "$KEY_ID_FROM_KEYRING" ]; then
-              echo "::notice::Key ID found in keyring: $KEY_ID_FROM_KEYRING"
+              echo "::notice::Primary key ID found in keyring: $KEY_ID_FROM_KEYRING"
               echo "gpg_key_id_from_keyring=$KEY_ID_FROM_KEYRING" >> $GITHUB_OUTPUT
             fi
             
@@ -70,13 +74,17 @@ jobs:
               KEY_ID_NORMALIZED=$(echo "$GPG_KEY_ID" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
               KEY_ID_FROM_KEYRING_NORMALIZED=$(echo "$KEY_ID_FROM_KEYRING" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
               
-              # Compare key IDs
-              if [ -n "$KEY_ID_FROM_KEYRING" ] && [ "$KEY_ID_NORMALIZED" != "$KEY_ID_FROM_KEYRING_NORMALIZED" ]; then
-                echo "::warning::Key ID mismatch! Secret: $KEY_ID_NORMALIZED, Keyring: $KEY_ID_FROM_KEYRING_NORMALIZED"
-                echo "::warning::Using key ID from keyring: $KEY_ID_FROM_KEYRING"
+              # Always prefer the primary key from keyring if available
+              if [ -n "$KEY_ID_FROM_KEYRING" ]; then
+                echo "::notice::Using primary key ID from keyring: $KEY_ID_FROM_KEYRING"
                 ACTUAL_KEY_ID="$KEY_ID_FROM_KEYRING"
+                # Check if the provided key ID is a subkey
+                if [ "$KEY_ID_NORMALIZED" != "$KEY_ID_FROM_KEYRING_NORMALIZED" ]; then
+                  echo "::warning::Provided key ID ($KEY_ID_NORMALIZED) differs from primary key ($KEY_ID_FROM_KEYRING_NORMALIZED)"
+                  echo "::warning::Using primary key for signing. Update GPG_KEY_ID secret to: $KEY_ID_FROM_KEYRING"
+                fi
               else
-                echo "::notice::Key IDs match or using secret key ID"
+                echo "::notice::Using key ID from secret: $KEY_ID_NORMALIZED"
                 ACTUAL_KEY_ID="$KEY_ID_NORMALIZED"
               fi
               
