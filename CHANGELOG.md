@@ -1,3 +1,8 @@
+## [1.5.9](https://github.com/alexg-sh/LiquiDB/compare/v1.5.8...v1.5.9) (2025-11-09)
+
+- Merge remote-tracking branch 'origin/main' ([75081d0](https://github.com/alexg-sh/LiquiDB/commit/75081d0e2675ea684c2f0dec1986a30f419d55e1))
+- fix: ok i'll add skip ci back til i find a new method. ([d1c0dc8](https://github.com/alexg-sh/LiquiDB/commit/d1c0dc8888cdba008d88425eb0640e29b2fb5bee))
+
 ## [1.5.8](https://github.com/alexg-sh/LiquiDB/compare/v1.5.7...v1.5.8) (2025-11-09)
 
 - Merge remote-tracking branch 'origin/main' ([2a2484e](https://github.com/alexg-sh/LiquiDB/commit/2a2484ee81968e2df254d6d395f837b08c850eb2))
