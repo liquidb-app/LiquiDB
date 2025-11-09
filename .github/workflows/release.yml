@@ -106,16 +106,64 @@ jobs:
             else
               GIT_EMAIL="${GIT_USER_EMAIL:-semantic-release-bot@users.noreply.github.com}"
             fi
+            
+            # Configure git
             git config --global user.name "$GIT_NAME"
             git config --global user.email "$GIT_EMAIL"
-            git config --global user.signingkey "$GPG_KEY_ID"
+            git config --global user.signingkey "$ACTUAL_KEY_ID"
             git config --global commit.gpgsign true
             git config --global gpg.program gpg
+            
+            # Configure GPG to use the passphrase
+            mkdir -p ~/.gnupg
+            echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+            echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf || true
+            
+            # Test git signing
+            echo "Testing git signing..."
+            git config --global --get user.signingkey
             echo "Configured Git user: $GIT_NAME <$GIT_EMAIL>"
-            echo "Using GPG key ID: $GPG_KEY_ID"
+            echo "Using GPG key ID: $ACTUAL_KEY_ID"
             echo "::notice::Make sure the email '$GIT_EMAIL' is associated with the GPG key and uploaded to semantic-release-bot account"
           else
             echo "GPG keys not configured, skipping Git signing setup"
+          fi
+
+      - name: Verify GPG key before semantic-release
+        id: verify_gpg
+        env:
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          if [ -n "$GPG_KEY_ID" ]; then
+            echo "Verifying GPG key: $GPG_KEY_ID"
+            echo "Available GPG keys:"
+            gpg --list-secret-keys --keyid-format LONG
+            
+            # Get the key ID in long format (16 hex characters, no spaces)
+            KEY_ID_LONG=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -E "^sec|^ssb" | head -1 | awk '{print $2}' | cut -d'/' -f2)
+            if [ -n "$KEY_ID_LONG" ]; then
+              echo "Found key ID in keyring: $KEY_ID_LONG"
+              # Normalize the key ID (remove spaces, uppercase)
+              KEY_ID_NORMALIZED=$(echo "$GPG_KEY_ID" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+              KEY_ID_LONG_NORMALIZED=$(echo "$KEY_ID_LONG" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+              
+              # Use the key ID from keyring if it's different
+              if [ "$KEY_ID_NORMALIZED" != "$KEY_ID_LONG_NORMALIZED" ]; then
+                echo "Using key ID from keyring: $KEY_ID_LONG"
+                echo "gpg_key_id_normalized=$KEY_ID_LONG" >> $GITHUB_OUTPUT
+              else
+                echo "gpg_key_id_normalized=$KEY_ID_NORMALIZED" >> $GITHUB_OUTPUT
+              fi
+              
+              # Test signing
+              echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --default-key "$KEY_ID_LONG" > /dev/null 2>&1 && echo "✓ GPG signing test passed" || echo "⚠ GPG signing test failed"
+            else
+              echo "⚠ Could not find key ID in keyring"
+              # Normalize the provided key ID
+              KEY_ID_NORMALIZED=$(echo "$GPG_KEY_ID" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+              echo "gpg_key_id_normalized=$KEY_ID_NORMALIZED" >> $GITHUB_OUTPUT
+            fi
           fi
 
       - name: Run semantic-release
