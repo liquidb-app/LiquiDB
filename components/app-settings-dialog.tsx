@@ -90,6 +90,8 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
     isDevelopment: boolean
   } | null>(null)
   const [appVersion, setAppVersion] = useState<string>("1.0.0")
+  const [electronVersion, setElectronVersion] = useState<string>("")
+  const [platformInfo, setPlatformInfo] = useState<string>("Loading...")
   
   const loadHelperStatus = useCallback(async () => {
     const isInitialLoad = !helperStatus
@@ -183,6 +185,31 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
     }
   }, [])
 
+  const loadElectronVersion = useCallback(async () => {
+    try {
+      const result = await window.electron?.getElectronVersion?.()
+      if (result?.success && result.version) {
+        setElectronVersion(result.version)
+      }
+    } catch (error) {
+      console.error("Failed to load Electron version:", error)
+    }
+  }, [])
+
+  const loadPlatformInfo = useCallback(async () => {
+    try {
+      const result = await window.electron?.getPlatformInfo?.()
+      if (result?.success && result.platform) {
+        setPlatformInfo(result.platform)
+      } else {
+        setPlatformInfo("Unknown")
+      }
+    } catch (error) {
+      console.error("Failed to load platform info:", error)
+      setPlatformInfo("Unknown")
+    }
+  }, [])
+
   useEffect(() => {
     setMounted(true)
     const saved = localStorage.getItem("color-scheme") || "mono"
@@ -212,8 +239,10 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
       loadHelperStatus()
       loadMCPConnectionInfo()
       loadAppVersion()
+      loadElectronVersion()
+      loadPlatformInfo()
     }
-  }, [open, loadHelperStatus, loadMCPConnectionInfo, loadAppVersion])
+  }, [open, loadHelperStatus, loadMCPConnectionInfo, loadAppVersion, loadElectronVersion, loadPlatformInfo])
   
   useEffect(() => {
     if (!open) return
@@ -796,8 +825,12 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
                     <p className="text-sm font-mono">{appVersion}</p>
                   </div>
                   <div>
+                    <Label className="text-xs text-muted-foreground">Electron</Label>
+                    <p className="text-sm font-mono">{electronVersion || "Loading..."}</p>
+                  </div>
+                  <div>
                     <Label className="text-xs text-muted-foreground">Platform</Label>
-                    <p className="text-sm">macOS (Electron)</p>
+                    <p className="text-sm">{platformInfo}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">License</Label>

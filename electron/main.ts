@@ -1,5 +1,10 @@
 import { app } from "electron"
 
+// Suppress harmless GPU-related errors that are common in Electron/Chromium
+// These errors don't affect functionality and are known issues with GPU process initialization
+app.commandLine.appendSwitch('disable-gpu-process-crash-limit')
+app.commandLine.appendSwitch('disable-gpu-sandbox')
+
 import sharedState from "./core/shared-state"
 import { initializeAppLock, initializeAutoLauncher, setupAppLifecycleHandlers, setupProcessSignalHandlers } from "./core/app-init"
 import { handleAppReady, registerDashboardReadyHandler } from "./core/app-lifecycle"

@@ -55,6 +55,8 @@ contextBridge.exposeInMainWorld("electron", {
   
   // App version
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
+  getElectronVersion: () => ipcRenderer.invoke("get-electron-version"),
+  getPlatformInfo: () => ipcRenderer.invoke("get-platform-info"),
   
   // Onboarding status check - use IPC instead of direct localStorage access
   isOnboardingComplete: () => ipcRenderer.invoke("is-onboarding-complete"),

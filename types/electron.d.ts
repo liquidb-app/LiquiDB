@@ -86,6 +86,8 @@ declare global {
       removeExportProgressListener?: () => void
       quitApp?: () => Promise<void>
       getAppVersion?: () => Promise<{ success: boolean; version?: string; error?: string }>
+      getElectronVersion?: () => Promise<{ success: boolean; version?: string; error?: string }>
+      getPlatformInfo?: () => Promise<{ success: boolean; platform?: string; rawPlatform?: string; architecture?: string; osType?: string; osRelease?: string; error?: string }>
       checkForUpdate?: () => Promise<{ available: boolean; info?: { version: string; releaseDate?: string; releaseNotes?: string }; error?: string }>
       downloadUpdate?: () => Promise<{ success: boolean; error?: string }>
       installUpdate?: () => Promise<{ success: boolean; error?: string }>

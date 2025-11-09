@@ -359,9 +359,21 @@ export function createWindow(app: App): BrowserWindow {
   // Filter out harmless DevTools Protocol errors (Autofill not supported in Electron)
   // These errors come from DevTools trying to enable Autofill features that Electron doesn't support
   mainWindow.webContents.on("console-message", (_event, _level, message) => {
+    if (!message) return
+    
     // Suppress harmless Autofill DevTools Protocol errors
-    if (message && (message.includes("Autofill.enable") || message.includes("Autofill.setAddresses"))) {
+    if (message.includes("Autofill.enable") || message.includes("Autofill.setAddresses")) {
       return // Don't log these errors
+    }
+    
+    // Suppress harmless GPU-related errors
+    // These are common Chromium GPU process errors that don't affect functionality
+    if (
+      message.includes("SharedImageManager::ProduceSkia") ||
+      message.includes("Trying to Produce a Skia representation from a non-existent mailbox") ||
+      message.includes("gpu/command_buffer/service/shared_image")
+    ) {
+      return // Don't log these harmless GPU errors
     }
   })
 

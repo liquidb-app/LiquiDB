@@ -68,6 +68,72 @@ export function registerSystemHandlers(app: App): void {
     }
   })
 
+  // Get Electron version handler
+  ipcMain.handle("get-electron-version", async () => {
+    try {
+      // Get Electron version from process.versions.electron
+      const electronVersion = process.versions.electron || "unknown"
+      return { success: true, version: electronVersion }
+    } catch (error: any) {
+      console.error("[Electron Version] Error getting version:", error)
+      return { success: false, error: error.message || "Failed to get Electron version" }
+    }
+  })
+
+  // Get platform information handler
+  ipcMain.handle("get-platform-info", async () => {
+    try {
+      const os = require("os")
+      const platform = process.platform
+      const arch = process.arch
+      
+      let platformDisplay = ""
+      
+      if (platform === "darwin") {
+        // macOS
+        if (arch === "arm64") {
+          platformDisplay = "macOS (Apple Silicon)"
+        } else if (arch === "x64") {
+          platformDisplay = "macOS (Intel)"
+        } else {
+          platformDisplay = `macOS (${arch})`
+        }
+      } else if (platform === "win32") {
+        // Windows
+        if (arch === "arm64") {
+          platformDisplay = "Windows (ARM64)"
+        } else if (arch === "x64") {
+          platformDisplay = "Windows (x64)"
+        } else {
+          platformDisplay = `Windows (${arch})`
+        }
+      } else if (platform === "linux") {
+        // Linux
+        if (arch === "arm64") {
+          platformDisplay = "Linux (ARM64)"
+        } else if (arch === "x64") {
+          platformDisplay = "Linux (x64)"
+        } else {
+          platformDisplay = `Linux (${arch})`
+        }
+      } else {
+        platformDisplay = `${platform} (${arch})`
+      }
+      
+      return {
+        success: true,
+        platform: platformDisplay,
+        rawPlatform: platform,
+        architecture: arch,
+        osType: os.type(),
+        osRelease: os.release(),
+      }
+    } catch (error: any) {
+      console.error("[Platform Info] Error getting platform info:", error)
+      return { success: false, error: error.message || "Failed to get platform info" }
+    }
+  })
+
   // Get changelog handler
   ipcMain.handle("get-changelog", async () => {
     try {
