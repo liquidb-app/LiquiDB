@@ -1,3 +1,7 @@
+## [1.6.0](https://github.com/alexg-sh/LiquiDB/compare/v1.5.9...v1.6.0) (2025-11-09)
+
+- feat: expose electron version and platform details ([5a0f8c0](https://github.com/alexg-sh/LiquiDB/commit/5a0f8c0bffd8ebdc288e48c8cee0c72842429d55))
+
 ## [1.5.9](https://github.com/alexg-sh/LiquiDB/compare/v1.5.8...v1.5.9) (2025-11-09)
 
 - Merge remote-tracking branch 'origin/main' ([75081d0](https://github.com/alexg-sh/LiquiDB/commit/75081d0e2675ea684c2f0dec1986a30f419d55e1))
