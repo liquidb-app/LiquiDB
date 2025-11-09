@@ -128,15 +128,15 @@ jobs:
               ACTUAL_KEY_ID="${{ steps.gpg_import.outputs.gpg_key_id }}"
             fi
             
-            # Use provided values or default to semantic-release-bot
-            GIT_NAME="${GIT_USER_NAME:-semantic-release-bot}"
+            # Use provided values or default to alexg-sh
+            GIT_NAME="${GIT_USER_NAME:-alexg-sh}"
             # Use email from GPG key if available, otherwise use provided or default
             GPG_EMAIL_FROM_KEY="${{ steps.gpg_import.outputs.gpg_email }}"
             if [ -n "$GPG_EMAIL_FROM_KEY" ] && [ -z "$GIT_USER_EMAIL" ]; then
               GIT_EMAIL="$GPG_EMAIL_FROM_KEY"
               echo "Using email from GPG key: $GIT_EMAIL"
             else
-              GIT_EMAIL="${GIT_USER_EMAIL:-semantic-release-bot@users.noreply.github.com}"
+              GIT_EMAIL="${GIT_USER_EMAIL:-alexg-sh@users.noreply.github.com}"
             fi
             
             # Configure git
@@ -156,7 +156,7 @@ jobs:
             git config --global --get user.signingkey
             echo "Configured Git user: $GIT_NAME <$GIT_EMAIL>"
             echo "Using GPG key ID: $ACTUAL_KEY_ID"
-            echo "::notice::Make sure the email '$GIT_EMAIL' is associated with the GPG key and uploaded to semantic-release-bot account"
+            echo "::notice::Make sure the email '$GIT_EMAIL' is associated with the GPG key and uploaded to your GitHub account (alexg-sh) for verified commits."
           else
             echo "GPG keys not configured, skipping Git signing setup"
           fi
@@ -269,8 +269,9 @@ jobs:
             
             # Get email from GPG key or use default
             GPG_EMAIL=$(gpg --list-keys --keyid-format LONG "$GPG_KEY_ID" 2>/dev/null | grep -oE '<[^>]+@[^>]+>' | head -1 | tr -d '<>')
-            GIT_EMAIL="${GIT_USER_EMAIL:-${GPG_EMAIL:-semantic-release-bot@users.noreply.github.com}}"
-            GIT_NAME="${GIT_USER_NAME:-semantic-release-bot}"
+            # Use provided values or default to alexg-sh
+            GIT_EMAIL="${GIT_USER_EMAIL:-${GPG_EMAIL:-alexg-sh@users.noreply.github.com}}"
+            GIT_NAME="${GIT_USER_NAME:-alexg-sh}"
             
             # Configure git
             git config --global user.name "$GIT_NAME"
