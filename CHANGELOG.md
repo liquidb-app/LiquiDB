@@ -1,3 +1,8 @@
+## [1.5.1](https://github.com/alexg-sh/LiquiDB/compare/v1.5.0...v1.5.1) (2025-11-09)
+
+- fix: update auto-version outputs for github actions ([724d525](https://github.com/alexg-sh/LiquiDB/commit/724d525e3f628ef2ecc81758631509b57eece4e8))
+- ci: create draft release via GitHub API ([b70df35](https://github.com/alexg-sh/LiquiDB/commit/b70df35452d3f3c030e9cc5820d83315a9f555f4))
+
 ## [1.5.0](https://github.com/alexg-sh/LiquiDB/compare/v1.4.3...v1.5.0) (2025-11-09)
 
 - fix: new new new new release ([ba4dd5a](https://github.com/alexg-sh/LiquiDB/commit/ba4dd5a21421335ac6977f9627011de9ab5b0427))
