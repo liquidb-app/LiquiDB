@@ -71,6 +71,22 @@ export function recreateDatabasesFile(app: App): boolean {
   return false
 }
 
+/**
+ * Ensure the databases directory exists
+ * This should be called during app initialization to ensure the directory is always present
+ */
+export function ensureDatabasesDirectory(app: App): void {
+  const databasesDir = path.join(getDataDir(app), "databases")
+  if (!fs.existsSync(databasesDir)) {
+    try {
+      fs.mkdirSync(databasesDir, { recursive: true })
+      console.log("[Storage] Created databases directory:", databasesDir)
+    } catch (error) {
+      console.error("[Storage] Failed to create databases directory:", error)
+    }
+  }
+}
+
 const storage = {
   loadDatabases,
   saveDatabases,
@@ -80,6 +96,7 @@ const storage = {
   checkDatabasesFileExists,
   recreateDatabasesFile,
   getDatabaseDataDir,
+  ensureDatabasesDirectory,
 }
 
 export default storage
