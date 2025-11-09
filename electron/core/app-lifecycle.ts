@@ -16,6 +16,7 @@ import { HelperServiceManager } from "../helper-service"
 import PermissionsManager from "../permissions"
 import { IDatabase } from "../../types/database"
 import { startDatabaseFileWatcher, stopDatabaseFileWatcher } from "../database/file-watcher"
+import { setupApplicationMenu } from "../menu/menu-setup"
 
 
 /**
@@ -44,7 +45,22 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
   const permissionsManager = new PermissionsManager()
   sharedState.setPermissionsManager(permissionsManager)
   
+  // Start automatic permission checking (every 10 seconds)
+  permissionsManager.startAutomaticChecking(10000)
+  
+  // Listen for permission changes and notify renderer
+  permissionsManager.on('permission-changed', (data: { permission: string; granted: boolean }) => {
+    log.info(`[Permissions] Permission changed: ${data.permission} = ${data.granted}`)
+    const mainWindow = sharedState.getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('permission-changed', data)
+    }
+  })
+  
   resetDatabaseStatuses(app)
+  
+  // Ensure databases directory exists
+  storage.ensureDatabasesDirectory(app)
   
   // Start watching databases.json for changes
   startDatabaseFileWatcher(app)
@@ -172,6 +188,9 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
   }
   
   createWindow(app)
+  
+  // Setup application menu bar (About, Check for Updates, etc.)
+  setupApplicationMenu()
   
   // Check if onboarding is complete before starting background processes
   let onboardingCheckCount = 0
