@@ -264,6 +264,29 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Release version: $VERSION"
 
+      - name: Prepare release body
+        id: prepare_release_body
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
+        run: |
+          TAG="v${{ needs.version.outputs.new_release_version }}"
+          # Try to get the draft release body using GitHub API
+          RELEASE_BODY=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" \
+            | jq -r '.body // empty' 2>/dev/null || echo "")
+          if [ -n "$RELEASE_BODY" ] && [ "$RELEASE_BODY" != "null" ] && [ "$RELEASE_BODY" != "" ]; then
+            echo "Found existing release notes from draft release"
+            echo "release_body<<EOF" >> $GITHUB_OUTPUT
+            echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "No existing release notes found, using default"
+            DEFAULT_BODY="## Release v${{ needs.version.outputs.new_release_version }}"$'\n\n'"This release includes builds for all platforms."$'\n\n'"See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for detailed release notes."
+            echo "release_body<<EOF" >> $GITHUB_OUTPUT
+            echo "$DEFAULT_BODY" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
       - name: Download macOS artifacts
         continue-on-error: true
         uses: actions/download-artifact@v4
