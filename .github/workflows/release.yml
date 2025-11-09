@@ -806,11 +806,27 @@ jobs:
             PREVIOUS_VERSION="1.0.0"
           fi
           
+          # Extract changelog section for this version from CHANGELOG.md
+          CHANGELOG_CONTENT=""
+          if [ -f "CHANGELOG.md" ]; then
+            # Extract the section for this version (from ## [version] to next ## or end of file)
+            CHANGELOG_CONTENT=$(awk "/^## \[${VERSION}\]/,/^## \[/{if (!/^## \[/) print}" CHANGELOG.md | head -n -1)
+            # If no section found, try without brackets
+            if [ -z "$CHANGELOG_CONTENT" ]; then
+              CHANGELOG_CONTENT=$(awk "/^## ${VERSION}/,/^## /{if (!/^## /) print}" CHANGELOG.md | head -n -1)
+            fi
+            # If still no section, get first section (should be the new version)
+            if [ -z "$CHANGELOG_CONTENT" ]; then
+              CHANGELOG_CONTENT=$(awk "/^## /,/^## /{if (NR>1 && !/^## /) print; if (/^## / && NR>1) exit}" CHANGELOG.md)
+            fi
+            # Clean up the changelog content (remove empty lines at start/end)
+            CHANGELOG_CONTENT=$(echo "$CHANGELOG_CONTENT" | sed '/^$/d' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
+          fi
+          
           # Generate release notes from template (ALWAYS use template for every release)
           TEMPLATE_FILE=".github/RELEASE_NOTES_TEMPLATE.md"
           if [ -f "$TEMPLATE_FILE" ]; then
             echo "Using release notes template: $TEMPLATE_FILE"
-            
             
             # Replace placeholders in template with actual content
             # Use a temporary file to handle multiline replacements
@@ -846,6 +862,16 @@ jobs:
             else
               # Remove the entire "Breaking Changes" section if empty
               sed -i.bak '/## ⚠️ Breaking Changes/,/^---$/d' "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+            fi
+            
+            # Replace changelog content placeholder
+            if [ -n "$CHANGELOG_CONTENT" ] && [ "$CHANGELOG_CONTENT" != "" ]; then
+              # Use perl for multiline replacement (works on both Linux and macOS)
+              perl -i -pe "s|\${CHANGELOG_CONTENT}|$CHANGELOG_CONTENT|g" "$TEMP_TEMPLATE" 2>/dev/null || \
+              sed -i.bak "s|\${CHANGELOG_CONTENT}|$CHANGELOG_CONTENT|g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+            else
+              # Remove the entire "Changelog" section if empty
+              sed -i.bak '/## 📝 Changelog/,/^---$/d' "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
             fi
             
             # Read the final release body
