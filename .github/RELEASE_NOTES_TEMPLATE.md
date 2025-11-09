@@ -43,10 +43,18 @@ Download the appropriate installer for your platform:
 
 ---
 
+## 📝 Changelog
+
+<!-- Auto-populated from CHANGELOG.md -->
+
+${CHANGELOG_CONTENT}
+
+---
+
 ## 📖 Documentation
 
 - 📚 [Full Documentation](https://github.com/${REPO}/blob/main/README.md)
-- 📝 [Changelog](https://github.com/${REPO}/blob/main/CHANGELOG.md)
+- 📝 [Full Changelog](https://github.com/${REPO}/blob/main/CHANGELOG.md)
 - 🚀 [Getting Started Guide](https://github.com/${REPO}#getting-started)
 
 ---
