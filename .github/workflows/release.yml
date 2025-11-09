@@ -845,14 +845,14 @@ jobs:
           if [ -n "$COMMITS" ]; then
             echo "Parsing commits to extract features, fixes, and breaking changes..."
             
-            # Extract features (feat: or feature:)
-            SEMANTIC_FEATURES=$(echo "$COMMITS" | grep -E "^feat(\(.+\))?:|^feature(\(.+\))?:" | sed 's/^feat(\([^)]*\))?:\(.*\)/- ✨ \2/' | sed 's/^feature(\([^)]*\))?:\(.*\)/- ✨ \2/' | sed 's/^[[:space:]]*//' || echo "")
+            # Extract features (feat: or feature:) - match only at start of line, deduplicate
+            SEMANTIC_FEATURES=$(echo "$COMMITS" | grep -E "^(feat|feature)(\([^)]+\))?:" | sed -E 's/^(feat|feature)(\([^)]+\))?:\s*(.*)/- ✨ \3/' | sort -u || echo "")
             
-            # Extract fixes (fix: or bugfix:)
-            SEMANTIC_FIXES=$(echo "$COMMITS" | grep -E "^fix(\(.+\))?:|^bugfix(\(.+\))?:" | sed 's/^fix(\([^)]*\))?:\(.*\)/- 🐛 \2/' | sed 's/^bugfix(\([^)]*\))?:\(.*\)/- 🐛 \2/' | sed 's/^[[:space:]]*//' || echo "")
+            # Extract fixes (fix: or bugfix:) - match only at start of line, deduplicate
+            SEMANTIC_FIXES=$(echo "$COMMITS" | grep -E "^(fix|bugfix)(\([^)]+\))?:" | sed -E 's/^(fix|bugfix)(\([^)]+\))?:\s*(.*)/- 🐛 \3/' | sort -u || echo "")
             
-            # Extract breaking changes
-            SEMANTIC_BREAKING=$(echo "$COMMITS" | grep -iE "breaking|BREAKING" | sed 's/.*/- ⚠️ **&**/' | sed 's/^[[:space:]]*//' || echo "")
+            # Extract breaking changes - match only at start of line, deduplicate
+            SEMANTIC_BREAKING=$(echo "$COMMITS" | grep -iE "^(feat|fix|feature|bugfix)(\([^)]+\))?:.*[Bb]reaking" | sed -E 's/.*/- ⚠️ **&**/' | sort -u || echo "")
             
             echo "Found features, fixes, and breaking changes from commits"
           else
