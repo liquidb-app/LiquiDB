@@ -1,3 +1,10 @@
+## [1.5.4](https://github.com/alexg-sh/LiquiDB/compare/v1.5.3...v1.5.4) (2025-11-09)
+
+- fix: removed github actions commiter (pmo) ([43d71f1](https://github.com/alexg-sh/LiquiDB/commit/43d71f1344a29ff29e2a136af2f6d83087ee47fe))
+- Merge remote-tracking branch 'origin/main' ([f03535f](https://github.com/alexg-sh/LiquiDB/commit/f03535fe9f1998036543a5969036de5e0740b90b))
+- test: verify GPG signing after key upload ([b187af7](https://github.com/alexg-sh/LiquiDB/commit/b187af788ccb0c00910a4f8b02862445eed3dce9))
+- test: verify GPG signing ([d9378ed](https://github.com/alexg-sh/LiquiDB/commit/d9378ed0bd0f950aa9e7fd50386a06e03102486e))
+
 ## [1.5.3](https://github.com/alexg-sh/LiquiDB/compare/v1.5.2...v1.5.3) (2025-11-09)
 
 - fix: set release name using new version in GitHub release step ([b027bfa](https://github.com/alexg-sh/LiquiDB/commit/b027bfafc00616cc460e6aad91fba65b3b2a2493))
