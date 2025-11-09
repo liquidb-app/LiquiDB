@@ -1,3 +1,7 @@
+## [1.5.6](https://github.com/alexg-sh/LiquiDB/compare/v1.5.5...v1.5.6) (2025-11-09)
+
+- fix: alright its done. I HOPE. ([390a377](https://github.com/alexg-sh/LiquiDB/commit/390a377067abe1f8510a219341811005e5c01cbf))
+
 ## [1.5.5](https://github.com/alexg-sh/LiquiDB/compare/v1.5.4...v1.5.5) (2025-11-09)
 
 - fix: test ([f467f0a](https://github.com/alexg-sh/LiquiDB/commit/f467f0a1cb5fbc82214dd10fc29127ccf25092da))
