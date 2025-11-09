@@ -523,15 +523,40 @@ jobs:
             PREV_VERSION=$(echo "$LATEST_TAG_BEFORE" | sed 's/^v//')
           fi
           
+          # Extract changelog section for this version from CHANGELOG.md
+          CHANGELOG_SECTION=""
+          if [ -f "CHANGELOG.md" ]; then
+            # Extract the section for this version (from ## [version] to next ## or end of file)
+            CHANGELOG_SECTION=$(awk "/^## \[${NEW_VERSION}\]/,/^## \[/{if (!/^## \[/) print}" CHANGELOG.md | head -n -1)
+            # If no section found, try without brackets
+            if [ -z "$CHANGELOG_SECTION" ]; then
+              CHANGELOG_SECTION=$(awk "/^## ${NEW_VERSION}/,/^## /{if (!/^## /) print}" CHANGELOG.md | head -n -1)
+            fi
+            # If still no section, get first section (should be the new version)
+            if [ -z "$CHANGELOG_SECTION" ]; then
+              CHANGELOG_SECTION=$(awk "/^## /,/^## /{if (NR>1 && !/^## /) print; if (/^## / && NR>1) exit}" CHANGELOG.md)
+            fi
+          fi
+          
           # Build release body using echo (avoiding heredoc to prevent YAML parsing issues)
           RELEASE_BODY_FILE=$(mktemp)
           echo "## 🎉 Release v${NEW_VERSION}" > "$RELEASE_BODY_FILE"
           echo "" >> "$RELEASE_BODY_FILE"
-          echo "This release includes automatic versioning and changelog updates." >> "$RELEASE_BODY_FILE"
-          echo "" >> "$RELEASE_BODY_FILE"
-          echo "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for detailed release notes." >> "$RELEASE_BODY_FILE"
-          echo "" >> "$RELEASE_BODY_FILE"
+          
+          # Add changelog content if available
+          if [ -n "$CHANGELOG_SECTION" ] && [ "$CHANGELOG_SECTION" != "" ]; then
+            echo "### What's Changed" >> "$RELEASE_BODY_FILE"
+            echo "" >> "$RELEASE_BODY_FILE"
+            echo "$CHANGELOG_SECTION" >> "$RELEASE_BODY_FILE"
+            echo "" >> "$RELEASE_BODY_FILE"
+            echo "---" >> "$RELEASE_BODY_FILE"
+            echo "" >> "$RELEASE_BODY_FILE"
+          fi
+          
+          # Add full changelog link
           echo "**Full Changelog**: [v${PREV_VERSION}...v${NEW_VERSION}](https://github.com/${{ github.repository }}/compare/v${PREV_VERSION}...v${NEW_VERSION})" >> "$RELEASE_BODY_FILE"
+          echo "" >> "$RELEASE_BODY_FILE"
+          echo "📖 [View Full Changelog](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)" >> "$RELEASE_BODY_FILE"
           
           # Create JSON payload using jq
           RELEASE_JSON=$(jq -n \
