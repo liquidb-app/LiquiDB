@@ -3,9 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Gift, Sparkles, Bug, Wrench, Zap, Palette, Rocket, Code, Package } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Gift, Info } from "lucide-react"
 
 interface ChangelogDialogProps {
   open: boolean
@@ -29,21 +27,6 @@ interface ChangelogVersion {
   date?: string
   entries: ChangelogEntry[]
   sections: Record<string, ChangelogEntry[]>
-}
-
-type IconType = typeof Sparkles
-
-const typeConfig: Record<string, { icon: IconType; label: string; variant: "default" | "secondary" | "outline"; color: string }> = {
-  feat: { icon: Sparkles, label: "Feature", variant: "default", color: "text-primary" },
-  fix: { icon: Bug, label: "Fix", variant: "default", color: "text-destructive" },
-  chore: { icon: Wrench, label: "Chore", variant: "secondary", color: "text-muted-foreground" },
-  perf: { icon: Zap, label: "Performance", variant: "default", color: "text-success" },
-  style: { icon: Palette, label: "Style", variant: "outline", color: "text-muted-foreground" },
-  refactor: { icon: Code, label: "Refactor", variant: "secondary", color: "text-muted-foreground" },
-  ci: { icon: Rocket, label: "CI", variant: "outline", color: "text-muted-foreground" },
-  build: { icon: Package, label: "Build", variant: "outline", color: "text-muted-foreground" },
-  test: { icon: Code, label: "Test", variant: "outline", color: "text-muted-foreground" },
-  docs: { icon: Code, label: "Docs", variant: "outline", color: "text-muted-foreground" },
 }
 
 function parseChangelog(markdown: string): ChangelogVersion[] {
@@ -171,11 +154,6 @@ function parseChangelog(markdown: string): ChangelogVersion[] {
   return versions
 }
 
-function formatMessage(message: string): string {
-  // Remove commit hash links: [hash](url) -> just the text
-  return message.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-}
-
 export function ChangelogDialog({ open, onOpenChange, version, changelog }: ChangelogDialogProps) {
   const [localChangelog, setLocalChangelog] = useState<string>("")
 
@@ -235,76 +213,73 @@ export function ChangelogDialog({ open, onOpenChange, version, changelog }: Chan
               {parsedVersions.map((versionData, versionIdx) => (
                 <div key={versionIdx} className="space-y-4">
                   {/* Version Header */}
-                  <div className="sticky top-0 z-10 pb-3 bg-background/95 backdrop-blur-sm border-b border-border/50 -mx-2 px-2">
-                    <div className="flex items-baseline gap-3">
-                      <h3 className="text-xl font-bold text-foreground">
-                        {versionData.version}
-                      </h3>
+                  <div className="pb-4">
+                    <h3 className="text-2xl font-bold text-foreground">
+                      {versionData.version}
                       {versionData.date && (
-                        <span className="text-xs text-muted-foreground font-normal">
-                          {versionData.date}
+                        <span className="text-base font-normal text-muted-foreground ml-2">
+                          ({versionData.date})
                         </span>
                       )}
-                    </div>
+                    </h3>
                   </div>
 
                   {/* Sections */}
                   {Object.entries(versionData.sections)
                     .filter(([, entries]) => entries.length > 0)
                     .map(([sectionName, entries]) => (
-                    <div key={sectionName} className="space-y-2.5">
-                      <h4 className="text-sm font-semibold text-foreground/80 uppercase tracking-wide flex items-center gap-2">
-                        <span className="h-px flex-1 bg-border/50"></span>
-                        <span>{sectionName}</span>
-                        <span className="h-px flex-1 bg-border/50"></span>
+                    <div key={sectionName} className="space-y-3">
+                      <h4 className="text-sm font-semibold text-foreground">
+                        {sectionName}
                       </h4>
-                      <ul className="space-y-2.5 ml-1">
+                      <ul className="space-y-2">
                         {entries.map((entry, entryIdx) => {
-                          const config = typeConfig[entry.type] || { 
-                            icon: Code, 
-                            label: entry.type, 
-                            variant: "outline" as const,
-                            color: "text-muted-foreground"
-                          }
-                          const Icon = config.icon
+                          const scopePrefix = entry.scope ? `${entry.scope}: ` : ""
+                          const displayMessage = `${scopePrefix}${entry.message}`
                           
                           return (
-                            <li key={entryIdx} className="flex items-start gap-2.5 group">
-                              <div className={cn(
-                                "mt-0.5 p-1.5 rounded-md bg-muted/50 group-hover:bg-muted transition-colors shrink-0",
-                                config.color
-                              )}>
-                                <Icon className="h-3.5 w-3.5" />
-                              </div>
-                              <div className="flex-1 min-w-0 space-y-1.5">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {entry.type !== "other" && (
-                                    <Badge 
-                                      variant={config.variant}
-                                      className="text-[10px] px-1.5 py-0.5 h-5 font-medium shrink-0"
-                                    >
-                                      {config.label}
-                                    </Badge>
-                                  )}
-                                  {entry.scope && (
-                                    <Badge 
-                                      variant="outline"
-                                      className="text-[10px] px-1.5 py-0.5 h-5 font-normal shrink-0"
-                                    >
-                                      {entry.scope}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-sm text-foreground/90 leading-relaxed">
-                                  {formatMessage(entry.message)}
-                                </p>
-                              </div>
+                            <li key={entryIdx} className="text-sm text-foreground/90">
+                              <span className="mr-2">•</span>
+                              <span>{displayMessage}</span>
+                              {entry.issueNumber && entry.issueUrl && (
+                                <a
+                                  href={entry.issueUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:underline ml-1"
+                                >
+                                  (#{entry.issueNumber})
+                                </a>
+                              )}
+                              {entry.commitHash && entry.commitUrl && (
+                                <a
+                                  href={entry.commitUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:underline ml-1"
+                                >
+                                  ({entry.commitHash.slice(0, 7)})
+                                </a>
+                              )}
                             </li>
                           )
                         })}
                       </ul>
                     </div>
                   ))}
+
+                  {/* Note Block */}
+                  {versionData.entries.length > 0 && (
+                    <div className="mt-6 border-l-4 border-primary/60 bg-muted/30 rounded-r-md p-4 space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <Info className="h-4 w-4 text-primary" />
+                        <span>Note</span>
+                      </div>
+                      <p className="text-sm text-foreground/80 leading-relaxed">
+                        Release {versionData.version} with {versionData.entries.length} change{versionData.entries.length !== 1 ? 's' : ''}.
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
