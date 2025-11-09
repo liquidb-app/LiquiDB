@@ -178,7 +178,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PAT }}
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+          GPG_KEY_ID: ${{ steps.verify_gpg.outputs.gpg_key_id_normalized != '' && steps.verify_gpg.outputs.gpg_key_id_normalized || secrets.GPG_KEY_ID }}
 
   build:
     needs: version
