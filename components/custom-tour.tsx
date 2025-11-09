@@ -366,7 +366,7 @@ export function CustomTour() {
         clearTimeout(resizeTimeout)
       }
       resizeTimeout = setTimeout(() => {
-        setCurrentStep(prev => prev)
+      setCurrentStep(prev => prev)
       }, 100)
     }
     
