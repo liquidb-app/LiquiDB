@@ -42,23 +42,30 @@ jobs:
         run: npm ci
 
       - name: Import GPG key
-        if: secrets.GPG_PRIVATE_KEY != ''
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-          echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" || true
-          gpg --list-secret-keys --keyid-format LONG
+          if [ -n "$GPG_PRIVATE_KEY" ] && [ "$GPG_PRIVATE_KEY" != "" ]; then
+            echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+            echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" || true
+            gpg --list-secret-keys --keyid-format LONG
+          else
+            echo "GPG_PRIVATE_KEY not set, skipping GPG key import"
+          fi
 
       - name: Configure Git for signing
-        if: secrets.GPG_PRIVATE_KEY != ''
         env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
         run: |
-          git config --global user.signingkey "$GPG_KEY_ID"
-          git config --global commit.gpgsign true
-          git config --global gpg.program gpg
+          if [ -n "$GPG_PRIVATE_KEY" ] && [ "$GPG_PRIVATE_KEY" != "" ] && [ -n "$GPG_KEY_ID" ]; then
+            git config --global user.signingkey "$GPG_KEY_ID"
+            git config --global commit.gpgsign true
+            git config --global gpg.program gpg
+          else
+            echo "GPG keys not configured, skipping Git signing setup"
+          fi
 
       - name: Run semantic-release
         id: semantic
