@@ -129,7 +129,6 @@ jobs:
             fi
             
             # Set author environment variables (for commit author)
-            # This will show as "github-actions[bot] and alexg-sh authored"
             GIT_AUTHOR_NAME="${GIT_USER_NAME:-alexg-sh}"
             # Use email from GPG key if available, otherwise use provided or default
             GPG_EMAIL_FROM_KEY="${{ steps.gpg_import.outputs.gpg_email }}"
@@ -140,9 +139,10 @@ jobs:
               GIT_AUTHOR_EMAIL="${GIT_USER_EMAIL:-alexg-sh@users.noreply.github.com}"
             fi
             
-            # Set committer to github-actions[bot] explicitly
-            GIT_COMMITTER_NAME="github-actions[bot]"
-            GIT_COMMITTER_EMAIL="github-actions[bot]@users.noreply.github.com"
+            # Set committer to same as author for GPG verification
+            # GitHub verifies based on committer, so both must be the same account with GPG key
+            GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
+            GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
             
             # Export author and committer environment variables
             export GIT_AUTHOR_NAME
@@ -152,8 +152,8 @@ jobs:
             
             # Configure git for GPG signing
             # DO NOT set git config user.name/email - this would set both author AND committer
-            # We want committer to default to github-actions[bot]
-            # GIT_AUTHOR_NAME/EMAIL will set the author, and GPG signing will use the author email
+            # We use environment variables to set both author and committer to your account
+            # GIT_AUTHOR_NAME/EMAIL and GIT_COMMITTER_NAME/EMAIL are set above
             git config --global user.signingkey "$ACTUAL_KEY_ID"
             git config --global commit.gpgsign true
             git config --global gpg.program gpg
@@ -169,7 +169,7 @@ jobs:
             echo "Configured Git Author: $GIT_AUTHOR_NAME <$GIT_AUTHOR_EMAIL>"
             echo "Configured Git Committer: $GIT_COMMITTER_NAME <$GIT_COMMITTER_EMAIL>"
             echo "Using GPG key ID: $ACTUAL_KEY_ID"
-            echo "Commits will show as '$GIT_COMMITTER_NAME and $GIT_AUTHOR_NAME authored'"
+            echo "Commits will show as '$GIT_AUTHOR_NAME authored' (verified with GPG key)"
             echo "::notice::Make sure the email '$GIT_AUTHOR_EMAIL' is associated with the GPG key and uploaded to your GitHub account (alexg-sh) for verified commits."
           else
             echo "GPG keys not configured, skipping Git signing setup"
@@ -247,14 +247,14 @@ jobs:
           # Verify we're using the PAT token, not the default bot token
           echo "Using PAT token for automatic versioning (length: ${#GITHUB_TOKEN} characters)"
           
-          # Set git AUTHOR to your account and COMMITTER to github-actions[bot]
-          # This will show as "github-actions[bot] and alexg-sh authored"
+          # Set git AUTHOR and COMMITTER to your account for GPG verification
+          # GitHub verifies based on committer, so both must be the same account with GPG key
           GIT_AUTHOR_NAME="${GIT_USER_NAME:-alexg-sh}"
           GIT_AUTHOR_EMAIL="${GIT_USER_EMAIL:-alexg-sh@users.noreply.github.com}"
           
-          # Set committer to github-actions[bot] explicitly
-          GIT_COMMITTER_NAME="github-actions[bot]"
-          GIT_COMMITTER_EMAIL="github-actions[bot]@users.noreply.github.com"
+          # Set committer to same as author for GPG verification
+          GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
+          GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
           
           # Export author and committer environment variables
           export GIT_AUTHOR_NAME
@@ -265,7 +265,7 @@ jobs:
           echo "=== Git Author/Committer Configuration ==="
           echo "Author: $GIT_AUTHOR_NAME <$GIT_AUTHOR_EMAIL>"
           echo "Committer: $GIT_COMMITTER_NAME <$GIT_COMMITTER_EMAIL>"
-          echo "This will show as '$GIT_COMMITTER_NAME and $GIT_AUTHOR_NAME authored'"
+          echo "Commits will show as '$GIT_AUTHOR_NAME authored' (verified with GPG key)"
           
           # DO NOT set git config --global user.name/email
           # This would set both author AND committer to your account
@@ -379,8 +379,8 @@ jobs:
             
             # Configure GPG signing for git commits
             # DO NOT set git config user.name/email - this would set both author AND committer
-            # We want committer to default to github-actions[bot]
-            # GIT_AUTHOR_NAME/EMAIL will set the author, and GPG signing will use the author email
+            # We use environment variables to set both author and committer to your account
+            # GIT_AUTHOR_NAME/EMAIL and GIT_COMMITTER_NAME/EMAIL are set above
             git config --global user.signingkey "$GPG_KEY_ID"
             git config --global commit.gpgsign true
             git config --global gpg.program gpg
