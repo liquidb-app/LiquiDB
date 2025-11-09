@@ -218,6 +218,15 @@ jobs:
           GIT_USER_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
           GITHUB_TOKEN: ${{ secrets.PAT }}
         run: |
+          # Ensure we're using the PAT token, not the default GITHUB_TOKEN
+          if [ -z "$GITHUB_TOKEN" ] || [ "$GITHUB_TOKEN" = "" ]; then
+            echo "⚠ GITHUB_TOKEN is not set, using PAT"
+            export GITHUB_TOKEN="${{ secrets.PAT }}"
+          fi
+          
+          # Verify we're using the correct token (should be PAT, not the default)
+          echo "Using GITHUB_TOKEN for semantic-release"
+          
           if [ -n "$GPG_PRIVATE_KEY" ] && [ "$GPG_PRIVATE_KEY" != "" ] && [ -n "$GPG_KEY_ID" ]; then
             # Configure GPG first
             mkdir -p ~/.gnupg

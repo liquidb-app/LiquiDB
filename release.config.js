@@ -107,7 +107,8 @@ module.exports = {
       {
         draft: true,
         successComment: false,
-        releasedLabels: false
+        releasedLabels: false,
+        assets: false
       }
     ]
   ]
