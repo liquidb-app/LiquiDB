@@ -1,3 +1,34 @@
+## [1.3.2](https://github.com/alexg-sh/LiquiDB/compare/v1.3.1...v1.3.2) (2025-11-09)
+
+### fix
+
+* avoid mutating semantic release commit object ([](https://github.com/alexg-sh/LiquiDB/commit/41524f8810802e570f13a1be21173431fbc6d6b5))
+* configure gpg and git for semantic-release signing ([](https://github.com/alexg-sh/LiquiDB/commit/38634b67484d253b8bdc89d12f75b31cfd11fe83))
+* i hope this fixed it bro, im tired ([](https://github.com/alexg-sh/LiquiDB/commit/1ddce571ae69683fed9e243fdcb70062ced08fb4))
+* robustly resolve and trust primary gpg key in release workflow ([](https://github.com/alexg-sh/LiquiDB/commit/3c05686bf3c20ccd469f6cc82d9a8773df01080e))
+* THIS WILL WORK. I KNOW IT. I JUST KNOW IT. ([](https://github.com/alexg-sh/LiquiDB/commit/7ae64c91293db7187d061a6224a76d224975b9bc))
+* use prepared release notes instead of auto generation ([](https://github.com/alexg-sh/LiquiDB/commit/7c7947cce8f2fb5e2d8fb55278a5e192f1b115f8))
+* wire semantic-release to use verified gpg key id ([](https://github.com/alexg-sh/LiquiDB/commit/74b3a8c38ff3e15d203cbf79acfc90a3fc9d9aba))
+
+### ci
+
+* add explicit gpg key verification before semantic-release ([](https://github.com/alexg-sh/LiquiDB/commit/3fe25c8d6d4b99f58b9b59f79ca512145e584d3c))
+* align git identity defaults with alexg-sh account ([](https://github.com/alexg-sh/LiquiDB/commit/58369bc8e1c77badd57891e768d79833f5244b78))
+* configure git signing to use imported gpg key and loopback ([](https://github.com/alexg-sh/LiquiDB/commit/8e09236665eed7dcf238ef0aace1ba2dcce5b74e))
+* configure gpg environment before key import ([](https://github.com/alexg-sh/LiquiDB/commit/ab8b828e1ecc8699cfceddfc44c88d48afa5f527))
+* configure semantic-release-bot and use gpg email ([](https://github.com/alexg-sh/LiquiDB/commit/1edf5b5ad0c59b3d11acc42cbc4b1e2c400abee5))
+* determine normalized primary gpg key id for tests ([](https://github.com/alexg-sh/LiquiDB/commit/8118613f9c0ecfb01a3fb10bf0cd41273a143762))
+* expose gpg import output for downstream steps ([](https://github.com/alexg-sh/LiquiDB/commit/8c70e3c111a5222c9b0ce2bcf805c99bb9548d03))
+* improve gpg key detection and signing verification ([](https://github.com/alexg-sh/LiquiDB/commit/e6d553ba04d1f925c985ae6bc51ec9e6bc4d996d))
+* improve gpg key import and signing diagnostics ([](https://github.com/alexg-sh/LiquiDB/commit/b1a3cf7b8a276e76f4cd6440c1e5c1c8b620656c))
+* improve gpg key import diagnostics and key id resolution ([](https://github.com/alexg-sh/LiquiDB/commit/d5b83ea7e7aea53de1bb2be568089dee274e8fec))
+* inline semantic-release and expose release outputs ([](https://github.com/alexg-sh/LiquiDB/commit/5a748555c58c1963d85496eca46475bcb55c043a))
+* prefer primary gpg key id from keyring for signing ([](https://github.com/alexg-sh/LiquiDB/commit/5376513516dedf4e09358d0e5180818b1430914f))
+* prepare custom release notes body from draft ([](https://github.com/alexg-sh/LiquiDB/commit/e486837ffcca24d7953c0d27e8d96138844e89cd))
+* support gpg signing without passphrase in verification ([](https://github.com/alexg-sh/LiquiDB/commit/54078940a8c22cd08730f82f2ccee86a834a3d41))
+
+* Merge remote-tracking branch 'origin/main' ([](https://github.com/alexg-sh/LiquiDB/commit/f0c5c9ad8398d6f7a547656afc58e53a24d88593))
+
 ## <small>1.3.1 (2025-11-09)</small>
 
 * fix: configure git user and strengthen gpg signing setup ([dfc6468dac2ade35ee48eb380d4379bac0ca37c1](https://github.com/alexg-sh/LiquiDB/commit/dfc6468dac2ade35ee48eb380d4379bac0ca37c1))
