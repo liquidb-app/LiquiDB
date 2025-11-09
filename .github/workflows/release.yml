@@ -632,128 +632,123 @@ jobs:
           TAG="v${VERSION}"
           REPO="${{ github.repository }}"
           
-          # Try to get the draft release body using GitHub API
-          DRAFT_BODY=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+          echo "Generating release notes from template for every release"
+          
+          # Always use the template - get semantic-release notes from draft release to populate it
+          SEMANTIC_NOTES=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
             "https://api.github.com/repos/${REPO}/releases/tags/${TAG}" \
             | jq -r '.body // empty' 2>/dev/null || echo "")
           
-          if [ -n "$DRAFT_BODY" ] && [ "$DRAFT_BODY" != "null" ] && [ "$DRAFT_BODY" != "" ]; then
-            echo "Found existing release notes from draft release"
-            echo "release_body<<EOF" >> $GITHUB_OUTPUT
-            echo "$DRAFT_BODY" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+          if [ -n "$SEMANTIC_NOTES" ] && [ "$SEMANTIC_NOTES" != "null" ] && [ "$SEMANTIC_NOTES" != "" ]; then
+            echo "Found semantic-release notes from draft release, will populate template"
           else
-            echo "Generating release notes from template"
-            
-            # Get previous version from git tags
-            PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${TAG}^ 2>/dev/null || echo "")
-            PREVIOUS_VERSION=""
+            echo "No semantic-release notes found, template will be populated with empty sections"
+          fi
+          
+          # Get previous version from git tags
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${TAG}^ 2>/dev/null || echo "")
+          PREVIOUS_VERSION=""
+          if [ -n "$PREVIOUS_TAG" ]; then
+            PREVIOUS_VERSION=$(echo "$PREVIOUS_TAG" | sed 's/^v//')
+          else
+            # Try to get the latest tag before this one
+            PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -v "^${TAG}$" | head -1 || echo "")
             if [ -n "$PREVIOUS_TAG" ]; then
               PREVIOUS_VERSION=$(echo "$PREVIOUS_TAG" | sed 's/^v//')
-            else
-              # Try to get the latest tag before this one
-              PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -v "^${TAG}$" | head -1 || echo "")
-              if [ -n "$PREVIOUS_TAG" ]; then
-                PREVIOUS_VERSION=$(echo "$PREVIOUS_TAG" | sed 's/^v//')
-              fi
             fi
+          fi
+          
+          if [ -z "$PREVIOUS_VERSION" ]; then
+            PREVIOUS_VERSION="1.0.0"
+          fi
+          
+          # Generate release notes from template (ALWAYS use template for every release)
+          TEMPLATE_FILE=".github/RELEASE_NOTES_TEMPLATE.md"
+          if [ -f "$TEMPLATE_FILE" ]; then
+            echo "Using release notes template: $TEMPLATE_FILE"
             
-            if [ -z "$PREVIOUS_VERSION" ]; then
-              PREVIOUS_VERSION="1.0.0"
-            fi
-            
-            # Generate release notes from template
-            TEMPLATE_FILE=".github/RELEASE_NOTES_TEMPLATE.md"
-            if [ -f "$TEMPLATE_FILE" ]; then
-              # Get semantic-release notes from the draft release
-              echo "Fetching semantic-release notes from draft release..."
-              SEMANTIC_NOTES=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-                "https://api.github.com/repos/${REPO}/releases/tags/${TAG}" \
-                | jq -r '.body // empty' 2>/dev/null || echo "")
+            # Parse semantic-release notes and extract features, fixes, breaking changes
+            if [ -n "$SEMANTIC_NOTES" ] && [ "$SEMANTIC_NOTES" != "null" ] && [ "$SEMANTIC_NOTES" != "" ]; then
+              echo "Parsing semantic-release notes..."
               
-              # Parse semantic-release notes and extract features, fixes, breaking changes
-              if [ -n "$SEMANTIC_NOTES" ] && [ "$SEMANTIC_NOTES" != "null" ] && [ "$SEMANTIC_NOTES" != "" ]; then
-                echo "Parsing semantic-release notes..."
-                
-                # Extract features section (### feat or ### Features)
-                SEMANTIC_FEATURES=$(echo "$SEMANTIC_NOTES" | awk '/^### (feat|Features)/,/^### / {if (!/^### /) print}' | grep -E '^\*' | sed 's/^\*/- ✨ /' | sed 's/^[[:space:]]*//' || echo "")
-                
-                # Extract fixes section (### fix or ### Bug Fixes)
-                SEMANTIC_FIXES=$(echo "$SEMANTIC_NOTES" | awk '/^### (fix|Bug Fixes)/,/^### / {if (!/^### /) print}' | grep -E '^\*' | sed 's/^\*/- 🐛 /' | sed 's/^[[:space:]]*//' || echo "")
-                
-                # Extract breaking changes
-                SEMANTIC_BREAKING=$(echo "$SEMANTIC_NOTES" | awk '/BREAKING/,/^### / {if (!/^### / && /^\*/) print}' | sed 's/^\*/- ⚠️ **/' | sed 's/$/**/' | sed 's/^[[:space:]]*//' || echo "")
-                
-                # If no content found, try alternative parsing
-                if [ -z "$SEMANTIC_FEATURES" ] && [ -z "$SEMANTIC_FIXES" ]; then
-                  echo "Trying alternative parsing method..."
-                  # Try to extract all bullet points and categorize them
-                  ALL_ITEMS=$(echo "$SEMANTIC_NOTES" | grep -E '^\*' || echo "")
-                  if [ -n "$ALL_ITEMS" ]; then
-                    # Simple extraction - just get all items
-                    SEMANTIC_FEATURES=$(echo "$ALL_ITEMS" | head -5 | sed 's/^\*/- ✨ /' || echo "")
-                    SEMANTIC_FIXES=$(echo "$ALL_ITEMS" | tail -n +6 | sed 's/^\*/- 🐛 /' || echo "")
-                  fi
+              # Extract features section (### feat or ### Features)
+              SEMANTIC_FEATURES=$(echo "$SEMANTIC_NOTES" | awk '/^### (feat|Features)/,/^### / {if (!/^### /) print}' | grep -E '^\*' | sed 's/^\*/- ✨ /' | sed 's/^[[:space:]]*//' || echo "")
+              
+              # Extract fixes section (### fix or ### Bug Fixes)
+              SEMANTIC_FIXES=$(echo "$SEMANTIC_NOTES" | awk '/^### (fix|Bug Fixes)/,/^### / {if (!/^### /) print}' | grep -E '^\*' | sed 's/^\*/- 🐛 /' | sed 's/^[[:space:]]*//' || echo "")
+              
+              # Extract breaking changes
+              SEMANTIC_BREAKING=$(echo "$SEMANTIC_NOTES" | awk '/BREAKING/,/^### / {if (!/^### / && /^\*/) print}' | sed 's/^\*/- ⚠️ **/' | sed 's/$/**/' | sed 's/^[[:space:]]*//' || echo "")
+              
+              # If no content found, try alternative parsing
+              if [ -z "$SEMANTIC_FEATURES" ] && [ -z "$SEMANTIC_FIXES" ]; then
+                echo "Trying alternative parsing method..."
+                # Try to extract all bullet points and categorize them
+                ALL_ITEMS=$(echo "$SEMANTIC_NOTES" | grep -E '^\*' || echo "")
+                if [ -n "$ALL_ITEMS" ]; then
+                  # Simple extraction - just get all items
+                  SEMANTIC_FEATURES=$(echo "$ALL_ITEMS" | head -5 | sed 's/^\*/- ✨ /' || echo "")
+                  SEMANTIC_FIXES=$(echo "$ALL_ITEMS" | tail -n +6 | sed 's/^\*/- 🐛 /' || echo "")
                 fi
-                
-                echo "Found ${#SEMANTIC_FEATURES} features, ${#SEMANTIC_FIXES} fixes, ${#SEMANTIC_BREAKING} breaking changes"
-              else
-                SEMANTIC_FEATURES=""
-                SEMANTIC_FIXES=""
-                SEMANTIC_BREAKING=""
-                echo "No semantic-release notes found"
               fi
               
-              # Replace placeholders in template with actual content
-              # Use a temporary file to handle multiline replacements
-              TEMP_TEMPLATE=$(mktemp)
-              cp "$TEMPLATE_FILE" "$TEMP_TEMPLATE"
-              
-              # Replace simple placeholders
-              sed -i.bak "s/\${VERSION}/${VERSION}/g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
-              sed -i.bak "s/\${PREVIOUS_VERSION}/${PREVIOUS_VERSION}/g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
-              sed -i.bak "s|\${REPO}|${REPO}|g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
-              
-              # Replace multiline placeholders (features, fixes, breaking)
-              if [ -n "$SEMANTIC_FEATURES" ]; then
-                # Use perl for multiline replacement (works on both Linux and macOS)
-                perl -i -pe "s|\${SEMANTIC_FEATURES}|$SEMANTIC_FEATURES|g" "$TEMP_TEMPLATE" 2>/dev/null || \
-                sed -i.bak "s|\${SEMANTIC_FEATURES}|$SEMANTIC_FEATURES|g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
-              else
-                # Remove the entire "What's New" section if empty
-                sed -i.bak '/## 🎉 What'\''s New/,/^---$/d' "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
-              fi
-              
-              if [ -n "$SEMANTIC_FIXES" ]; then
-                perl -i -pe "s|\${SEMANTIC_FIXES}|$SEMANTIC_FIXES|g" "$TEMP_TEMPLATE" 2>/dev/null || \
-                sed -i.bak "s|\${SEMANTIC_FIXES}|$SEMANTIC_FIXES|g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
-              else
-                # Remove the entire "Bug Fixes" section if empty
-                sed -i.bak '/## 🐛 Bug Fixes/,/^---$/d' "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
-              fi
-              
-              if [ -n "$SEMANTIC_BREAKING" ]; then
-                perl -i -pe "s|\${SEMANTIC_BREAKING}|$SEMANTIC_BREAKING|g" "$TEMP_TEMPLATE" 2>/dev/null || \
-                sed -i.bak "s|\${SEMANTIC_BREAKING}|$SEMANTIC_BREAKING|g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
-              else
-                # Remove the entire "Breaking Changes" section if empty
-                sed -i.bak '/## ⚠️ Breaking Changes/,/^---$/d' "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
-              fi
-              
-              # Read the final release body
-              RELEASE_BODY=$(cat "$TEMP_TEMPLATE")
-              rm -f "$TEMP_TEMPLATE"
-              
-              echo "release_body<<EOF" >> $GITHUB_OUTPUT
-              echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
+              echo "Found ${#SEMANTIC_FEATURES} features, ${#SEMANTIC_FIXES} fixes, ${#SEMANTIC_BREAKING} breaking changes"
             else
-              echo "Template not found, using default"
-              DEFAULT_BODY="## 🎉 Release v${VERSION}"$'\n\n'"This release includes builds for all platforms."$'\n\n'"See [CHANGELOG.md](https://github.com/${REPO}/blob/main/CHANGELOG.md) for detailed release notes."
-              echo "release_body<<EOF" >> $GITHUB_OUTPUT
-              echo "$DEFAULT_BODY" >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
+              SEMANTIC_FEATURES=""
+              SEMANTIC_FIXES=""
+              SEMANTIC_BREAKING=""
+              echo "No semantic-release notes found"
             fi
+            
+            # Replace placeholders in template with actual content
+            # Use a temporary file to handle multiline replacements
+            TEMP_TEMPLATE=$(mktemp)
+            cp "$TEMPLATE_FILE" "$TEMP_TEMPLATE"
+            
+            # Replace simple placeholders
+            sed -i.bak "s/\${VERSION}/${VERSION}/g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+            sed -i.bak "s/\${PREVIOUS_VERSION}/${PREVIOUS_VERSION}/g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+            sed -i.bak "s|\${REPO}|${REPO}|g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+            
+            # Replace multiline placeholders (features, fixes, breaking)
+            if [ -n "$SEMANTIC_FEATURES" ]; then
+              # Use perl for multiline replacement (works on both Linux and macOS)
+              perl -i -pe "s|\${SEMANTIC_FEATURES}|$SEMANTIC_FEATURES|g" "$TEMP_TEMPLATE" 2>/dev/null || \
+              sed -i.bak "s|\${SEMANTIC_FEATURES}|$SEMANTIC_FEATURES|g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+            else
+              # Remove the entire "What's New" section if empty
+              sed -i.bak '/## 🎉 What'\''s New/,/^---$/d' "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+            fi
+            
+            if [ -n "$SEMANTIC_FIXES" ]; then
+              perl -i -pe "s|\${SEMANTIC_FIXES}|$SEMANTIC_FIXES|g" "$TEMP_TEMPLATE" 2>/dev/null || \
+              sed -i.bak "s|\${SEMANTIC_FIXES}|$SEMANTIC_FIXES|g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+            else
+              # Remove the entire "Bug Fixes" section if empty
+              sed -i.bak '/## 🐛 Bug Fixes/,/^---$/d' "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+            fi
+            
+            if [ -n "$SEMANTIC_BREAKING" ]; then
+              perl -i -pe "s|\${SEMANTIC_BREAKING}|$SEMANTIC_BREAKING|g" "$TEMP_TEMPLATE" 2>/dev/null || \
+              sed -i.bak "s|\${SEMANTIC_BREAKING}|$SEMANTIC_BREAKING|g" "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+            else
+              # Remove the entire "Breaking Changes" section if empty
+              sed -i.bak '/## ⚠️ Breaking Changes/,/^---$/d' "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
+            fi
+            
+            # Read the final release body
+            RELEASE_BODY=$(cat "$TEMP_TEMPLATE")
+            rm -f "$TEMP_TEMPLATE"
+            
+            echo "release_body<<EOF" >> $GITHUB_OUTPUT
+            echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "Template not found, using default"
+            DEFAULT_BODY="## 🎉 Release v${VERSION}"$'\n\n'"This release includes builds for all platforms."$'\n\n'"See [CHANGELOG.md](https://github.com/${REPO}/blob/main/CHANGELOG.md) for detailed release notes."
+            echo "release_body<<EOF" >> $GITHUB_OUTPUT
+            echo "$DEFAULT_BODY" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
           fi
 
       - name: Download macOS artifacts
