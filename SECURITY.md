@@ -70,7 +70,7 @@ The following are generally **out of scope**:
 
 ### Security Updates
 
-Security updates will be released as patch versions (e.g., 1.6.0 → 1.6.1) and will be available through:
+Security updates will be released as patch versions (e.g., 1.4.3 → 1.4.4) and will be available through:
 
 - GitHub Releases
 - Built-in auto-update mechanism (if enabled)
