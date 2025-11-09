@@ -321,6 +321,50 @@ jobs:
           # Get the latest tag before running semantic-release
           LATEST_TAG_BEFORE=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           
+          # Check for existing tags that might conflict
+          # First, determine what version semantic-release would create (dry-run)
+          echo "=== Checking for potential tag conflicts ==="
+          DRY_RUN_OUTPUT=$(npx semantic-release@23 --extends ./release.config.js --dry-run 2>&1 || true)
+          
+          # Extract version using portable grep (works without -P flag)
+          PROPOSED_VERSION=$(echo "$DRY_RUN_OUTPUT" | grep "The next release version is" | sed -n 's/.*The next release version is \([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p' | head -1)
+          
+          if [ -n "$PROPOSED_VERSION" ]; then
+            PROPOSED_TAG="v${PROPOSED_VERSION}"
+            echo "Proposed version: $PROPOSED_VERSION (tag: $PROPOSED_TAG)"
+            
+            # Check if the tag already exists
+            if git rev-parse "$PROPOSED_TAG" >/dev/null 2>&1; then
+              echo "⚠ Tag $PROPOSED_TAG already exists"
+              
+              # Check if there's a GitHub release for this tag
+              if [ -n "$GITHUB_TOKEN" ]; then
+                RELEASE_RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                  "https://api.github.com/repos/${{ github.repository }}/releases/tags/$PROPOSED_TAG" 2>/dev/null || echo "")
+                RELEASE_ID=$(echo "$RELEASE_RESPONSE" | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2 || echo "")
+                
+                if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ] && [ "$RELEASE_ID" != "" ]; then
+                  echo "✓ Release already exists for tag $PROPOSED_TAG (ID: $RELEASE_ID), skipping semantic-release"
+                  echo "new_release_published=false" >> $GITHUB_OUTPUT
+                  exit 0
+                else
+                  echo "⚠ Tag exists but no release found, deleting tag to allow recreation"
+                  git tag -d "$PROPOSED_TAG" 2>/dev/null || true
+                  git push origin ":refs/tags/$PROPOSED_TAG" 2>/dev/null || true
+                  echo "✓ Deleted conflicting tag $PROPOSED_TAG"
+                fi
+              else
+                echo "⚠ Tag exists but GITHUB_TOKEN not available, deleting local tag"
+                git tag -d "$PROPOSED_TAG" 2>/dev/null || true
+                echo "✓ Deleted local tag $PROPOSED_TAG"
+              fi
+            else
+              echo "✓ Tag $PROPOSED_TAG does not exist, safe to proceed"
+            fi
+          else
+            echo "⚠ Could not determine proposed version from dry-run, proceeding anyway"
+          fi
+          
           # Run semantic-release
           npx semantic-release@23 --extends ./release.config.js
           EXIT_CODE=$?
