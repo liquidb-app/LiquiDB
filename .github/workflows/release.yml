@@ -85,10 +85,17 @@ jobs:
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           GIT_USER_NAME: ${{ secrets.GIT_USER_NAME }}
           GIT_USER_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
         run: |
           if [ -n "$GPG_PRIVATE_KEY" ] && [ "$GPG_PRIVATE_KEY" != "" ] && [ -n "$GPG_KEY_ID" ]; then
+            # Use key ID from import step if available, otherwise use from secrets
+            ACTUAL_KEY_ID="${GPG_KEY_ID}"
+            if [ -n "${{ steps.gpg_import.outputs.gpg_key_id }}" ]; then
+              ACTUAL_KEY_ID="${{ steps.gpg_import.outputs.gpg_key_id }}"
+            fi
+            
             # Use provided values or default to semantic-release-bot
             GIT_NAME="${GIT_USER_NAME:-semantic-release-bot}"
             # Use email from GPG key if available, otherwise use provided or default
