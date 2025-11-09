@@ -1,5 +1,13 @@
 "use client"
 
+/**
+ * StarsBackground Component
+ * 
+ * NOTE: This component is ONLY used during onboarding.
+ * It will be automatically unmounted and cleaned up when onboarding completes.
+ * Do not use this component outside of the onboarding flow.
+ */
+
 import React, { useEffect, useRef } from "react"
 
 type StarsBackgroundProps = React.ComponentProps<"div"> & {
@@ -46,12 +54,16 @@ export function StarsBackground({
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
+    // Track if component is still mounted to prevent operations after unmount
+    let isMounted = true
+
     let cssWidth = canvas.offsetWidth
     let cssHeight = canvas.offsetHeight
     const dpr = Math.max(1, window.devicePixelRatio || 1)
     let width = (canvas.width = Math.max(1, Math.floor(cssWidth * dpr)))
     let height = (canvas.height = Math.max(1, Math.floor(cssHeight * dpr)))
     const setCanvasScale = () => {
+      if (!isMounted) return
       const context = canvas.getContext("2d")
       if (!context) return
       context.setTransform(1, 0, 0, 1, 0, 0)
@@ -67,32 +79,67 @@ export function StarsBackground({
       setCanvasScale()
     }
     
+    // Track previous dimensions to avoid unnecessary re-initialization
+    let lastWidth = cssWidth
+    let lastHeight = cssHeight
+    let resizeTimeout: NodeJS.Timeout | null = null
+    
     const onResize = () => {
-      cssWidth = canvas.offsetWidth
-      cssHeight = canvas.offsetHeight
-      width = canvas.width = Math.max(1, Math.floor(cssWidth * dpr))
-      height = canvas.height = Math.max(1, Math.floor(cssHeight * dpr))
-      if (cssWidth === 0 || cssHeight === 0) {
-        cssWidth = 800
-        cssHeight = 600
-        width = canvas.width = Math.floor(cssWidth * dpr)
-        height = canvas.height = Math.floor(cssHeight * dpr)
+      if (!isMounted) return
+      
+      // Clear any pending resize operation
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout)
       }
-      setCanvasScale()
-      init()
+      
+      // Debounce resize operations to prevent excessive calls during rapid resizing
+      resizeTimeout = setTimeout(() => {
+        if (!isMounted) return
+        
+        const newWidth = canvas.offsetWidth || 800
+        const newHeight = canvas.offsetHeight || 600
+        
+        // Only reinitialize if dimensions changed significantly (more than 10% change)
+        const widthChanged = Math.abs(newWidth - lastWidth) > lastWidth * 0.1
+        const heightChanged = Math.abs(newHeight - lastHeight) > lastHeight * 0.1
+        
+        if (!widthChanged && !heightChanged) {
+          return // Skip if dimensions haven't changed significantly
+        }
+        
+        cssWidth = newWidth
+        cssHeight = newHeight
+        lastWidth = cssWidth
+        lastHeight = cssHeight
+        
+        width = canvas.width = Math.max(1, Math.floor(cssWidth * dpr))
+        height = canvas.height = Math.max(1, Math.floor(cssHeight * dpr))
+        
+        if (cssWidth === 0 || cssHeight === 0) {
+          cssWidth = 800
+          cssHeight = 600
+          width = canvas.width = Math.floor(cssWidth * dpr)
+          height = canvas.height = Math.floor(cssHeight * dpr)
+        }
+        
+        setCanvasScale()
+        init()
+      }, 150) // Debounce for 150ms
     }
     const resizeObserver = new ResizeObserver(onResize)
     resizeObserver.observe(canvas)
 
     type Star = { x: number; y: number; size: number; depth: number }
     let stars: Star[] = []
-    const numStars = Math.max(100, Math.floor(width * height * factor * 0.001))
 
     function rand(min: number, max: number) {
       return Math.random() * (max - min) + min
     }
 
     function init() {
+      if (!isMounted) return
+      // Recalculate numStars based on current dimensions
+      const numStars = Math.max(100, Math.floor(cssWidth * cssHeight * factor * 0.001))
       stars = new Array(numStars).fill(0).map(() => ({
         x: rand(0, cssWidth),
         y: rand(0, cssHeight),
@@ -103,6 +150,7 @@ export function StarsBackground({
     init()
 
     const onMouseMove = (e: MouseEvent) => {
+      if (!isMounted) return
       const rect = canvas.getBoundingClientRect()
       const cx = rect.left + rect.width / 2
       const cy = rect.top + rect.height / 2
@@ -117,7 +165,13 @@ export function StarsBackground({
     }
 
     function draw() {
-      if (!ctx) return
+      if (!isMounted || !ctx) {
+        if (animationRef.current) {
+          cancelAnimationFrame(animationRef.current)
+          animationRef.current = null
+        }
+        return
+      }
       
       ctx.clearRect(0, 0, cssWidth, cssHeight)
       ctx.fillStyle = colorRef.current
@@ -151,9 +205,34 @@ export function StarsBackground({
     animationRef.current = requestAnimationFrame(draw)
 
     return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current)
+      // Mark as unmounted immediately to stop all operations
+      isMounted = false
+      
+      // Cancel animation frame
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+        animationRef.current = null
+      }
+      
+      // Clear any pending resize operations
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout)
+        resizeTimeout = null
+      }
+      
+      // Disconnect resize observer
       resizeObserver.disconnect()
+      
+      // Remove event listeners
       window.removeEventListener("mousemove", onMouseMove)
+      
+      // Clear the canvas
+      if (ctx && canvas) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+      }
+      
+      // Clear stars array to free memory
+      stars = []
     }
   }, [factor, starColor, parallaxFactor, glow])
 
