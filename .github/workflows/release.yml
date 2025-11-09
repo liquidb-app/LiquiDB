@@ -186,6 +186,46 @@ jobs:
             fi
           fi
 
+      - name: Setup GPG for semantic-release
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: ${{ steps.verify_gpg.outputs.gpg_key_id_normalized != '' && steps.verify_gpg.outputs.gpg_key_id_normalized || secrets.GPG_KEY_ID }}
+          GIT_USER_NAME: ${{ secrets.GIT_USER_NAME }}
+          GIT_USER_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
+        run: |
+          if [ -n "$GPG_PRIVATE_KEY" ] && [ "$GPG_PRIVATE_KEY" != "" ] && [ -n "$GPG_KEY_ID" ]; then
+            # Import GPG key
+            echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+            
+            # Trust the key
+            echo -e "5\ny\n" | gpg --batch --command-fd 0 --edit-key "$GPG_KEY_ID" trust || true
+            
+            # Configure GPG
+            mkdir -p ~/.gnupg
+            echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+            echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf || true
+            
+            # Get email from GPG key or use default
+            GPG_EMAIL=$(gpg --list-keys --keyid-format LONG "$GPG_KEY_ID" 2>/dev/null | grep -oE '<[^>]+@[^>]+>' | head -1 | tr -d '<>')
+            GIT_EMAIL="${GIT_USER_EMAIL:-${GPG_EMAIL:-semantic-release-bot@users.noreply.github.com}}"
+            GIT_NAME="${GIT_USER_NAME:-semantic-release-bot}"
+            
+            # Configure git
+            git config --global user.name "$GIT_NAME"
+            git config --global user.email "$GIT_EMAIL"
+            git config --global user.signingkey "$GPG_KEY_ID"
+            git config --global commit.gpgsign true
+            git config --global gpg.program gpg
+            
+            echo "Configured Git for signing: $GIT_NAME <$GIT_EMAIL>"
+            echo "Using GPG key ID: $GPG_KEY_ID"
+            
+            # Verify the key is accessible
+            gpg --list-secret-keys --keyid-format LONG
+            echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --default-key "$GPG_KEY_ID" > /dev/null 2>&1 && echo "✓ GPG signing verified" || echo "⚠ GPG signing verification failed"
+          fi
+
       - name: Run semantic-release
         id: semantic
         uses: cycjimmy/semantic-release-action@v4
