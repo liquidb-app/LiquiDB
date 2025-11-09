@@ -8,6 +8,9 @@ on:
 jobs:
   version:
     runs-on: ubuntu-latest
+    # Skip this job if the commit message matches version update pattern
+    # This prevents the workflow from running when version update commits are pushed
+    if: github.event.head_commit.message == null || !startsWith(github.event.head_commit.message, 'chore(release):')
     permissions:
       contents: write
       issues: write
@@ -24,13 +27,15 @@ jobs:
           token: ${{ secrets.PAT }}
           fetch-tags: true
 
-      - name: Check if version update commit
+      - name: Check if version update commit (fallback)
         id: check_version_commit
         run: |
+          # Fallback check in case job-level condition didn't catch it
           COMMIT_MSG=$(git log -1 --pretty=format:"%s" HEAD)
           if echo "$COMMIT_MSG" | grep -qE "^chore\(release\):"; then
-            echo "Version update commit detected, skipping workflow"
+            echo "Version update commit detected, exiting job early"
             echo "skip_workflow=true" >> $GITHUB_OUTPUT
+            exit 0
           else
             echo "skip_workflow=false" >> $GITHUB_OUTPUT
           fi
