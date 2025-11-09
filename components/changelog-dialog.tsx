@@ -14,6 +14,132 @@ interface ChangelogDialogProps {
   changelog?: string
 }
 
+interface ChangelogEntry {
+  type: string
+  message: string
+  scope?: string
+}
+
+interface ChangelogVersion {
+  version: string
+  date?: string
+  entries: ChangelogEntry[]
+  sections: Record<string, ChangelogEntry[]>
+}
+
+type IconType = typeof Sparkles
+
+const typeConfig: Record<string, { icon: IconType; label: string; variant: "default" | "secondary" | "outline"; color: string }> = {
+  feat: { icon: Sparkles, label: "Feature", variant: "default", color: "text-primary" },
+  fix: { icon: Bug, label: "Fix", variant: "default", color: "text-destructive" },
+  chore: { icon: Wrench, label: "Chore", variant: "secondary", color: "text-muted-foreground" },
+  perf: { icon: Zap, label: "Performance", variant: "default", color: "text-success" },
+  style: { icon: Palette, label: "Style", variant: "outline", color: "text-muted-foreground" },
+  refactor: { icon: Code, label: "Refactor", variant: "secondary", color: "text-muted-foreground" },
+  ci: { icon: Rocket, label: "CI", variant: "outline", color: "text-muted-foreground" },
+  build: { icon: Package, label: "Build", variant: "outline", color: "text-muted-foreground" },
+  test: { icon: Code, label: "Test", variant: "outline", color: "text-muted-foreground" },
+  docs: { icon: Code, label: "Docs", variant: "outline", color: "text-muted-foreground" },
+}
+
+function parseChangelog(markdown: string): ChangelogVersion[] {
+  const versions: ChangelogVersion[] = []
+  const lines = markdown.split("\n")
+  let currentVersion: ChangelogVersion | null = null
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    
+    // Match version headers: ## 1.2.0 (2025-11-08) or ## 1.2.0
+    const versionMatch = line.match(/^##\s+(.+?)(?:\s+\((.+?)\))?$/)
+    if (versionMatch) {
+      if (currentVersion) {
+        versions.push(currentVersion)
+      }
+      currentVersion = {
+        version: versionMatch[1].replace(/<small>|<\/small>/g, "").trim(),
+        date: versionMatch[2],
+        entries: [],
+        sections: {},
+      }
+      continue
+    }
+
+    // Match section headers: ### Features, ### Bug Fixes, etc.
+    const sectionMatch = line.match(/^###\s+(.+)$/)
+    if (sectionMatch && currentVersion) {
+      const sectionName = sectionMatch[1]
+      if (!currentVersion.sections[sectionName]) {
+        currentVersion.sections[sectionName] = []
+      }
+      continue
+    }
+
+    // Match list items: * feat: description or * fix: description
+    const listMatch = line.match(/^\*\s+(.+)$/)
+    if (listMatch && currentVersion) {
+      let entryText = listMatch[1]
+      // Remove commit hash links at the end: ([hash](url)) or ([hash])
+      entryText = entryText.replace(/\s*\(\[([^\]]+)\]\([^)]+\)\)\s*$/, "").replace(/\s*\(([a-f0-9]+)\)\s*$/, "")
+      
+      // Try to extract type and message
+      const typeMatch = entryText.match(/^(\w+)(?:\(([^)]+)\))?:\s*(.+)$/)
+      
+      if (typeMatch) {
+        const [, type, scope, message] = typeMatch
+        const entry: ChangelogEntry = {
+          type: type.toLowerCase(),
+          message: message.trim(),
+          scope,
+        }
+        
+        // Determine which section this belongs to
+        const sectionMap: Record<string, string> = {
+          feat: "Features",
+          fix: "Bug Fixes",
+          perf: "Performance Improvements",
+          refactor: "Code Refactoring",
+          style: "Styles",
+          chore: "Miscellaneous Chores",
+          ci: "Continuous Integration",
+          build: "Build System",
+          test: "Tests",
+          docs: "Documentation",
+        }
+        
+        const sectionName = sectionMap[entry.type] || "Other"
+        if (!currentVersion.sections[sectionName]) {
+          currentVersion.sections[sectionName] = []
+        }
+        currentVersion.sections[sectionName].push(entry)
+        currentVersion.entries.push(entry)
+      } else {
+        // Plain entry without type prefix
+        const entry: ChangelogEntry = {
+          type: "other",
+          message: entryText.trim(),
+        }
+        if (!currentVersion.sections["Other"]) {
+          currentVersion.sections["Other"] = []
+        }
+        currentVersion.sections["Other"].push(entry)
+        currentVersion.entries.push(entry)
+      }
+    }
+  }
+
+  if (currentVersion) {
+    versions.push(currentVersion)
+  }
+
+  return versions
+}
+
+function formatMessage(message: string): string {
+  // Remove commit hash links: [hash](url) -> just the text
+  return message.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+}
+
 export function ChangelogDialog({ open, onOpenChange, version, changelog }: ChangelogDialogProps) {
   const [localChangelog, setLocalChangelog] = useState<string>("")
 
