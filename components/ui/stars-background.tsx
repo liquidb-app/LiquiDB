@@ -112,18 +112,18 @@ export function StarsBackground({
         lastWidth = cssWidth
         lastHeight = cssHeight
         
-        width = canvas.width = Math.max(1, Math.floor(cssWidth * dpr))
-        height = canvas.height = Math.max(1, Math.floor(cssHeight * dpr))
+      width = canvas.width = Math.max(1, Math.floor(cssWidth * dpr))
+      height = canvas.height = Math.max(1, Math.floor(cssHeight * dpr))
         
-        if (cssWidth === 0 || cssHeight === 0) {
-          cssWidth = 800
-          cssHeight = 600
-          width = canvas.width = Math.floor(cssWidth * dpr)
-          height = canvas.height = Math.floor(cssHeight * dpr)
-        }
+      if (cssWidth === 0 || cssHeight === 0) {
+        cssWidth = 800
+        cssHeight = 600
+        width = canvas.width = Math.floor(cssWidth * dpr)
+        height = canvas.height = Math.floor(cssHeight * dpr)
+      }
         
-        setCanvasScale()
-        init()
+      setCanvasScale()
+      init()
       }, 150) // Debounce for 150ms
     }
     const resizeObserver = new ResizeObserver(onResize)

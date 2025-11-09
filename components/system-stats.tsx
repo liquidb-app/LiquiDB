@@ -210,7 +210,7 @@ export function SystemStats() {
         clearTimeout(resizeTimeout)
       }
       resizeTimeout = setTimeout(() => {
-        setWindowWidth(window.innerWidth)
+      setWindowWidth(window.innerWidth)
       }, 100)
     }
 
