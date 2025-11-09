@@ -1,3 +1,9 @@
+## [1.4.2](https://github.com/alexg-sh/LiquiDB/compare/v1.4.1...v1.4.2) (2025-11-09)
+
+### fix
+
+* let's see if this works ([a3734a0](https://github.com/alexg-sh/LiquiDB/commit/a3734a0b2b8cc44a01ee0546533320eb977bb7ed))
+
 ## [1.4.1](https://github.com/alexg-sh/LiquiDB/compare/v1.4.0...v1.4.1) (2025-11-09)
 
 * Merge remote-tracking branch 'origin/main' ([](https://github.com/alexg-sh/LiquiDB/commit/ea4dba7db2e726df2008d723da0568daa9f8abb9))
