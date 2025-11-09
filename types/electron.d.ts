@@ -53,7 +53,9 @@ declare global {
       openSystemPreferences?: () => Promise<{ success: boolean; error?: string }>
       openPermissionPage?: (permissionType: string) => Promise<{ success: boolean; error?: string }>
       requestCriticalPermissions?: () => Promise<{ success: boolean; data?: { results: Array<{ permission: string; granted: boolean; error: string | null }> }; error?: string }>
-      requestPermission?: (permissionName: string) => Promise<{ success: boolean; error?: string }>
+      requestPermission?: (permissionName: string) => Promise<{ success: boolean; data?: { granted: boolean }; error?: string }>
+      onPermissionChanged?: (callback: (data: { permission: string; granted: boolean }) => void) => void
+      removePermissionChangedListener?: () => void
       openExternalLink?: (url: string) => Promise<{ success: boolean; error?: string }>
       cleanupDeadProcesses?: () => Promise<{ success: boolean; cleanedProcesses: number; updatedStatuses: number; error?: string }>
       startDatabase?: (config: DatabaseContainer) => Promise<{ success: boolean; error?: string }>

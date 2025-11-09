@@ -87,6 +87,12 @@ contextBridge.exposeInMainWorld("electron", {
   openPermissionPage: (permissionType: string) => ipcRenderer.invoke("permissions:openPermissionPage", permissionType),
   requestCriticalPermissions: () => ipcRenderer.invoke("permissions:requestCritical"),
   requestPermission: (permissionName: string) => ipcRenderer.invoke("permissions:request", permissionName),
+  onPermissionChanged: (callback: (data: { permission: string; granted: boolean }) => void) => {
+    ipcRenderer.on('permission-changed', (_event: any, data: any) => callback(data))
+  },
+  removePermissionChangedListener: () => {
+    ipcRenderer.removeAllListeners('permission-changed')
+  },
   
   // Secure storage methods using Electron's safeStorage API
   encryptString: (text: string) => ipcRenderer.invoke("permissions:encryptString", text),

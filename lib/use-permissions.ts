@@ -176,6 +176,32 @@ export function usePermissions() {
 
   useEffect(() => {
     checkPermissions()
+    
+    // Listen for permission changes from main process
+    const handlePermissionChanged = (data: { permission: string; granted: boolean }) => {
+      console.log('[Permissions] Permission changed:', data)
+      // Re-check permissions when a change is detected
+      checkPermissions()
+    }
+    
+    if (window.electron?.onPermissionChanged) {
+      window.electron.onPermissionChanged(handlePermissionChanged)
+    }
+    
+    // Re-check permissions when window regains focus
+    const handleFocus = () => {
+      console.log('[Permissions] Window focused, re-checking permissions')
+      checkPermissions()
+    }
+    
+    window.addEventListener('focus', handleFocus)
+    
+    return () => {
+      if (window.electron?.removePermissionChangedListener) {
+        window.electron.removePermissionChangedListener()
+      }
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [checkPermissions])
 
   return {
