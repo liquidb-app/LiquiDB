@@ -1,3 +1,9 @@
+## [1.5.2](https://github.com/alexg-sh/LiquiDB/compare/v1.5.1...v1.5.2) (2025-11-09)
+
+- fix: integrate changelog extraction into release notes template generation ([82aaa01](https://github.com/alexg-sh/LiquiDB/commit/82aaa01ba05e53ec9fca5b5a04583d6781d5cbe5))
+- ci: populate GitHub Releases body with per-version changelog snippet ([c10f40e](https://github.com/alexg-sh/LiquiDB/commit/c10f40ee2ffacd685196b43a089633fd535c6c1d))
+- docs: enhance release notes template with changelog section ([bad6b7a](https://github.com/alexg-sh/LiquiDB/commit/bad6b7a4194663e917c9878fd9b18befe4c74cae))
+
 ## [1.5.1](https://github.com/alexg-sh/LiquiDB/compare/v1.5.0...v1.5.1) (2025-11-09)
 
 - fix: update auto-version outputs for github actions ([724d525](https://github.com/alexg-sh/LiquiDB/commit/724d525e3f628ef2ecc81758631509b57eece4e8))
