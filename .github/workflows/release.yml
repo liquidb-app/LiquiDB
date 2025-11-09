@@ -42,16 +42,24 @@ jobs:
         run: npm ci
 
       - name: Import GPG key
+        id: gpg_import
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
         run: |
           if [ -n "$GPG_PRIVATE_KEY" ] && [ "$GPG_PRIVATE_KEY" != "" ]; then
             echo "$GPG_PRIVATE_KEY" | gpg --batch --import
             echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" || true
             gpg --list-secret-keys --keyid-format LONG
-            echo "::notice::To verify commits, upload the public GPG key to your GitHub account:"
-            echo "::notice::Run: gpg --armor --export <KEY_ID>"
+            if [ -n "$GPG_KEY_ID" ]; then
+              # Extract email from GPG key - try to find email that matches semantic-release-bot or use first email
+              GPG_EMAIL=$(gpg --list-keys --keyid-format LONG "$GPG_KEY_ID" 2>/dev/null | grep -oE '<[^>]+@[^>]+>' | head -1 | tr -d '<>')
+              if [ -n "$GPG_EMAIL" ]; then
+                echo "gpg_email=$GPG_EMAIL" >> $GITHUB_OUTPUT
+                echo "Found email in GPG key: $GPG_EMAIL"
+              fi
+            fi
           else
             echo "GPG_PRIVATE_KEY not set, skipping GPG key import"
           fi
