@@ -1,3 +1,9 @@
+## [1.5.7](https://github.com/alexg-sh/LiquiDB/compare/v1.5.6...v1.5.7) (2025-11-09)
+
+- fix: document skip-ci behavior for auto release commits ([16ead51](https://github.com/alexg-sh/LiquiDB/commit/16ead5138e2be2e2ed48dcf9ee81cc1f35d60219))
+- ci: conditionally run release steps based on skip flag ([fdf0712](https://github.com/alexg-sh/LiquiDB/commit/fdf071203f9534875767100606c9941c6d58d386))
+- ci: skip release workflow for version bump commits ([90df472](https://github.com/alexg-sh/LiquiDB/commit/90df47225b5fab2950a901bd9dd48c666c2c7fe6))
+
 ## [1.5.6](https://github.com/alexg-sh/LiquiDB/compare/v1.5.5...v1.5.6) (2025-11-09)
 
 - fix: alright its done. I HOPE. ([390a377](https://github.com/alexg-sh/LiquiDB/commit/390a377067abe1f8510a219341811005e5c01cbf))
