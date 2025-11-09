@@ -116,8 +116,13 @@ export function setupAppLifecycleHandlers(app: Electron.App): void {
     }
   })
 
-  // Cleanup on app termination (skip in MCP mode)
+  // Cleanup on app termination
+  // Import file watcher for cleanup
+  const { stopDatabaseFileWatcher } = require("../database/file-watcher")
+  
   app.on("before-quit", async (event: Electron.Event) => {
+    // Stop file watcher on quit
+    stopDatabaseFileWatcher()
     // Prevent default quit behavior until cleanup is done
     event.preventDefault()
     

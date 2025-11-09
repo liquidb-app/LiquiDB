@@ -46,6 +46,9 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
   
   resetDatabaseStatuses(app)
   
+  // Start watching databases.json for changes
+  startDatabaseFileWatcher(app)
+  
   // Clean up orphaned database directories on startup
   await cleanupOrphanedDatabases(app)
   
