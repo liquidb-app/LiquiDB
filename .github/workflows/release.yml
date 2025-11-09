@@ -328,6 +328,7 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
-          generate_release_notes: true
+          generate_release_notes: false
+          body: ${{ steps.prepare_release_body.outputs.release_body }}
         env:
           GITHUB_TOKEN: ${{ secrets.PAT }}
