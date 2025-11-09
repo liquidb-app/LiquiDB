@@ -227,6 +227,32 @@ jobs:
           # Verify we're using the correct token (should be PAT, not the default)
           echo "Using GITHUB_TOKEN for semantic-release"
           
+          # Configure git user BEFORE semantic-release runs (always, not just for GPG)
+          # Use provided values or default to alexg-sh
+          GIT_NAME="${GIT_USER_NAME:-alexg-sh}"
+          GIT_EMAIL="${GIT_USER_EMAIL:-alexg-sh@users.noreply.github.com}"
+          
+          # Configure git user (this is critical for semantic-release commits)
+          git config --global user.name "$GIT_NAME"
+          git config --global user.email "$GIT_EMAIL"
+          
+          # Update git remote URL to use PAT token for authentication
+          # This ensures commits are authenticated with your account, not the bot
+          if [ -n "$GITHUB_TOKEN" ] && [ "$GITHUB_TOKEN" != "" ]; then
+            CURRENT_REMOTE=$(git remote get-url origin)
+            # Replace https://github.com/ with https://token@github.com/
+            # Or if it's already using a token, replace it
+            if echo "$CURRENT_REMOTE" | grep -q "^https://"; then
+              NEW_REMOTE=$(echo "$CURRENT_REMOTE" | sed "s|https://\([^@]*@\)\?github.com/|https://${GITHUB_TOKEN}@github.com/|")
+              git remote set-url origin "$NEW_REMOTE"
+              echo "Updated git remote URL to use PAT token for authentication"
+            fi
+          fi
+          
+          echo "=== Git Configuration (for semantic-release commits) ==="
+          echo "User: $GIT_NAME <$GIT_EMAIL>"
+          echo "This ensures commits are made by $GIT_NAME, not semantic-release-bot"
+          
           if [ -n "$GPG_PRIVATE_KEY" ] && [ "$GPG_PRIVATE_KEY" != "" ] && [ -n "$GPG_KEY_ID" ]; then
             # Configure GPG first
             mkdir -p ~/.gnupg
@@ -291,13 +317,14 @@ jobs:
             
             # Get email from GPG key or use default
             GPG_EMAIL=$(gpg --list-keys --keyid-format LONG "$GPG_KEY_ID" 2>/dev/null | grep -oE '<[^>]+@[^>]+>' | head -1 | tr -d '<>')
-            # Use provided values or default to alexg-sh
-            GIT_EMAIL="${GIT_USER_EMAIL:-${GPG_EMAIL:-alexg-sh@users.noreply.github.com}}"
-            GIT_NAME="${GIT_USER_NAME:-alexg-sh}"
+            # Update git email if we got one from GPG key and no explicit email was provided
+            if [ -n "$GPG_EMAIL" ] && [ -z "$GIT_USER_EMAIL" ]; then
+              GIT_EMAIL="$GPG_EMAIL"
+              git config --global user.email "$GIT_EMAIL"
+              echo "Updated git email from GPG key: $GIT_EMAIL"
+            fi
             
-            # Configure git
-            git config --global user.name "$GIT_NAME"
-            git config --global user.email "$GIT_EMAIL"
+            # Configure GPG signing for git commits
             git config --global user.signingkey "$GPG_KEY_ID"
             git config --global commit.gpgsign true
             git config --global gpg.program gpg
