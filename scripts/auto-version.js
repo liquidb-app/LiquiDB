@@ -99,13 +99,13 @@ console.log(`Version bumped: ${currentVersion} → ${newVersion}`);
 console.log(`Bump type: ${bumpType || 'major'}`);
 console.log(`New version: ${newVersion}`);
 
-// Output for GitHub Actions
-console.log(`::set-output name=new_version::${newVersion}`);
-console.log(`::set-output name=bump_type::${bumpType || 'major'}`);
-
-// Also write to file for GitHub Actions
+// Output for GitHub Actions using GITHUB_OUTPUT (new method)
 if (process.env.GITHUB_OUTPUT) {
   fs.appendFileSync(process.env.GITHUB_OUTPUT, `new_version=${newVersion}\n`);
   fs.appendFileSync(process.env.GITHUB_OUTPUT, `bump_type=${bumpType || 'major'}\n`);
+} else {
+  // Fallback for local testing
+  console.log(`new_version=${newVersion}`);
+  console.log(`bump_type=${bumpType || 'major'}`);
 }
 
