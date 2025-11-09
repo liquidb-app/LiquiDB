@@ -49,16 +49,33 @@ jobs:
           GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
         run: |
           if [ -n "$GPG_PRIVATE_KEY" ] && [ "$GPG_PRIVATE_KEY" != "" ]; then
+            # Import the GPG key
             echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-            echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" || true
+            
+            # Verify the key was imported
+            echo "Imported GPG keys:"
             gpg --list-secret-keys --keyid-format LONG
+            
             if [ -n "$GPG_KEY_ID" ]; then
-              # Extract email from GPG key - try to find email that matches semantic-release-bot or use first email
+              # Get the key ID in long format (remove spaces, get last 16 chars)
+              KEY_ID_LONG=$(echo "$GPG_KEY_ID" | tr -d ' ' | tail -c 17)
+              
+              # Trust the key
+              echo -e "5\ny\n" | gpg --batch --command-fd 0 --edit-key "$GPG_KEY_ID" trust || true
+              
+              # Test signing with the key
+              echo "test" | gpg --clearsign --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --default-key "$GPG_KEY_ID" || echo "Warning: Test signing failed"
+              
+              # Extract email from GPG key
               GPG_EMAIL=$(gpg --list-keys --keyid-format LONG "$GPG_KEY_ID" 2>/dev/null | grep -oE '<[^>]+@[^>]+>' | head -1 | tr -d '<>')
               if [ -n "$GPG_EMAIL" ]; then
                 echo "gpg_email=$GPG_EMAIL" >> $GITHUB_OUTPUT
                 echo "Found email in GPG key: $GPG_EMAIL"
               fi
+              
+              # Export the key ID for use in later steps
+              echo "gpg_key_id=$GPG_KEY_ID" >> $GITHUB_OUTPUT
+              echo "Configured GPG key ID: $GPG_KEY_ID"
             fi
           else
             echo "GPG_PRIVATE_KEY not set, skipping GPG key import"
