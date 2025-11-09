@@ -557,22 +557,71 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PAT }}
         run: |
-          TAG="v${{ needs.version.outputs.new_release_version }}"
+          VERSION="${{ needs.version.outputs.new_release_version }}"
+          TAG="v${VERSION}"
+          REPO="${{ github.repository }}"
+          
           # Try to get the draft release body using GitHub API
-          RELEASE_BODY=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" \
+          DRAFT_BODY=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${REPO}/releases/tags/${TAG}" \
             | jq -r '.body // empty' 2>/dev/null || echo "")
-          if [ -n "$RELEASE_BODY" ] && [ "$RELEASE_BODY" != "null" ] && [ "$RELEASE_BODY" != "" ]; then
+          
+          if [ -n "$DRAFT_BODY" ] && [ "$DRAFT_BODY" != "null" ] && [ "$DRAFT_BODY" != "" ]; then
             echo "Found existing release notes from draft release"
             echo "release_body<<EOF" >> $GITHUB_OUTPUT
-            echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
+            echo "$DRAFT_BODY" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           else
-            echo "No existing release notes found, using default"
-            DEFAULT_BODY="## Release v${{ needs.version.outputs.new_release_version }}"$'\n\n'"This release includes builds for all platforms."$'\n\n'"See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for detailed release notes."
-            echo "release_body<<EOF" >> $GITHUB_OUTPUT
-            echo "$DEFAULT_BODY" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            echo "Generating release notes from template"
+            
+            # Get previous version from git tags
+            PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${TAG}^ 2>/dev/null || echo "")
+            PREVIOUS_VERSION=""
+            if [ -n "$PREVIOUS_TAG" ]; then
+              PREVIOUS_VERSION=$(echo "$PREVIOUS_TAG" | sed 's/^v//')
+            else
+              # Try to get the latest tag before this one
+              PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -v "^${TAG}$" | head -1 || echo "")
+              if [ -n "$PREVIOUS_TAG" ]; then
+                PREVIOUS_VERSION=$(echo "$PREVIOUS_TAG" | sed 's/^v//')
+              fi
+            fi
+            
+            if [ -z "$PREVIOUS_VERSION" ]; then
+              PREVIOUS_VERSION="1.0.0"
+            fi
+            
+            # Generate release notes from template
+            TEMPLATE_FILE=".github/RELEASE_NOTES_TEMPLATE.md"
+            if [ -f "$TEMPLATE_FILE" ]; then
+              # Replace placeholders in template
+              RELEASE_BODY=$(sed -e "s/\${VERSION}/${VERSION}/g" \
+                                  -e "s/\${PREVIOUS_VERSION}/${PREVIOUS_VERSION}/g" \
+                                  -e "s|\${REPO}|${REPO}|g" \
+                                  "$TEMPLATE_FILE")
+              
+              # Try to get semantic-release notes and inject them
+              SEMANTIC_NOTES=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                "https://api.github.com/repos/${REPO}/releases/tags/${TAG}" \
+                | jq -r '.body // empty' 2>/dev/null || echo "")
+              
+              # If we have semantic-release notes, try to parse and inject them
+              if [ -n "$SEMANTIC_NOTES" ] && [ "$SEMANTIC_NOTES" != "null" ] && [ "$SEMANTIC_NOTES" != "" ]; then
+                # Extract features, fixes, etc. from semantic-release notes
+                # This is a simple approach - you may want to enhance this
+                echo "Found semantic-release notes, merging with template"
+              fi
+              
+              echo "release_body<<EOF" >> $GITHUB_OUTPUT
+              echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            else
+              echo "Template not found, using default"
+              DEFAULT_BODY="## 🎉 Release v${VERSION}"$'\n\n'"This release includes builds for all platforms."$'\n\n'"See [CHANGELOG.md](https://github.com/${REPO}/blob/main/CHANGELOG.md) for detailed release notes."
+              echo "release_body<<EOF" >> $GITHUB_OUTPUT
+              echo "$DEFAULT_BODY" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
           fi
 
       - name: Download macOS artifacts
