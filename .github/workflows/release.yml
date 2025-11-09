@@ -249,19 +249,32 @@ jobs:
             echo "=== All GPG Keys (Secret) ==="
             gpg --list-secret-keys --keyid-format LONG || echo "No secret keys found"
             
-            # Get the actual key ID from the secret keyring
-            ACTUAL_KEY_ID=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -E "^sec" | head -1 | awk '{print $2}' | cut -d'/' -f2)
-            
-            if [ -z "$ACTUAL_KEY_ID" ]; then
-              # Try to get from public keys if secret keys aren't available
-              ACTUAL_KEY_ID=$(gpg --list-keys --keyid-format LONG 2>/dev/null | grep -E "^pub" | head -1 | awk '{print $2}' | cut -d'/' -f2)
+            # Get the primary key ID (the one with [SC] capability, not subkeys)
+            # First try to find the primary key by matching the provided key ID
+            if gpg --list-secret-keys --keyid-format LONG "$GPG_KEY_ID" 2>/dev/null | grep -q "^sec"; then
+              echo "Found provided key ID in keyring: $GPG_KEY_ID"
+              ACTUAL_KEY_ID="$GPG_KEY_ID"
+            else
+              # Extract the primary key ID (the one with [SC] - Signing/Certification)
+              ACTUAL_KEY_ID=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -E "^sec.*\[SC\]" | head -1 | awk '{print $2}' | cut -d'/' -f2)
+              
+              if [ -z "$ACTUAL_KEY_ID" ]; then
+                # Fallback: get the first primary key (sec line, not ssb)
+                ACTUAL_KEY_ID=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -E "^sec" | head -1 | awk '{print $2}' | cut -d'/' -f2)
+              fi
+              
+              if [ -z "$ACTUAL_KEY_ID" ]; then
+                # Try public keys as last resort
+                ACTUAL_KEY_ID=$(gpg --list-keys --keyid-format LONG 2>/dev/null | grep -E "^pub.*\[SC\]" | head -1 | awk '{print $2}' | cut -d'/' -f2)
+              fi
             fi
             
             if [ -n "$ACTUAL_KEY_ID" ]; then
-              echo "Found key ID in keyring: $ACTUAL_KEY_ID"
+              echo "Using primary key ID: $ACTUAL_KEY_ID"
               GPG_KEY_ID="$ACTUAL_KEY_ID"
             else
-              echo "⚠ Could not find key ID in keyring, using provided: $GPG_KEY_ID"
+              echo "⚠ Could not find primary key ID in keyring, using provided: $GPG_KEY_ID"
+              echo "⚠ Make sure GPG_KEY_ID secret is set to the primary key: C4F95877A6D59D30"
             fi
             
             # Trust the key
