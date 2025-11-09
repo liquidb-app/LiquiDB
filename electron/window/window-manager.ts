@@ -349,6 +349,33 @@ export function createWindow(app: App): BrowserWindow {
   const mainWindow = new BrowserWindow(windowOptions)
   sharedState.setMainWindow(mainWindow)
 
+  // Block DevTools in production
+  if (!isDev) {
+    // Disable right-click context menu
+    mainWindow.webContents.on("context-menu", (e) => {
+      e.preventDefault()
+    })
+
+    // Prevent DevTools from opening via keyboard shortcuts
+    mainWindow.webContents.on("before-input-event", (event, input) => {
+      // Block F12, Cmd+Option+I, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
+      if (
+        input.key === "F12" ||
+        (input.control && input.shift && (input.key === "I" || input.key === "J")) ||
+        (input.meta && input.alt && input.key === "I") ||
+        (input.control && input.key === "U")
+      ) {
+        event.preventDefault()
+      }
+    })
+
+    // Prevent DevTools from opening programmatically
+    const originalOpenDevTools = mainWindow.webContents.openDevTools.bind(mainWindow.webContents)
+    mainWindow.webContents.openDevTools = () => {
+      log.warn("[Window] DevTools access blocked in production")
+    }
+  }
+
   // In development, load from Next.js dev server
   // In production, load from built static files
 
