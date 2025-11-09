@@ -18,6 +18,10 @@ interface ChangelogEntry {
   type: string
   message: string
   scope?: string
+  commitHash?: string
+  commitUrl?: string
+  issueNumber?: string
+  issueUrl?: string
 }
 
 interface ChangelogVersion {
@@ -79,8 +83,32 @@ function parseChangelog(markdown: string): ChangelogVersion[] {
     const listMatch = line.match(/^\*\s+(.+)$/)
     if (listMatch && currentVersion) {
       let entryText = listMatch[1]
-      // Remove commit hash links at the end: ([hash](url)) or ([hash])
-      entryText = entryText.replace(/\s*\(\[([^\]]+)\]\([^)]+\)\)\s*$/, "").replace(/\s*\(([a-f0-9]+)\)\s*$/, "")
+      
+      // Extract issue number: (#123)
+      const issueMatch = entryText.match(/\(#(\d+)\)/)
+      let issueNumber: string | undefined
+      let issueUrl: string | undefined
+      if (issueMatch) {
+        issueNumber = issueMatch[1]
+        issueUrl = `https://github.com/alexg-sh/LiquiDB/issues/${issueNumber}`
+        entryText = entryText.replace(/\(#\d+\)\s*/, "")
+      }
+      
+      // Extract commit hash: ([hash](url)) or (hash)
+      const commitLinkMatch = entryText.match(/\(\[([a-f0-9]+)\]\(([^)]+)\)\)\s*$/)
+      const commitHashMatch = entryText.match(/\(([a-f0-9]{7,})\)\s*$/)
+      let commitHash: string | undefined
+      let commitUrl: string | undefined
+      
+      if (commitLinkMatch) {
+        commitHash = commitLinkMatch[1]
+        commitUrl = commitLinkMatch[2]
+        entryText = entryText.replace(/\s*\(\[[^\]]+\]\([^)]+\)\)\s*$/, "")
+      } else if (commitHashMatch) {
+        commitHash = commitHashMatch[1]
+        commitUrl = `https://github.com/alexg-sh/LiquiDB/commit/${commitHash}`
+        entryText = entryText.replace(/\s*\([a-f0-9]+\)\s*$/, "")
+      }
       
       // Try to extract type and message
       const typeMatch = entryText.match(/^(\w+)(?:\(([^)]+)\))?:\s*(.+)$/)
@@ -91,6 +119,10 @@ function parseChangelog(markdown: string): ChangelogVersion[] {
           type: type.toLowerCase(),
           message: message.trim(),
           scope,
+          commitHash,
+          commitUrl,
+          issueNumber,
+          issueUrl,
         }
         
         // Determine which section this belongs to
@@ -118,6 +150,10 @@ function parseChangelog(markdown: string): ChangelogVersion[] {
         const entry: ChangelogEntry = {
           type: "other",
           message: entryText.trim(),
+          commitHash,
+          commitUrl,
+          issueNumber,
+          issueUrl,
         }
         if (!currentVersion.sections["Other"]) {
           currentVersion.sections["Other"] = []
