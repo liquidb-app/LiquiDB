@@ -358,8 +358,16 @@ export function CustomTour() {
   }
 
   useEffect(() => {
+    let resizeTimeout: NodeJS.Timeout | null = null
+    
     const handleResize = () => {
-      setCurrentStep(prev => prev)
+      // Debounce resize to prevent excessive updates during rapid resizing
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout)
+      }
+      resizeTimeout = setTimeout(() => {
+        setCurrentStep(prev => prev)
+      }, 100)
     }
     
     const handleScroll = () => {
@@ -369,6 +377,9 @@ export function CustomTour() {
     window.addEventListener('resize', handleResize)
     window.addEventListener('scroll', handleScroll, true)
     return () => {
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout)
+      }
       window.removeEventListener('resize', handleResize)
       window.removeEventListener('scroll', handleScroll, true)
     }
