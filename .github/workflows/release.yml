@@ -496,6 +496,15 @@ jobs:
             # Prepend new version section
             CHANGELOG_ENTRY="## [${NEW_VERSION}](https://github.com/${{ github.repository }}/compare/${LATEST_TAG_BEFORE:-HEAD}...${NEW_TAG}) ($(date +%Y-%m-%d))\n\n${COMMITS}\n\n"
             echo -e "${CHANGELOG_ENTRY}$(cat CHANGELOG.md)" > CHANGELOG.md
+            echo "✓ Updated CHANGELOG.md with version ${NEW_VERSION}"
+            echo "First few lines of CHANGELOG.md:"
+            head -n 10 CHANGELOG.md
+          else
+            echo "⚠ CHANGELOG.md not found, creating it..."
+            echo "## [${NEW_VERSION}](https://github.com/${{ github.repository }}/compare/${LATEST_TAG_BEFORE:-HEAD}...${NEW_TAG}) ($(date +%Y-%m-%d))" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "$COMMITS" >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
           fi
           
           # Commit changes
@@ -524,18 +533,74 @@ jobs:
           fi
           
           # Extract changelog section for this version from CHANGELOG.md
+          # Note: CHANGELOG.md has been updated and committed, so it should be available
           CHANGELOG_SECTION=""
           if [ -f "CHANGELOG.md" ]; then
+            echo "Extracting changelog section for version ${NEW_VERSION}..."
             # Extract the section for this version (from ## [version] to next ## or end of file)
-            CHANGELOG_SECTION=$(awk "/^## \[${NEW_VERSION}\]/,/^## \[/{if (!/^## \[/) print}" CHANGELOG.md | head -n -1)
-            # If no section found, try without brackets
-            if [ -z "$CHANGELOG_SECTION" ]; then
-              CHANGELOG_SECTION=$(awk "/^## ${NEW_VERSION}/,/^## /{if (!/^## /) print}" CHANGELOG.md | head -n -1)
+            # First try: match ## [version] pattern
+            CHANGELOG_SECTION=$(awk -v version="${NEW_VERSION}" '
+              /^## \[/ {
+                if ($0 ~ "\\[" version "\\]") {
+                  in_section = 1
+                  next
+                }
+                if (in_section) {
+                  exit
+                }
+              }
+              in_section {
+                print
+              }
+            ' CHANGELOG.md)
+            
+            # If no section found, try matching just the version number
+            if [ -z "$CHANGELOG_SECTION" ] || [ "$CHANGELOG_SECTION" = "" ]; then
+              echo "Trying alternative extraction method..."
+              CHANGELOG_SECTION=$(awk -v version="${NEW_VERSION}" '
+                /^## \[/ {
+                  if ($0 ~ version) {
+                    in_section = 1
+                    next
+                  }
+                  if (in_section) {
+                    exit
+                  }
+                }
+                in_section {
+                  print
+                }
+              ' CHANGELOG.md)
             fi
+            
             # If still no section, get first section (should be the new version)
-            if [ -z "$CHANGELOG_SECTION" ]; then
-              CHANGELOG_SECTION=$(awk "/^## /,/^## /{if (NR>1 && !/^## /) print; if (/^## / && NR>1) exit}" CHANGELOG.md)
+            if [ -z "$CHANGELOG_SECTION" ] || [ "$CHANGELOG_SECTION" = "" ]; then
+              echo "Getting first section from CHANGELOG.md..."
+              CHANGELOG_SECTION=$(awk '
+                /^## \[/ {
+                  if (first_section) exit
+                  first_section = 1
+                  next
+                }
+                first_section {
+                  if (/^## \[/) exit
+                  print
+                }
+              ' CHANGELOG.md)
             fi
+            
+            # Clean up: remove leading/trailing empty lines
+            if [ -n "$CHANGELOG_SECTION" ] && [ "$CHANGELOG_SECTION" != "" ]; then
+              CHANGELOG_SECTION=$(echo "$CHANGELOG_SECTION" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' | sed '/^$/d')
+            fi
+            
+            if [ -n "$CHANGELOG_SECTION" ] && [ "$CHANGELOG_SECTION" != "" ]; then
+              echo "✓ Found changelog section (${#CHANGELOG_SECTION} characters)"
+            else
+              echo "⚠ No changelog section found for version ${NEW_VERSION}"
+            fi
+          else
+            echo "⚠ CHANGELOG.md not found"
           fi
           
           # Build release body using echo (avoiding heredoc to prevent YAML parsing issues)
@@ -545,12 +610,16 @@ jobs:
           
           # Add changelog content if available
           if [ -n "$CHANGELOG_SECTION" ] && [ "$CHANGELOG_SECTION" != "" ]; then
+            echo "Including changelog section in release body..."
             echo "### What's Changed" >> "$RELEASE_BODY_FILE"
             echo "" >> "$RELEASE_BODY_FILE"
+            # Write changelog content line by line to preserve formatting
             echo "$CHANGELOG_SECTION" >> "$RELEASE_BODY_FILE"
             echo "" >> "$RELEASE_BODY_FILE"
             echo "---" >> "$RELEASE_BODY_FILE"
             echo "" >> "$RELEASE_BODY_FILE"
+          else
+            echo "⚠ No changelog section to include in release body"
           fi
           
           # Add full changelog link
@@ -809,18 +878,72 @@ jobs:
           # Extract changelog section for this version from CHANGELOG.md
           CHANGELOG_CONTENT=""
           if [ -f "CHANGELOG.md" ]; then
+            echo "Extracting changelog section for version ${VERSION}..."
             # Extract the section for this version (from ## [version] to next ## or end of file)
-            CHANGELOG_CONTENT=$(awk "/^## \[${VERSION}\]/,/^## \[/{if (!/^## \[/) print}" CHANGELOG.md | head -n -1)
-            # If no section found, try without brackets
-            if [ -z "$CHANGELOG_CONTENT" ]; then
-              CHANGELOG_CONTENT=$(awk "/^## ${VERSION}/,/^## /{if (!/^## /) print}" CHANGELOG.md | head -n -1)
+            # First try: match ## [version] pattern
+            CHANGELOG_CONTENT=$(awk -v version="${VERSION}" '
+              /^## \[/ {
+                if ($0 ~ "\\[" version "\\]") {
+                  in_section = 1
+                  next
+                }
+                if (in_section) {
+                  exit
+                }
+              }
+              in_section {
+                print
+              }
+            ' CHANGELOG.md)
+            
+            # If no section found, try matching just the version number
+            if [ -z "$CHANGELOG_CONTENT" ] || [ "$CHANGELOG_CONTENT" = "" ]; then
+              echo "Trying alternative extraction method..."
+              CHANGELOG_CONTENT=$(awk -v version="${VERSION}" '
+                /^## \[/ {
+                  if ($0 ~ version) {
+                    in_section = 1
+                    next
+                  }
+                  if (in_section) {
+                    exit
+                  }
+                }
+                in_section {
+                  print
+                }
+              ' CHANGELOG.md)
             fi
+            
             # If still no section, get first section (should be the new version)
-            if [ -z "$CHANGELOG_CONTENT" ]; then
-              CHANGELOG_CONTENT=$(awk "/^## /,/^## /{if (NR>1 && !/^## /) print; if (/^## / && NR>1) exit}" CHANGELOG.md)
+            if [ -z "$CHANGELOG_CONTENT" ] || [ "$CHANGELOG_CONTENT" = "" ]; then
+              echo "Getting first section from CHANGELOG.md..."
+              CHANGELOG_CONTENT=$(awk '
+                /^## \[/ {
+                  if (first_section) exit
+                  first_section = 1
+                  next
+                }
+                first_section {
+                  if (/^## \[/) exit
+                  print
+                }
+              ' CHANGELOG.md)
             fi
-            # Clean up the changelog content (remove empty lines at start/end)
-            CHANGELOG_CONTENT=$(echo "$CHANGELOG_CONTENT" | sed '/^$/d' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
+            
+            # Clean up: remove leading/trailing empty lines and deduplicate
+            if [ -n "$CHANGELOG_CONTENT" ] && [ "$CHANGELOG_CONTENT" != "" ]; then
+              # Remove empty lines and deduplicate entries
+              CHANGELOG_CONTENT=$(echo "$CHANGELOG_CONTENT" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' | sed '/^$/d' | awk '!seen[$0]++')
+            fi
+            
+            if [ -n "$CHANGELOG_CONTENT" ] && [ "$CHANGELOG_CONTENT" != "" ]; then
+              echo "✓ Found changelog section (${#CHANGELOG_CONTENT} characters)"
+            else
+              echo "⚠ No changelog section found for version ${VERSION}"
+            fi
+          else
+            echo "⚠ CHANGELOG.md not found"
           fi
           
           # Generate release notes from template (ALWAYS use template for every release)
