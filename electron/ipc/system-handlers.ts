@@ -271,6 +271,32 @@ export function registerSystemHandlers(app: App): void {
       const os = require('os')
       const runningDatabases = sharedState.getRunningDatabases()
       
+      // Also check databases.json for running databases
+      let runningCount = runningDatabases.size
+      try {
+        const databases = storage.loadDatabases(app)
+        const actuallyRunning = databases.filter((db: any) => {
+          if (db.status === "running" || db.status === "starting") {
+            // Check if process is actually running by PID
+            if (db.pid && typeof db.pid === 'number') {
+              try {
+                process.kill(db.pid, 0) // Signal 0 checks if process exists
+                return true
+              } catch {
+                return false
+              }
+            }
+            return false
+          }
+          return false
+        })
+        // Use the higher count (either from sharedState or from file)
+        runningCount = Math.max(runningCount, actuallyRunning.length)
+      } catch (error) {
+        // If we can't check, use sharedState count
+        console.warn("[System Stats] Error checking database file for count:", error)
+      }
+      
       // Get app uptime (time since Electron main process started)
       const uptimeSeconds = Math.floor(process.uptime())
       
@@ -289,15 +315,32 @@ export function registerSystemHandlers(app: App): void {
       })
       
       // Add all running database instance PIDs
-      let runningDatabasesCount = 0
       runningDatabases.forEach((db) => {
         if (!db.process.killed && db.process.exitCode === null) {
-          runningDatabasesCount++
           if (db.process.pid) {
             pids.push(db.process.pid)
           }
         }
       })
+      
+      // Also add PIDs from databases.json
+      try {
+        const databases = storage.loadDatabases(app)
+        databases.forEach((db: any) => {
+          if ((db.status === "running" || db.status === "starting") && db.pid && typeof db.pid === 'number') {
+            try {
+              process.kill(db.pid, 0) // Check if process exists
+              if (!pids.includes(db.pid)) {
+                pids.push(db.pid)
+              }
+            } catch {
+              // Process doesn't exist, skip
+            }
+          }
+        })
+      } catch (error) {
+        // Ignore errors
+      }
       
       // Calculate total memory and CPU usage from all app processes
       let totalMemoryUsage = 0
@@ -464,7 +507,7 @@ export function registerSystemHandlers(app: App): void {
         } : null,
         uptime: uptimeSeconds || 0,
         loadAverage: loadAverage || [0, 0, 0],
-        runningDatabases: runningDatabasesCount || 0
+        runningDatabases: runningCount || 0
       }
       
       // Cache stats for error recovery
