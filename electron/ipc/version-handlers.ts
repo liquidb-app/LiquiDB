@@ -18,7 +18,7 @@ interface VersionDetail {
  * Register version IPC handlers
  */
 export function registerVersionHandlers(): void {
-  if (process.argv.includes('--mcp') || !ipcMain) {
+  if (!ipcMain) {
     return
   }
 

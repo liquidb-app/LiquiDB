@@ -11,7 +11,7 @@ import storage from "../storage"
  * Register port IPC handlers
  */
 export function registerPortHandlers(app: App): void {
-  if (process.argv.includes('--mcp') || !ipcMain) {
+  if (!ipcMain) {
     return
   }
 

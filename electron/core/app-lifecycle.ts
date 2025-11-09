@@ -15,42 +15,8 @@ import { createWindow, registerAppProtocolHandler } from "../window/window-manag
 import { HelperServiceManager } from "../helper-service"
 import PermissionsManager from "../permissions"
 import { IDatabase } from "../../types/database"
+import { startDatabaseFileWatcher, stopDatabaseFileWatcher } from "../database/file-watcher"
 
-// MCP server is optional - only load if available
-let mcpServerModule: any = null
-;(async () => {
-  try {
-    mcpServerModule = await import("../mcp-server")
-  } catch (_error) {
-    log.warn("MCP server module not available:", (_error as Error).message)
-  }
-})()
-
-const getMCPServerModule = async () => {
-  if (mcpServerModule) return mcpServerModule
-  try {
-    mcpServerModule = await import("../mcp-server")
-    return mcpServerModule
-  } catch (_error) {
-    log.warn("MCP server module not available:", (_error as Error).message)
-    return null
-  }
-}
-
-const getMCPServerStatus = () => {
-  if (mcpServerModule && mcpServerModule.getMCPServerStatus) {
-    return mcpServerModule.getMCPServerStatus()
-  }
-  return { running: false }
-}
-
-const initializeMCPServer = async (...args: any[]) => {
-  const mcpModule = await getMCPServerModule()
-  if (mcpModule && mcpModule.initializeMCPServer) {
-    return mcpModule.initializeMCPServer(...args)
-  }
-  return false
-}
 
 /**
  * Handle app.whenReady() lifecycle
@@ -63,130 +29,12 @@ export async function handleAppReady(app: Electron.App): Promise<void> {
   // Register custom protocol handler for static files (required for assetPrefix: '/')
   // Must be registered before creating window
   // Register for both dev and production builds to support static file testing
-  if (!process.argv.includes('--mcp')) {
     registerAppProtocolHandler(app)
-  }
-  
-  // Check if running in MCP mode
-  if (process.argv.includes('--mcp')) {
-    return await handleMCPMode(app)
-  }
   
   // Normal app mode - continue with initialization
   await handleNormalAppMode(app)
 }
 
-/**
- * Handle MCP mode initialization
- */
-async function handleMCPMode(app: Electron.App): Promise<void> {
-  log.info("Running in MCP server mode, starting MCP server...")
-
-  const runningDatabases = sharedState.getRunningDatabases()
-
-  // Create wrapper functions for MCP server
-  const startDatabaseFn = async (database: IDatabase) => {
-    try {
-      // Check if database is already running
-      if (runningDatabases.has(database.id)) {
-        return { success: false, error: "Database already running" }
-      }
-
-      // Start the database using the existing startDatabaseProcess function
-      const result = await startDatabaseProcess(database)
-      return result
-    } catch (error) {
-      console.error(`[MCP] Error starting database ${database.id}:`, error)
-      return { success: false, error: (error as Error).message }
-    }
-  }
-
-  const stopDatabaseFn = async (id: string) => {
-    try {
-      const db = runningDatabases.get(id)
-      if (!db) {
-        return { success: false, error: "Database not running" }
-      }
-
-      // Clean up temporary files when stopping database
-      try {
-        const databases = storage.loadDatabases(app)
-        const dbRecord = databases.find((d) => d.id === id)
-        if (dbRecord?.containerId) {
-          await cleanupDatabaseTempFiles(app, dbRecord.containerId, dbRecord.type)
-        }
-      } catch (error) {
-        console.error(`[MCP] Error cleaning temp files for ${id}:`, error)
-      }
-
-      // Stop the database process gracefully
-      await stopDatabaseProcessGracefully(db, db.config, app)
-      runningDatabases.delete(id)
-
-      // Update database in storage
-      try {
-        const databases = storage.loadDatabases(app)
-        const dbIndex = databases.findIndex((db) => db.id === id)
-        if (dbIndex >= 0) {
-          databases[dbIndex].status = 'stopped'
-          databases[dbIndex].pid = null
-          databases[dbIndex].lastStarted = undefined // Clear lastStarted to allow fresh start
-          storage.saveDatabases(app, databases)
-        }
-      } catch (error) {
-        console.error(`[MCP] Error updating storage for ${id}:`, error)
-      }
-
-      return { success: true }
-    } catch (error) {
-      console.error(`[MCP] Error stopping database ${id}:`, error)
-      return { success: false, error: (error as Error).message }
-    }
-  }
-
-  // Initialize and start the MCP server
-  const mcpStarted = await initializeMCPServer(app, startDatabaseFn, stopDatabaseFn)
-  if (mcpStarted) {
-    log.info("MCP server started successfully in MCP mode")
-    // In MCP mode, prevent the app from quitting
-    // The stdio transport will keep the process alive as long as stdin is open
-    // We need to prevent Electron from auto-quitting when no windows exist
-    if (app && typeof app.on === 'function') {
-      app.on("window-all-closed", () => {
-        // Don't quit in MCP mode - keep the process alive for stdio communication
-        // The process will stay alive as long as stdin (stdio transport) is open
-      })
-    }
-
-    // Prevent app from quitting when all windows are closed
-    // The MCP server will keep running via stdio transport
-    // The stdio transport connection keeps the Node.js event loop active
-    log.info("MCP server is running and ready for connections")
-    log.info("Process will stay alive as long as stdio transport is connected")
-
-    // In MCP mode, we don't create windows, so we need to ensure the process stays alive
-    // The stdio transport should keep the event loop active, but we'll also
-    // prevent the app from quitting explicitly
-    if (app && typeof app.on === 'function') {
-      app.on('will-quit', (event: Electron.Event) => {
-        // In MCP mode, don't quit unless explicitly requested
-        // The stdio transport will keep the process alive
-        log.info("MCP: App will-quit event received, but keeping process alive for stdio transport")
-        event.preventDefault()
-      })
-    }
-  } else {
-    log.error("Failed to start MCP server in MCP mode")
-    if (app && typeof app.quit === 'function') {
-      app.quit()
-    }
-    process.exit(1)
-  }
-
-  // Don't create window or continue with normal app initialization in MCP mode
-  // The process will stay alive as long as the stdio transport is connected
-  // The stdio transport keeps stdin open, which keeps the Node.js event loop active
-}
 
 /**
  * Handle normal app mode initialization
@@ -439,7 +287,7 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
  * Register dashboard-ready handler
  */
 export function registerDashboardReadyHandler(app: Electron.App): void {
-  if (process.argv.includes('--mcp') || !ipcMain) {
+  if (!ipcMain) {
     return
   }
 
@@ -447,97 +295,6 @@ export function registerDashboardReadyHandler(app: Electron.App): void {
     try {
       const mainWindow = sharedState.getMainWindow()
       const runningDatabases = sharedState.getRunningDatabases()
-      
-      // Initialize MCP server when app is fully loaded
-      // Check if MCP server is already running (only if not in --mcp mode)
-      if (!process.argv.includes('--mcp')) {
-        const mcpStatus = getMCPServerStatus()
-        if (!mcpStatus.running) {
-          console.log("[MCP] Starting MCP server...")
-          
-          // Create wrapper functions for MCP server
-          const startDatabaseFn = async (database: IDatabase) => {
-            try {
-              // Check if database is already running
-              if (runningDatabases.has(database.id)) {
-                return { success: false, error: "Database already running" }
-              }
-              
-              // Start the database using the existing startDatabaseProcess function
-              const result = await startDatabaseProcess(database)
-              return result
-            } catch (error) {
-              console.error(`[MCP] Error starting database ${database.id}:`, error)
-              return { success: false, error: (error as Error).message }
-            }
-          }
-          
-          const stopDatabaseFn = async (id: string) => {
-            try {
-              const db = runningDatabases.get(id)
-              if (!db) {
-                return { success: false, error: "Database not running" }
-              }
-              
-              // Clean up temporary files when stopping database
-              try {
-                const databases = storage.loadDatabases(app)
-                const dbRecord = databases.find((d) => d.id === id)
-                if (dbRecord?.containerId) {
-                  await cleanupDatabaseTempFiles(app, dbRecord.containerId, dbRecord.type)
-                }
-              } catch (error) {
-                console.error(`[MCP] Error cleaning temp files for ${id}:`, error)
-              }
-              
-              // Stop the database process
-              db.process.kill("SIGTERM")
-              runningDatabases.delete(id)
-              
-              // Update database in storage
-              try {
-                const databases = storage.loadDatabases(app)
-                const dbIndex = databases.findIndex((db) => db.id === id)
-                if (dbIndex >= 0) {
-                  databases[dbIndex].status = 'stopped'
-                  databases[dbIndex].pid = null
-                  storage.saveDatabases(app, databases)
-                }
-              } catch (error) {
-                console.error(`[MCP] Error updating storage for ${id}:`, error)
-              }
-              
-              return { success: true }
-            } catch (error) {
-              console.error(`[MCP] Error stopping database ${id}:`, error)
-              return { success: false, error: (error as Error).message }
-            }
-          }
-          
-          // Initialize and start the MCP server asynchronously to avoid blocking
-          // Defer initialization to ensure app is fully ready and stats are working
-          // Use setTimeout to defer until after dashboard is fully loaded
-          setTimeout(() => {
-            log.info("[MCP] Starting MCP server initialization (deferred)...")
-            initializeMCPServer(app, startDatabaseFn, stopDatabaseFn)
-              .then((mcpStarted: boolean) => {
-                if (mcpStarted) {
-                  log.info("[MCP] MCP server started successfully")
-                } else {
-                  log.warn("[MCP] Failed to start MCP server (non-fatal, app continues)")
-                }
-              })
-              .catch((error: Error) => {
-                // Log error but don't crash - app should continue running
-                log.error("[MCP] Error starting MCP server (non-fatal):", error)
-                log.error("[MCP] Stack trace:", error.stack)
-                // Don't throw - let the app continue running
-              })
-          }, 2000) // Defer by 2 seconds to ensure app is fully ready
-        } else {
-          console.log("[MCP] MCP server is already running")
-        }
-      }
       
       const autoStartTriggered = sharedState.getAutoStartTriggered()
       if (autoStartTriggered) {

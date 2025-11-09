@@ -10,7 +10,7 @@ import * as https from "https"
  * Register system IPC handlers
  */
 export function registerSystemHandlers(app: App): void {
-  if (process.argv.includes('--mcp') || !ipcMain) {
+  if (!ipcMain) {
     return
   }
 

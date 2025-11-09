@@ -5,7 +5,7 @@ import sharedState from "../core/shared-state"
  * Register auto-launch IPC handlers
  */
 export function registerAutoLaunchHandlers(): void {
-  if (process.argv.includes('--mcp') || !ipcMain) {
+  if (!ipcMain) {
     return
   }
 

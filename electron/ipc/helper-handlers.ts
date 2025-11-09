@@ -6,7 +6,7 @@ import sharedState from "../core/shared-state"
  * Register helper service IPC handlers
  */
 export function registerHelperHandlers(app: App): void {
-  if (process.argv.includes('--mcp') || !ipcMain) {
+  if (!ipcMain) {
     return
   }
 

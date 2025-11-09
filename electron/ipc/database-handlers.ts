@@ -15,7 +15,7 @@ import { IDatabase } from "../../types/database"
  * Register database IPC handlers
  */
 export function registerDatabaseHandlers(app: App): void {
-  if (process.argv.includes('--mcp') || !ipcMain) {
+  if (!ipcMain) {
     return
   }
 

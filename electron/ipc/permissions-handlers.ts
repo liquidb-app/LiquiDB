@@ -9,7 +9,7 @@ const execAsync = promisify(exec)
  * Register permissions IPC handlers
  */
 export function registerPermissionsHandlers(): void {
-  if (process.argv.includes('--mcp') || !ipcMain) {
+  if (!ipcMain) {
     return
   }
 

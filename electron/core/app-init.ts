@@ -12,8 +12,7 @@ import { createWindow } from "../window/window-manager"
  * Initialize app instance lock handling
  */
 export function initializeAppLock(): void {
-  // Prevent multiple instances (skip in MCP mode as we're running as a server process)
-  if (!process.argv.includes('--mcp')) {
+  // Prevent multiple instances
     const gotTheLock = app.requestSingleInstanceLock()
 
     if (!gotTheLock) {
@@ -27,7 +26,6 @@ export function initializeAppLock(): void {
           mainWindow.focus()
         }
       })
-    }
   }
 }
 
@@ -36,10 +34,6 @@ export function initializeAppLock(): void {
  * @returns {object|null} - Auto-launcher instance or null
  */
 export function initializeAutoLauncher(): AutoLaunch | null {
-  if (process.argv.includes('--mcp')) {
-    return null
-  }
-
   // Only initialize auto-launcher in production mode (packaged app)
   // In development mode, process.execPath points to Electron binary in node_modules,
   // which can cause issues when editors open the project (auto-starting the app)
@@ -85,11 +79,7 @@ export function initializeAutoLauncher(): AutoLaunch | null {
  * Setup app lifecycle event handlers
  */
 export function setupAppLifecycleHandlers(app: Electron.App): void {
-  if (process.argv.includes('--mcp')) {
-    return
-  }
-
-  // Window management (skip in MCP mode - no windows in server mode)
+  // Window management
   app.on("window-all-closed", async () => {
     if (process.platform !== "darwin") {
       app.quit()
@@ -216,7 +206,7 @@ export function setupAppLifecycleHandlers(app: Electron.App): void {
  * Setup process signal handlers
  */
 export function setupProcessSignalHandlers(app: Electron.App): void {
-  // Handle app termination (process signals work in MCP mode)
+  // Handle app termination
   process.on("SIGINT", async () => {
     console.log("[App Quit] Received SIGINT, stopping all databases...")
     
