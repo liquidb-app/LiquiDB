@@ -577,6 +577,12 @@ jobs:
           restore-keys: |
             electron-${{ runner.os }}-
 
+      - name: Ensure Electron cache directories exist
+        shell: bash
+        run: |
+          mkdir -p ~/.cache/electron
+          mkdir -p ~/.cache/electron-builder
+
       - name: Cache Electron compilation outputs
         uses: actions/cache@v4
         id: cache-electron-dist
