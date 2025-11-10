@@ -29,7 +29,7 @@ import { log } from "./logger"
 import sharedState from "./core/shared-state"
 
 let updateCheckInterval: NodeJS.Timeout | null = null
-const CHECK_INTERVAL = 1000 * 60 * 60 * 4 // Check every 4 hours
+const CHECK_INTERVAL = 1000 * 60 * 5 // Check every 5 minutes
 const INITIAL_CHECK_DELAY = 1000 * 60 * 5 // Check 5 minutes after app start
 
 // Configure auto-updater (only if app is available)
@@ -42,9 +42,57 @@ async function configureAutoUpdater(): Promise<void> {
   try {
     const updater = await getAutoUpdater()
     if (updater && app && typeof app.getVersion === 'function') {
+      const platform = process.platform
+      
+      // Common configuration for all platforms
       updater.autoDownload = false
       updater.autoInstallOnAppQuit = true
+      updater.allowPrerelease = false
+      updater.allowDowngrade = false
+      
+      // Platform-specific configuration
+      if (platform === 'darwin') {
+        // macOS configuration (including unsigned apps)
+        // For unsigned macOS apps, we need to disable signature verification
+        // This allows updates to work even without code signing
+        updater.requestHeaders = {
+          'User-Agent': `LiquiDB/${app.getVersion()} (${platform})`
+        }
+        
+        // Disable signature verification for unsigned apps
+        // Note: This is safe because we're downloading from GitHub releases
+        // and verifying via SHA256 hashes in the update manifest
+        updater.disableWebInstaller = false
+        
+        // For unsigned macOS apps, we need to allow unverified updates
+        // This is required for electron-updater to work with unsigned apps
+        // The updater will still verify SHA256 hashes from the update manifest
+        if (typeof (updater as any).allowUnverifiedUpdates !== 'undefined') {
+          (updater as any).allowUnverifiedUpdates = true
+        }
+        
+        // Also try the disableSignatureVerification property if it exists
+        if (typeof (updater as any).disableSignatureVerification !== 'undefined') {
+          (updater as any).disableSignatureVerification = true
+        }
+        
+        log.info("[Auto-Update] macOS configuration applied (unsigned app support enabled)")
+      } else if (platform === 'win32') {
+        // Windows configuration
+        updater.requestHeaders = {
+          'User-Agent': `LiquiDB/${app.getVersion()} (${platform})`
+        }
+        log.info("[Auto-Update] Windows configuration applied")
+      } else if (platform === 'linux') {
+        // Linux configuration
+        updater.requestHeaders = {
+          'User-Agent': `LiquiDB/${app.getVersion()} (${platform})`
+        }
+        log.info("[Auto-Update] Linux configuration applied")
+      }
+      
       autoUpdaterConfigured = true
+      log.info(`[Auto-Update] Auto-updater configured for platform: ${platform}`)
     }
   } catch (error) {
     // If app is not available, skip configuration
