@@ -709,7 +709,7 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
                     onMouseEnter={githubIconHover.onMouseEnter}
                     onMouseLeave={githubIconHover.onMouseLeave}
                   >
-                    <GithubIcon ref={githubIconHover.iconRef} size={16} />
+                    <GithubIcon ref={githubIconHover.iconRef} size={16} className="mr-2" />
                     View on GitHub
                     <ExternalLink className="h-3 w-3 ml-auto" />
                   </Button>
