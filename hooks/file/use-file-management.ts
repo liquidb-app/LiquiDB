@@ -10,7 +10,6 @@ export const useFileManagement = (
         console.log("[Storage] databases.json file missing during runtime, clearing dashboard")
         setDatabases([])
         
-        // Recreate the file
         const recreateResult = await window.electron?.recreateDatabasesFile?.()
         if (recreateResult?.success) {
           console.log("[Storage] Recreated databases.json file")
