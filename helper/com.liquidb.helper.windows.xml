@@ -8,12 +8,10 @@
   <Triggers>
     <LogonTrigger>
       <Enabled>true</Enabled>
-      <UserId>USER_NAME</UserId>
     </LogonTrigger>
   </Triggers>
   <Principals>
     <Principal id="Author">
-      <UserId>USER_NAME</UserId>
       <LogonType>InteractiveToken</LogonType>
       <RunLevel>LeastPrivilege</RunLevel>
     </Principal>
@@ -40,7 +38,7 @@
   <Actions Context="Author">
     <Exec>
       <Command>NODE_EXECUTABLE_PATH</Command>
-      <Arguments>"HELPER_SCRIPT_PATH"</Arguments>
+      <Arguments>HELPER_SCRIPT_PATH</Arguments>
       <WorkingDirectory>HELPER_DIRECTORY</WorkingDirectory>
     </Exec>
   </Actions>
