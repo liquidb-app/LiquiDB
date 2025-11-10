@@ -165,13 +165,29 @@ export async function installUpdateAndRestart(): Promise<void> {
     const updater = await getAutoUpdater()
     if (!updater) {
       log.warn("[Auto-Update] Cannot install update - auto-updater not available")
-      return
+      throw new Error("Auto-updater not available")
     }
     
-    log.info("[Auto-Update] Installing update and restarting...")
+    // Check if update is downloaded by checking if cachedUpdateInfo exists
+    // electron-updater stores the downloaded update info internally
+    const cachedUpdateInfo = (updater as any).cachedUpdateInfo
+    if (!cachedUpdateInfo) {
+      log.warn("[Auto-Update] No update downloaded yet. Cannot install.")
+      throw new Error("Update not downloaded yet. Please download the update first.")
+    }
+    
+    log.info(`[Auto-Update] Installing update ${cachedUpdateInfo.version} and restarting...`)
+    
+    // quitAndInstall is synchronous and will quit the app immediately
+    // The first parameter (false) means don't wait for the app to quit
+    // The second parameter (true) means install the update after quit
     updater.quitAndInstall(false, true)
+    
+    // Note: This code won't execute because quitAndInstall quits the app
+    log.info("[Auto-Update] Install command executed")
   } catch (error: any) {
     log.error("[Auto-Update] Error installing update:", error.message)
+    throw error
   }
 }
 
