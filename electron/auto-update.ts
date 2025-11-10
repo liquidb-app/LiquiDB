@@ -325,6 +325,9 @@ export async function setupAutoUpdateListeners(): Promise<void> {
   // Reset flags on startup
   updateDownloaded = false
   downloadedVersion = null
+  isDownloading = false
+  downloadResolve = null
+  downloadReject = null
 
   updater.on("checking-for-update", () => {
     log.info("[Auto-Update] Checking for update...")
@@ -348,6 +351,7 @@ export async function setupAutoUpdateListeners(): Promise<void> {
     // When an update becomes available, we are not yet downloaded
     updateDownloaded = false
     downloadedVersion = null
+    isDownloading = false
   })
 
   updater.on("update-not-available", (info: any) => {
@@ -359,10 +363,20 @@ export async function setupAutoUpdateListeners(): Promise<void> {
 
     updateDownloaded = false
     downloadedVersion = null
+    isDownloading = false
   })
 
   updater.on("error", (error: Error) => {
     log.error("[Auto-Update] Error:", error.message)
+    
+    // Reject the download promise if it exists
+    if (downloadReject) {
+      log.info("[Auto-Update] Rejecting download promise due to error")
+      downloadReject(error)
+      downloadReject = null
+      downloadResolve = null
+    }
+    
     const mainWindow = sharedState.getMainWindow()
     if (mainWindow) {
       mainWindow.webContents.send("update-error", { message: error.message })
@@ -370,6 +384,7 @@ export async function setupAutoUpdateListeners(): Promise<void> {
 
     updateDownloaded = false
     downloadedVersion = null
+    isDownloading = false
   })
 
   updater.on("download-progress", (progressObj: { percent: number; transferred: number; total: number }) => {
@@ -386,6 +401,15 @@ export async function setupAutoUpdateListeners(): Promise<void> {
     // Mark that a valid update is ready
     updateDownloaded = true
     downloadedVersion = info?.version || null
+    isDownloading = false
+
+    // Resolve the download promise if it exists
+    if (downloadResolve) {
+      log.info("[Auto-Update] Resolving download promise")
+      downloadResolve({ success: true })
+      downloadResolve = null
+      downloadReject = null
+    }
 
     const mainWindow = sharedState.getMainWindow()
     if (mainWindow) {
