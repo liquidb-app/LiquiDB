@@ -1029,19 +1029,19 @@ jobs:
               sed -i.bak '/## 📝 Changelog/,/^---$/d' "$TEMP_TEMPLATE" && rm -f "$TEMP_TEMPLATE.bak"
             fi
             
-            # Read the final release body
-            RELEASE_BODY=$(cat "$TEMP_TEMPLATE")
+            # Write the final release body to a file (avoiding output size limits)
+            RELEASE_BODY_FILE="release-body.md"
+            cp "$TEMP_TEMPLATE" "$RELEASE_BODY_FILE"
             rm -f "$TEMP_TEMPLATE"
             
-            echo "release_body<<EOF" >> $GITHUB_OUTPUT
-            echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            echo "✓ Release body written to $RELEASE_BODY_FILE"
+            echo "release_body_file=$RELEASE_BODY_FILE" >> $GITHUB_OUTPUT
           else
             echo "Template not found, using default"
+            RELEASE_BODY_FILE="release-body.md"
             DEFAULT_BODY="## 🎉 Release v${VERSION}"$'\n\n'"This release includes builds for all platforms."$'\n\n'"See [CHANGELOG.md](https://github.com/${REPO}/blob/main/CHANGELOG.md) for detailed release notes."
-            echo "release_body<<EOF" >> $GITHUB_OUTPUT
-            echo "$DEFAULT_BODY" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            echo "$DEFAULT_BODY" > "$RELEASE_BODY_FILE"
+            echo "release_body_file=$RELEASE_BODY_FILE" >> $GITHUB_OUTPUT
           fi
 
       - name: Download macOS artifacts
@@ -1077,6 +1077,7 @@ jobs:
           fi
 
       - name: Publish release
+        id: publish_release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.version.outputs.new_release_version }}
@@ -1095,6 +1096,7 @@ jobs:
           prerelease: false
           make_latest: true
           generate_release_notes: false
-          body: ${{ steps.prepare_release_body.outputs.release_body }}
+          body_path: ${{ steps.prepare_release_body.outputs.release_body_file }}
         env:
           GITHUB_TOKEN: ${{ secrets.PAT }}
+        continue-on-error: false
