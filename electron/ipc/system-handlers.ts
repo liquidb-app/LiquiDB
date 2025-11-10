@@ -141,7 +141,7 @@ export function registerSystemHandlers(app: App): void {
       // Try to fetch changelog from GitHub releases API
       const https = require("https")
       return new Promise((resolve) => {
-        const url = `https://api.github.com/repos/alexg-sh/LiquiDB/releases/tags/v${version}`
+        const url = `https://api.github.com/repos/liquidb-app/LiquiDB/releases/tags/v${version}`
         
         const request = https.get(url, (res: any) => {
           if (res.statusCode !== 200) {

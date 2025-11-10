@@ -73,7 +73,7 @@ function parseChangelog(markdown: string): ChangelogVersion[] {
       let issueUrl: string | undefined
       if (issueMatch) {
         issueNumber = issueMatch[1]
-        issueUrl = `https://github.com/alexg-sh/LiquiDB/issues/${issueNumber}`
+        issueUrl = `https://github.com/liquidb-app/LiquiDB/issues/${issueNumber}`
         entryText = entryText.replace(/\(#\d+\)\s*/, "")
       }
       
@@ -89,7 +89,7 @@ function parseChangelog(markdown: string): ChangelogVersion[] {
         entryText = entryText.replace(/\s*\(\[[^\]]+\]\([^)]+\)\)\s*$/, "")
       } else if (commitHashMatch) {
         commitHash = commitHashMatch[1]
-        commitUrl = `https://github.com/alexg-sh/LiquiDB/commit/${commitHash}`
+        commitUrl = `https://github.com/liquidb-app/LiquiDB/commit/${commitHash}`
         entryText = entryText.replace(/\s*\([a-f0-9]+\)\s*$/, "")
       }
       

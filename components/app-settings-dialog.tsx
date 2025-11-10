@@ -705,7 +705,7 @@ export function AppSettingsDialog({ open, onOpenChange, onDeleteAll }: AppSettin
                   <Button
                     variant="outline"
                     className="w-full justify-start bg-transparent"
-                    onClick={() => handleOpenExternalLink("https://github.com/alexg-sh/LiquiDB")}
+                    onClick={() => handleOpenExternalLink("https://github.com/liquidb-app/LiquiDB")}
                     onMouseEnter={githubIconHover.onMouseEnter}
                     onMouseLeave={githubIconHover.onMouseLeave}
                   >
