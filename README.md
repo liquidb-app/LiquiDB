@@ -41,6 +41,18 @@ Visit [liquidb.app](https://liquidb.app) or [GitHub Releases](https://github.com
 - **Windows**: `LiquiDB Setup <version>.exe` (Installer) or `LiquiDB-<version>-win.zip` (Portable)
 - **Linux**: `LiquiDB-<version>.AppImage` (AppImage) or `LiquiDB-<version>.deb` (DEB package)
 
+### macOS Installation Note
+
+Since LiquiDB is currently unsigned, macOS Gatekeeper may show a security warning when you first open the app. To bypass this:
+
+1. **Right-click** (or **Control-click**) on `LiquiDB.app` in Finder
+2. Select **"Open"** from the context menu
+3. Click **"Open"** in the security dialog that appears
+
+This will add an exception for LiquiDB and allow it to run. You only need to do this once. After that, you can open LiquiDB normally by double-clicking.
+
+**Note**: This is a standard macOS security feature. LiquiDB is safe to use - it's open source and all releases are verified via SHA256 hashes on GitHub.
+
 ## Support
 
 - **Website**: [liquidb.app](https://liquidb.app)
