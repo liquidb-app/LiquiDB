@@ -537,8 +537,38 @@ jobs:
     runs-on: ${{ matrix.os }}
     
     steps:
-      - name: Checkout code
+      - name: Checkout code with updated version
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          ref: v${{ needs.version.outputs.new_release_version }}
+      
+      - name: Verify version is correct
+        run: |
+          echo "=== Verifying version ==="
+          EXPECTED_VERSION="${{ needs.version.outputs.new_release_version }}"
+          ACTUAL_VERSION=$(node -p "require('./package.json').version")
+          echo "Expected version: $EXPECTED_VERSION"
+          echo "Actual version in package.json: $ACTUAL_VERSION"
+          
+          if [ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "⚠ WARNING: Version mismatch! Trying to fetch tag..."
+            git fetch origin "v$EXPECTED_VERSION" || true
+            git checkout "v$EXPECTED_VERSION" || git checkout main
+            git pull origin main || true
+            ACTUAL_VERSION=$(node -p "require('./package.json').version")
+            echo "Version after checkout: $ACTUAL_VERSION"
+            
+            if [ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]; then
+              echo "❌ ERROR: Version still doesn't match!"
+              echo "Expected: $EXPECTED_VERSION"
+              echo "Actual: $ACTUAL_VERSION"
+              exit 1
+            fi
+          fi
+          
+          echo "✓ Version verified: $ACTUAL_VERSION"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
