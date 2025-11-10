@@ -31,7 +31,7 @@ LiquiDB provides a comprehensive solution for managing local database instances:
 
 ### Download
 
-Visit [liquidb.app](https://liquidb.app) or [GitHub Releases](https://github.com/alexg-sh/LiquiDB/releases) to download LiquiDB for your platform:
+Visit [liquidb.app](https://liquidb.app) or [GitHub Releases](https://github.com/liquidb-app/LiquiDB/releases) to download LiquiDB for your platform:
 
 - **macOS**: `LiquiDB-<version>-universal.dmg` (Universal - Intel & Apple Silicon)
 - **Windows**: `LiquiDB Setup <version>.exe` (Installer) or `LiquiDB-<version>-win.zip` (Portable)
@@ -41,7 +41,7 @@ Visit [liquidb.app](https://liquidb.app) or [GitHub Releases](https://github.com
 
 - **Website**: [liquidb.app](https://liquidb.app)
 - **Email**: [team@liquidb.app](mailto:team@liquidb.app)
-- **GitHub Issues**: [Report a bug or request a feature](https://github.com/alexg-sh/LiquiDB/issues)
+- **GitHub Issues**: [Report a bug or request a feature](https://github.com/liquidb-app/LiquiDB/issues)
 
 For security vulnerabilities, please see our [Security Policy](SECURITY.md).
 

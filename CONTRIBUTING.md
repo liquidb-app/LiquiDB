@@ -62,7 +62,7 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/alexg-sh/LiquiDB.git
+   git clone https://github.com/liquidb-app/LiquiDB.git
    cd LiquiDB
    ```
 
