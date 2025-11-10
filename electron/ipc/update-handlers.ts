@@ -30,10 +30,12 @@ export function registerUpdateHandlers(): void {
   ipcMain.handle("update:install", async () => {
     try {
       await installUpdateAndRestart()
+      // Note: This return won't execute because installUpdateAndRestart
+      // calls quitAndInstall which quits the app immediately
       return { success: true }
     } catch (error: any) {
       console.error("[Update IPC] Error installing update:", error)
-      return { success: false, error: error.message }
+      return { success: false, error: error.message || "Failed to install update" }
     }
   })
 }
