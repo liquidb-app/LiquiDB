@@ -1,3 +1,8 @@
+## [1.5.2](https://github.com/liquidb-app/LiquiDB/compare/v1.5.1...v1.5.2) (2025-11-10)
+
+- Merge remote-tracking branch 'origin/main' ([cf4d69c](https://github.com/liquidb-app/LiquiDB/commit/cf4d69c75f18e6ed5f73d6e29f7bc1891f1925c2))
+- fix: fixed release ([675cc7b](https://github.com/liquidb-app/LiquiDB/commit/675cc7b39e146039af6b505d4504056bc99de0f5))
+
 ## [1.5.1](https://github.com/liquidb-app/LiquiDB/compare/v1.5.0...v1.5.1) (2025-11-10)
 
 - fix: release workflow update ([2689e32](https://github.com/liquidb-app/LiquiDB/commit/2689e32ca3196201587efcb72a82f853348632b0))
