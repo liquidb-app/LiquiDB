@@ -119,7 +119,6 @@ export function registerVersionHandlers(): void {
         console.log(`[Brew] Error getting main package version for ${packageName}:`, mainInfoError.message)
       }
       
-      // Sort versions (newest first)
       const sortedVersions = versionDetails.sort((a, b) => {
         return compareVersions(b.fullVersion, a.fullVersion)
       })
