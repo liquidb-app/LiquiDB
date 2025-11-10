@@ -32,6 +32,15 @@ let updateCheckInterval: NodeJS.Timeout | null = null
 const CHECK_INTERVAL = 1000 * 60 * 5 // Check every 5 minutes
 const INITIAL_CHECK_DELAY = 1000 * 60 * 5 // Check 5 minutes after app start
 
+// Update download state
+let updateDownloaded = false
+let downloadedVersion: string | null = null
+let isDownloading = false
+
+// Promise resolvers for download completion
+let downloadResolve: ((value: { success: boolean; error?: string }) => void) | null = null
+let downloadReject: ((error: Error) => void) | null = null
+
 // Configure auto-updater (only if app is available)
 let autoUpdaterConfigured = false
 async function configureAutoUpdater(): Promise<void> {
@@ -140,6 +149,7 @@ export async function checkForUpdates(): Promise<{ available: boolean; info?: an
 
 /**
  * Download update
+ * This function waits for the download to complete (not just start)
  */
 export async function downloadUpdate(): Promise<{ success: boolean; error?: string }> {
   try {
@@ -148,17 +158,82 @@ export async function downloadUpdate(): Promise<{ success: boolean; error?: stri
       return { success: false, error: "Auto-updater not available" }
     }
     
-    log.info("[Auto-Update] Downloading update...")
-    await updater.downloadUpdate()
-    return { success: true }
+    // If already downloaded, return immediately
+    if (updateDownloaded) {
+      log.info("[Auto-Update] Update already downloaded")
+      return { success: true }
+    }
+    
+    // If download is already in progress, wait for it to complete
+    if (isDownloading && downloadResolve) {
+      log.info("[Auto-Update] Download already in progress, waiting for completion...")
+      const downloadPromise = new Promise<{ success: boolean; error?: string }>((resolve, reject) => {
+        // Store the original resolvers
+        const originalResolve = downloadResolve
+        const originalReject = downloadReject
+        
+        // Create new resolvers that call both the original and new ones
+        downloadResolve = (value) => {
+          if (originalResolve) originalResolve(value)
+          resolve(value)
+        }
+        downloadReject = (error) => {
+          if (originalReject) originalReject(error)
+          reject(error)
+        }
+      })
+      return await downloadPromise
+    }
+    
+    log.info("[Auto-Update] Starting download...")
+    isDownloading = true
+    
+    // Create a promise that resolves when download completes
+    const downloadPromise = new Promise<{ success: boolean; error?: string }>((resolve, reject) => {
+      downloadResolve = resolve
+      downloadReject = reject
+      
+      // Set a timeout (30 minutes) to prevent hanging forever
+      setTimeout(() => {
+        if (downloadReject) {
+          isDownloading = false
+          downloadReject(new Error("Download timeout after 30 minutes"))
+          downloadReject = null
+          downloadResolve = null
+        }
+      }, 30 * 60 * 1000)
+    })
+    
+    // Start the download (this returns when download starts, not when it completes)
+    try {
+      await updater.downloadUpdate()
+      log.info("[Auto-Update] Download initiated, waiting for completion...")
+    } catch (error: any) {
+      log.error("[Auto-Update] Error starting download:", error.message)
+      isDownloading = false
+      downloadReject = null
+      downloadResolve = null
+      return { success: false, error: error.message }
+    }
+    
+    // Wait for the download to complete (via update-downloaded event)
+    try {
+      const result = await downloadPromise
+      isDownloading = false
+      return result
+    } catch (error: any) {
+      isDownloading = false
+      throw error
+    }
   } catch (error: any) {
     log.error("[Auto-Update] Error downloading update:", error.message)
+    isDownloading = false
+    downloadReject = null
+    downloadResolve = null
     return { success: false, error: error.message }
   }
 }
 
-let updateDownloaded = false
-let downloadedVersion: string | null = null
 /**
  * Install update and restart
  */
