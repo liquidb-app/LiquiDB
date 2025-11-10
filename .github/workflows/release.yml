@@ -797,6 +797,8 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.zip
+            dist/*.blockmap
+            dist/latest-mac.yml
           if-no-files-found: warn
           retention-days: 30
 
@@ -807,6 +809,8 @@ jobs:
           name: windows-artifacts
           path: |
             dist/*.exe
+            dist/*.blockmap
+            dist/latest.yml
           if-no-files-found: warn
           retention-days: 30
 
@@ -818,6 +822,8 @@ jobs:
           path: |
             dist/*.AppImage
             dist/*.deb
+            dist/*.blockmap
+            dist/latest.yml
           if-no-files-found: warn
           retention-days: 30
 
@@ -1076,7 +1082,15 @@ jobs:
           tag_name: v${{ needs.version.outputs.new_release_version }}
           name: Release v${{ needs.version.outputs.new_release_version }}
           files: |
-            release-artifacts/**/*
+            release-artifacts/macos/*.dmg
+            release-artifacts/macos/*.zip
+            release-artifacts/macos/*.blockmap
+            release-artifacts/macos/latest-mac.yml
+            release-artifacts/windows/*.exe
+            release-artifacts/windows/latest.yml
+            release-artifacts/linux/*.AppImage
+            release-artifacts/linux/*.deb
+            release-artifacts/linux/latest.yml
           draft: false
           prerelease: false
           make_latest: true
