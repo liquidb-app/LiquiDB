@@ -1,0 +1,120 @@
+name: ✨ Feature Request
+description: Suggest a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please fill out the form below to help us understand your idea.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature Description
+      description: A clear and concise description of the feature you'd like to see
+      placeholder: Describe the feature...
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Why is this feature useful? What problem does it solve?
+      placeholder: |
+        - I want to...
+        - This would help me...
+        - Currently, I have to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this feature to work?
+      placeholder: Describe your proposed solution...
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered any alternative solutions or workarounds?
+      placeholder: Describe alternatives you've considered...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: Which category does this feature fall into?
+      options:
+        - Database Management
+        - UI/UX
+        - Performance
+        - Auto-Start
+        - Port Management
+        - Version Management
+        - Process Management
+        - Monitoring
+        - System Integration
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: database-type
+    attributes:
+      label: Database Type
+      description: Is this feature specific to a database type? (if applicable)
+      options:
+        - Not applicable
+        - PostgreSQL
+        - MySQL
+        - MongoDB
+        - Redis
+        - All databases
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Nice to have
+        - Would be helpful
+        - Important
+        - Critical
+    validations:
+      required: false
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: Mockups/Screenshots
+      description: If applicable, add mockups, wireframes, or screenshots to illustrate your idea
+      placeholder: Drag and drop images here or paste image URLs
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context, examples, or references about the feature request
+      placeholder: Any additional information that might be helpful...
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing issues to ensure this feature hasn't been requested
+          required: true
+        - label: I have included all relevant information above
+          required: true
+

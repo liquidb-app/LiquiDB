@@ -1,0 +1,175 @@
+name: 🗄️ Database-Specific Issue
+description: Report an issue related to a specific database type (PostgreSQL, MySQL, MongoDB, Redis)
+title: "[Database]: "
+labels: ["database", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a database-specific issue! Please provide as much detail as possible about the database instance and the problem you're experiencing.
+
+  - type: dropdown
+    id: database-type
+    attributes:
+      label: Database Type
+      description: Which database type is affected?
+      options:
+        - PostgreSQL
+        - MySQL
+        - MongoDB
+        - Redis
+    validations:
+      required: true
+
+  - type: input
+    id: database-version
+    attributes:
+      label: Database Version
+      description: The version of the database you're using (e.g., PostgreSQL 15.3, MySQL 8.0.33)
+      placeholder: PostgreSQL 15.3
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Issue Description
+      description: A clear and concise description of the issue
+      placeholder: Describe the issue...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Create a new [database type] instance
+        2. Set version to...
+        3. Click 'Start'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: The database should...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: The database...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue Type
+      description: What type of issue is this?
+      options:
+        - Installation/Setup
+        - Starting/Stopping
+        - Configuration
+        - Connection
+        - Port Conflict
+        - Auto-Start
+        - Process Management
+        - Version Management
+        - Data Persistence
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: port
+    attributes:
+      label: Port Number
+      description: The port number configured for this database instance (if applicable)
+      placeholder: 5432
+    validations:
+      required: false
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Which platform are you using?
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: Operating System Version
+      description: Your OS version
+      placeholder: macOS 14.5
+    validations:
+      required: true
+
+  - type: input
+    id: liquidb-version
+    attributes:
+      label: LiquiDB Version
+      description: The version of LiquiDB you're using
+      placeholder: 1.6.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs/Error Messages
+      description: Database logs, error messages, or console output
+      placeholder: Paste logs here...
+      render: shell
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Database Configuration
+      description: Relevant database configuration details (avoid sensitive information)
+      placeholder: |
+        - Port: 5432
+        - Auto-start: Enabled
+        - Data directory: ...
+      render: shell
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain the issue
+      placeholder: Drag and drop screenshots here or paste image URLs
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem
+      placeholder: Any additional information that might be helpful...
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing issues to ensure this hasn't been reported
+          required: true
+        - label: I have included all relevant information above
+          required: true
+        - label: I have tested this on the latest version of LiquiDB
+          required: false
+
