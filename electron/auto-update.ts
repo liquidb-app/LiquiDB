@@ -180,12 +180,42 @@ export async function installUpdateAndRestart(): Promise<void> {
     log.info(`[Auto-Update] Installing downloaded update ${versionLabel} and restarting...`)
 
     // Set flag to indicate we're installing an update so quit handlers don't block
+    // This must be set BEFORE calling quitAndInstall
     sharedState.setIsInstallingUpdate(true)
+    log.info("[Auto-Update] Update installation flag set")
 
     try {
-      log.info("[Auto-Update] Calling quitAndInstall...")
-      updater.quitAndInstall(false, true)
-      log.info("[Auto-Update] quitAndInstall called successfully")
+      const platform = process.platform
+      log.info(`[Auto-Update] Calling quitAndInstall on platform: ${platform}...`)
+      
+      // On macOS, quitAndInstall might need special handling
+      if (platform === 'darwin') {
+        // For macOS, ensure we're ready to quit
+        // quitAndInstall will trigger app.quit() internally
+        // The before-quit handler will check the flag and allow immediate quit
+        log.info("[Auto-Update] macOS detected - using quitAndInstall with macOS-specific handling")
+        
+        // Call quitAndInstall - this should trigger app.quit() internally
+        updater.quitAndInstall(false, true)
+        
+        log.info("[Auto-Update] quitAndInstall called on macOS")
+        
+        // On macOS, quitAndInstall should trigger app.quit() automatically
+        // However, if it doesn't work, we'll explicitly quit after a short delay
+        // This ensures the update installation proceeds even if quitAndInstall has issues
+        setTimeout(() => {
+          if (!app.isQuitting) {
+            log.warn("[Auto-Update] App did not quit after quitAndInstall on macOS, explicitly calling app.quit()")
+            // Explicitly quit the app to ensure update installation proceeds
+            app.quit()
+          }
+        }, 500)
+      } else {
+        // For other platforms, use standard quitAndInstall
+        updater.quitAndInstall(false, true)
+        log.info("[Auto-Update] quitAndInstall called successfully")
+      }
+      
     } catch (installError: any) {
       // Reset flag if install fails
       sharedState.setIsInstallingUpdate(false)
@@ -194,6 +224,8 @@ export async function installUpdateAndRestart(): Promise<void> {
     }
   } catch (error: any) {
     log.error("[Auto-Update] Error installing update:", error.message)
+    // Reset flag on error
+    sharedState.setIsInstallingUpdate(false)
     throw error
   }
 }
