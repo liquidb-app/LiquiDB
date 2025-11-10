@@ -545,6 +545,7 @@ jobs:
           ref: v${{ needs.version.outputs.new_release_version }}
       
       - name: Verify version is correct
+        shell: bash
         run: |
           echo "=== Verifying version ==="
           EXPECTED_VERSION="${{ needs.version.outputs.new_release_version }}"
