@@ -9,6 +9,8 @@
   [![macOS](https://img.shields.io/badge/platform-macOS-blue.svg)](https://www.apple.com/macos/)
   [![Windows](https://img.shields.io/badge/platform-Windows-blue.svg)](https://www.microsoft.com/windows)
   [![Linux](https://img.shields.io/badge/platform-Linux-blue.svg)](https://www.linux.org/)
+  
+  **[💬 Join our Discord community](https://discord.gg/2BuqtXDfVS)**
 </div>
 
 <div align="center">
