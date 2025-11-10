@@ -7,7 +7,7 @@ set -e
 
 VERSION="${1:-}"
 PREVIOUS_VERSION="${2:-}"
-REPO="${3:-alexg-sh/LiquiDB}"
+REPO="${3:-liquid/LiquiDB}"
 
 if [ -z "$VERSION" ]; then
   echo "Error: Version is required"

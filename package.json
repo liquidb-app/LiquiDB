@@ -11,7 +11,7 @@
   "homepage": "https://liquidb.app",
   "repository": {
     "type": "git",
-    "url": "https://github.com/alexg-sh/LiquiDB"
+    "url": "https://github.com/liquidb-app/LiquiDB"
   },
   "keywords": [
     "database",
@@ -49,7 +49,7 @@
     "asar": true,
     "publish": {
       "provider": "github",
-      "owner": "alexg-sh",
+      "owner": "liquidb-app",
       "repo": "LiquiDB"
     },
     "appId": "com.liquidb.app",
