@@ -22,6 +22,7 @@ let helperService: HelperServiceManager | null = null
 let permissionsManager: PermissionsManager | null = null
 let autoStartTriggered = false
 let autoLauncher: AutoLaunch | null = null
+let isInstallingUpdate = false
 
 export function setMainWindow(window: BrowserWindow | null): void {
   mainWindow = window
@@ -67,6 +68,14 @@ export function getAutoLauncher(): AutoLaunch | null {
   return autoLauncher
 }
 
+export function setIsInstallingUpdate(installing: boolean): void {
+  isInstallingUpdate = installing
+}
+
+export function getIsInstallingUpdate(): boolean {
+  return isInstallingUpdate
+}
+
 const sharedState = {
   setMainWindow,
   getMainWindow,
@@ -79,6 +88,8 @@ const sharedState = {
   getAutoStartTriggered,
   setAutoLauncher,
   getAutoLauncher,
+  setIsInstallingUpdate,
+  getIsInstallingUpdate,
 }
 
 export default sharedState

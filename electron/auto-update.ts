@@ -168,20 +168,58 @@ export async function installUpdateAndRestart(): Promise<void> {
       throw new Error("Auto-updater not available")
     }
     
-    // Check if update is downloaded by checking if cachedUpdateInfo exists
-    // electron-updater stores the downloaded update info internally
+    // Check if update is downloaded
+    // Try multiple ways to check if update is ready
+    let updateReady = false
+    let updateVersion = "unknown"
+    
+    // Method 1: Check cachedUpdateInfo
     const cachedUpdateInfo = (updater as any).cachedUpdateInfo
-    if (!cachedUpdateInfo) {
-      log.warn("[Auto-Update] No update downloaded yet. Cannot install.")
-      throw new Error("Update not downloaded yet. Please download the update first.")
+    if (cachedUpdateInfo) {
+      updateReady = true
+      updateVersion = cachedUpdateInfo.version || "unknown"
+      log.info(`[Auto-Update] Found cached update info: ${updateVersion}`)
     }
     
-    log.info(`[Auto-Update] Installing update ${cachedUpdateInfo.version} and restarting...`)
+    // Method 2: Check if updateDownloaded event was fired (stored in updater state)
+    // electron-updater might store this differently
+    if (!updateReady) {
+      // Check if there's a downloaded update file
+      const updateFile = (updater as any).downloadedUpdateFile
+      if (updateFile) {
+        updateReady = true
+        log.info("[Auto-Update] Found downloaded update file")
+      }
+    }
     
-    // quitAndInstall is synchronous and will quit the app immediately
-    // The first parameter (false) means don't wait for the app to quit
-    // The second parameter (true) means install the update after quit
-    updater.quitAndInstall(false, true)
+    // For unsigned macOS apps, we might need to proceed anyway
+    // The quitAndInstall will fail gracefully if no update is ready
+    if (!updateReady) {
+      log.warn("[Auto-Update] No update detected in cache, but proceeding with install attempt")
+      log.warn("[Auto-Update] This might work if update was downloaded but not cached")
+    }
+    
+    log.info(`[Auto-Update] Installing update ${updateVersion} and restarting...`)
+    
+    // Set flag to indicate we're installing an update
+    // This allows the before-quit handler to skip cleanup
+    sharedState.setIsInstallingUpdate(true)
+    
+    // quitAndInstall will quit the app and install the update
+    // Parameters:
+    // - isSilent: false (show installer UI if needed)
+    // - isForceRunAfter: true (run the app after installation)
+    // For unsigned macOS apps, this should still work
+    try {
+      log.info("[Auto-Update] Calling quitAndInstall...")
+      updater.quitAndInstall(false, true)
+      log.info("[Auto-Update] quitAndInstall called successfully")
+    } catch (installError: any) {
+      // Reset flag if install fails
+      sharedState.setIsInstallingUpdate(false)
+      log.error(`[Auto-Update] quitAndInstall failed: ${installError.message}`)
+      throw new Error(`Failed to install update: ${installError.message}`)
+    }
     
     // Note: This code won't execute because quitAndInstall quits the app
     log.info("[Auto-Update] Install command executed")

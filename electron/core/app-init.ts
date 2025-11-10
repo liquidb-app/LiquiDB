@@ -121,6 +121,16 @@ export function setupAppLifecycleHandlers(app: Electron.App): void {
   const { stopDatabaseFileWatcher } = require("../database/file-watcher")
   
   app.on("before-quit", async (event: Electron.Event) => {
+    // Check if we're installing an update
+    // If so, skip cleanup and allow immediate quit
+    if (sharedState.getIsInstallingUpdate()) {
+      log.info("[App Quit] Update installation detected, skipping cleanup and allowing immediate quit")
+      // Stop file watcher but don't prevent quit
+      stopDatabaseFileWatcher()
+      // Don't prevent default - allow quit immediately for update installation
+      return
+    }
+    
     // Stop file watcher on quit
     stopDatabaseFileWatcher()
     // Prevent default quit behavior until cleanup is done
