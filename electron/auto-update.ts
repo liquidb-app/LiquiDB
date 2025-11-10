@@ -203,12 +203,12 @@ export async function installUpdateAndRestart(): Promise<void> {
         // On macOS, quitAndInstall should trigger app.quit() automatically
         // However, if it doesn't work, we'll explicitly quit after a short delay
         // This ensures the update installation proceeds even if quitAndInstall has issues
+        // The before-quit handler will check the flag and allow immediate quit
         setTimeout(() => {
-          if (!app.isQuitting) {
-            log.warn("[Auto-Update] App did not quit after quitAndInstall on macOS, explicitly calling app.quit()")
-            // Explicitly quit the app to ensure update installation proceeds
-            app.quit()
-          }
+          log.info("[Auto-Update] Ensuring app quits for update installation on macOS")
+          // Explicitly quit the app to ensure update installation proceeds
+          // The before-quit handler will allow this because isInstallingUpdate is set
+          app.quit()
         }, 500)
       } else {
         // For other platforms, use standard quitAndInstall
