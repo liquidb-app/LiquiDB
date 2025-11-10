@@ -46,9 +46,23 @@ export function UpdateNotification({ className }: UpdateNotificationProps) {
     setDownloadProgress(0)
     setIsDownloaded(false)
     try {
+      // downloadUpdate now waits for download to complete
       const result = await window.electron?.downloadUpdate?.()
       if (result?.success) {
-        // Download started, progress will be handled via events
+        // Download completed successfully
+        setIsDownloading(false)
+        setDownloadProgress(100)
+        setIsDownloaded(true)
+        console.log("[Update] Download completed successfully")
+        
+        // Automatically install after download completes
+        console.log("[Update] Installing update and restarting...")
+        const installResult = await window.electron?.installUpdate?.()
+        if (installResult?.success) {
+          console.log("[Update] Install command sent successfully")
+        } else {
+          console.error("[Update] Failed to install update:", installResult?.error)
+        }
       } else {
         console.error("Failed to download update:", result?.error)
         setIsDownloading(false)
@@ -62,7 +76,7 @@ export function UpdateNotification({ className }: UpdateNotificationProps) {
   }, [updateInfo])
 
   const handleInstallNow = useCallback(async () => {
-    // If update is not downloaded yet, download it first
+    // If update is not downloaded yet, download it first (which will auto-install)
     if (!isDownloaded) {
       await handleDownloadUpdate()
       return
@@ -108,6 +122,8 @@ export function UpdateNotification({ className }: UpdateNotificationProps) {
       setDownloadProgress(100)
       setIsDownloaded(true)
       console.log("[Update] Update downloaded and ready to install")
+      // Note: Installation will be handled automatically by handleDownloadUpdate
+      // when it completes, so we don't need to install here
     }
 
     const handleUpdateDownloadProgress = (progress: { percent: number }) => {
