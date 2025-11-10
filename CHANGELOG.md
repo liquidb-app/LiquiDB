@@ -1,3 +1,11 @@
+## [1.5.1](https://github.com/liquidb-app/LiquiDB/compare/v1.5.0...v1.5.1) (2025-11-10)
+
+- fix: release workflow update ([2689e32](https://github.com/liquidb-app/LiquiDB/commit/2689e32ca3196201587efcb72a82f853348632b0))
+- docs: add dashboard preview to README ([3532cbb](https://github.com/liquidb-app/LiquiDB/commit/3532cbbc49a06bd93faae4002a18dafd0ee9e34e))
+- chore: add issue template config and support links ([b992ec8](https://github.com/liquidb-app/LiquiDB/commit/b992ec89ede76f52f34b2e863290be6abaa61a6d))
+- chore: migrate issue templates to yaml workflows ([00859ad](https://github.com/liquidb-app/LiquiDB/commit/00859ad3279ac9dab716945c620b25dd0a43de42))
+- Update issue templates ([1ee854c](https://github.com/liquidb-app/LiquiDB/commit/1ee854c99c54987e8f38c67516e4a8fc5e5d1166))
+
 ## [1.5.0](https://github.com/liquidb-app/LiquiDB/compare/v1.4.3...v1.5.0) (2025-11-10)
 
 - man ([6b9b540](https://github.com/liquidb-app/LiquiDB/commit/6b9b5400ecd050398c68115afd37c2d0dd46c1d0))
