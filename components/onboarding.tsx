@@ -1103,7 +1103,13 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
                         <Input 
                           id="username" 
                           value={username} 
-                          onChange={(e) => setUsername(e.target.value)} 
+                          onChange={(e) => setUsername(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && username.trim()) {
+                              e.preventDefault()
+                              saveAndNext()
+                            }
+                          }}
                           placeholder="Jane Doe" 
                           className="relative z-10"
                           style={{ pointerEvents: 'auto' }}
