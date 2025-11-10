@@ -570,35 +570,107 @@ class HelperServiceManager {
       
       let xmlContent = fs.readFileSync(this.serviceTemplate, 'utf8')
       const helperScriptPath = path.join(helperDir, 'liquidb-helper.js')
+      
+      // Windows Task Scheduler XML - paths should be as-is (backslashes are fine)
+      // Only escape XML special characters if needed, but paths typically don't need escaping
+      // For paths with spaces in Arguments, we need to quote them
+      const nodePath = nodeExecutable
+      const scriptPath = helperScriptPath.includes(' ') 
+        ? `"${helperScriptPath}"` 
+        : helperScriptPath
+      const workDir = helperDir
+      const logPath = logFile
+      
       xmlContent = xmlContent
-        .replaceAll('NODE_EXECUTABLE_PATH', nodeExecutable)
-        .replaceAll('HELPER_SCRIPT_PATH', helperScriptPath)
-        .replaceAll('USER_NAME', fullUsername)
-        .replaceAll('HELPER_DIRECTORY', helperDir)
-        .replaceAll('LOG_FILE_PATH', logFile)
+        .replaceAll('NODE_EXECUTABLE_PATH', nodePath)
+        .replaceAll('HELPER_SCRIPT_PATH', scriptPath)
+        .replaceAll('HELPER_DIRECTORY', workDir)
+        .replaceAll('LOG_FILE_PATH', logPath)
+
+      console.log('[Helper] XML content prepared, node:', nodeExecutable)
+      console.log('[Helper] Script path:', helperScriptPath)
+      console.log('[Helper] Working directory:', helperDir)
 
       // Write XML to temp file (Windows Task Scheduler requires UTF-16LE encoding with BOM)
       const tempXmlPath = path.join(helperDir, 'task.xml')
-      // Convert UTF-8 string to UTF-16LE with BOM
-      // Use iconv-lite or native Buffer conversion
+      
+      // Properly convert UTF-8 to UTF-16LE with BOM
+      // Node.js doesn't have direct utf16le encoding, so we need to convert manually
       const bom = Buffer.from([0xFF, 0xFE])
-      // Convert string to UTF-16LE buffer
-      const utf16Buffer = Buffer.from(xmlContent, 'ucs2')
+      const utf16Buffer = Buffer.allocUnsafe(xmlContent.length * 2)
+      for (let i = 0; i < xmlContent.length; i++) {
+        const charCode = xmlContent.charCodeAt(i)
+        utf16Buffer[i * 2] = charCode & 0xFF
+        utf16Buffer[i * 2 + 1] = (charCode >> 8) & 0xFF
+      }
       const finalBuffer = Buffer.concat([bom, utf16Buffer])
       fs.writeFileSync(tempXmlPath, finalBuffer)
       
+      console.log('[Helper] XML file written to:', tempXmlPath)
+      console.log('[Helper] XML file size:', finalBuffer.length, 'bytes')
+      
+      // Verify the XML file exists and is readable
+      if (!fs.existsSync(tempXmlPath)) {
+        throw new Error('Failed to create XML file for Task Scheduler')
+      }
+      
       // Import task using schtasks
       try {
-        await execAsync(`schtasks /Create /TN "${this.servicePath}" /XML "${tempXmlPath}" /F`)
-        console.log('[Helper] Task Scheduler task created')
+        // Escape the XML path for the command line (handle spaces)
+        const escapedXmlPath = tempXmlPath.includes(' ') ? `"${tempXmlPath}"` : tempXmlPath
+        const command = `schtasks /Create /TN "${this.servicePath}" /XML ${escapedXmlPath} /F`
+        console.log('[Helper] Executing command:', command)
+        
+        const { stdout, stderr } = await execAsync(command, {
+          maxBuffer: 1024 * 1024, // 1MB buffer
+          timeout: 30000 // 30 second timeout
+        })
+        
+        if (stdout) console.log('[Helper] Task creation output:', stdout)
+        if (stderr && !stderr.includes('SUCCESS')) {
+          console.warn('[Helper] Task creation stderr:', stderr)
+        }
+        console.log('[Helper] Task Scheduler task created successfully')
       } catch (error: any) {
         console.error('[Helper] Failed to create task:', error)
-        throw error
-      } finally {
-        // Clean up temp file
-        if (fs.existsSync(tempXmlPath)) {
-          fs.unlinkSync(tempXmlPath)
+        console.error('[Helper] Error message:', error.message)
+        if (error.stdout) console.error('[Helper] Error stdout:', error.stdout)
+        if (error.stderr) console.error('[Helper] Error stderr:', error.stderr)
+        
+        // Try to get more details about the error
+        let errorMessage = error.message || 'Unknown error'
+        if (error.stderr) {
+          errorMessage = error.stderr.toString()
+        } else if (error.stdout) {
+          errorMessage = error.stdout.toString()
         }
+        
+        // Check if task already exists
+        if (errorMessage.includes('already exists') || errorMessage.includes('ERROR: The task already exists')) {
+          console.log('[Helper] Task already exists, attempting to delete and recreate...')
+          try {
+            await execAsync(`schtasks /Delete /TN "${this.servicePath}" /F`)
+            await execAsync(`schtasks /Create /TN "${this.servicePath}" /XML "${tempXmlPath}" /F`)
+            console.log('[Helper] Task recreated successfully')
+          } catch (retryError: any) {
+            throw new Error(`Failed to recreate Windows Task Scheduler task: ${retryError.message || retryError.stderr || 'Unknown error'}`)
+          }
+        } else {
+          throw new Error(`Failed to create Windows Task Scheduler task: ${errorMessage}`)
+        }
+      } finally {
+        // Clean up temp file after a delay to ensure it's been read
+        setTimeout(() => {
+          if (fs.existsSync(tempXmlPath)) {
+            try {
+              fs.unlinkSync(tempXmlPath)
+              console.log('[Helper] Cleaned up temporary XML file')
+            } catch (e) {
+              // Ignore cleanup errors
+              console.warn('[Helper] Failed to clean up temp file:', e)
+            }
+          }
+        }, 5000) // Increased delay to 5 seconds
       }
       
       console.log('[Helper] Service installed successfully (Windows)')
