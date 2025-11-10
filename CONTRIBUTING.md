@@ -200,7 +200,7 @@ LiquiDB/
 If you have questions about contributing, feel free to:
 
 - Open an issue with the `question` label
-- Contact the maintainers at support@liquidb.app
+- Contact the maintainers at team@liquidb.app
 
 ## License
 

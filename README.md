@@ -40,7 +40,7 @@ Visit [liquidb.app](https://liquidb.app) or [GitHub Releases](https://github.com
 ## Support
 
 - **Website**: [liquidb.app](https://liquidb.app)
-- **Email**: [support@liquidb.app](mailto:support@liquidb.app)
+- **Email**: [team@liquidb.app](mailto:team@liquidb.app)
 - **GitHub Issues**: [Report a bug or request a feature](https://github.com/alexg-sh/LiquiDB/issues)
 
 For security vulnerabilities, please see our [Security Policy](SECURITY.md).

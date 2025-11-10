@@ -16,7 +16,7 @@ We take the security of LiquiDB seriously. If you discover a security vulnerabil
 ### How to Report
 
 1. **Do not** open a public GitHub issue for security vulnerabilities
-2. Email security details to: **support@liquidb.app**
+2. Email security details to: **team@liquidb.app**
 3. Include the following information:
    - Description of the vulnerability
    - Steps to reproduce the issue
