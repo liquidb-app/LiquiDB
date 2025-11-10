@@ -11,6 +11,10 @@
   [![Linux](https://img.shields.io/badge/platform-Linux-blue.svg)](https://www.linux.org/)
 </div>
 
+<div align="center">
+  <img src="public/dashboard.png" alt="LiquiDB Dashboard" width="100%" />
+</div>
+
 ## Key Capabilities
 
 LiquiDB provides a comprehensive solution for managing local database instances:
