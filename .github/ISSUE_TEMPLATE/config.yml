@@ -1,0 +1,12 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Community Discussions
+    url: https://github.com/liquidb-app/LiquiDB/discussions
+    about: Ask questions, share ideas, and discuss with the community
+  - name: 🔒 Security Vulnerability
+    url: https://github.com/liquidb-app/LiquiDB/security/advisories/new
+    about: Please report security vulnerabilities privately. See our Security Policy for details.
+  - name: 📧 Email Support
+    url: mailto:team@liquidb.app
+    about: Contact us directly via email for support or questions
+
