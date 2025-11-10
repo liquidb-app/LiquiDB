@@ -128,6 +128,7 @@ export function setupAppLifecycleHandlers(app: Electron.App): void {
       // Stop file watcher but don't prevent quit
       stopDatabaseFileWatcher()
       // Don't prevent default - allow quit immediately for update installation
+      // This is critical for macOS where quitAndInstall needs the app to quit immediately
       return
     }
     
