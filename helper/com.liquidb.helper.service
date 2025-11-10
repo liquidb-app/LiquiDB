@@ -1,0 +1,18 @@
+[Unit]
+Description=LiquiDB Helper Service
+Documentation=https://liquidb.app
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=NODE_EXECUTABLE_PATH HELPER_SCRIPT_PATH
+WorkingDirectory=HELPER_DIRECTORY
+Restart=always
+RestartSec=10
+StandardOutput=append:LOG_FILE_PATH
+StandardError=append:LOG_FILE_PATH
+Environment="PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+[Install]
+WantedBy=default.target
+
