@@ -45,29 +45,50 @@ export function initializeAutoLauncher(): AutoLaunch | null {
   try {
     log.debug("App path:", process.execPath)
     log.debug("App name:", basename(process.execPath))
+    log.debug("Platform:", process.platform)
     
     // Use the proper app name instead of executable name
     const appName = app.getName() || "LiquiDB"
     log.debug("Using app name:", appName)
     
-    // For macOS, try to use the app bundle path if available
+    // Platform-specific path resolution
     let appPath = process.execPath
-    if (process.platform === 'darwin' && process.execPath.includes('.app')) {
-      // Extract the app bundle path from the executable path
-      const pathParts = process.execPath.split('/')
-      const appIndex = pathParts.findIndex(part => part.endsWith('.app'))
-      if (appIndex !== -1) {
-        appPath = pathParts.slice(0, appIndex + 1).join('/')
-        log.debug("Using app bundle path:", appPath)
+    
+    if (process.platform === 'darwin') {
+      // macOS: Use app bundle path if available
+      if (process.execPath.includes('.app')) {
+        // Extract the app bundle path from the executable path
+        const pathParts = process.execPath.split('/')
+        const appIndex = pathParts.findIndex(part => part.endsWith('.app'))
+        if (appIndex !== -1) {
+          appPath = pathParts.slice(0, appIndex + 1).join('/')
+          log.debug("Using app bundle path:", appPath)
+        }
       }
+    } else if (process.platform === 'win32') {
+      // Windows: Ensure path points to the executable
+      // process.execPath should already be correct, but ensure it's the .exe
+      if (!appPath.endsWith('.exe')) {
+        // If it's not an .exe, try to find the actual executable
+        // For Electron apps, the executable is typically the app itself
+        log.debug("Windows: Using executable path:", appPath)
+      }
+      // Normalize path separators for Windows
+      appPath = appPath.replace(/\//g, '\\')
+    } else if (process.platform === 'linux') {
+      // Linux: Use the executable path directly
+      // For AppImage or other formats, process.execPath should be correct
+      log.debug("Linux: Using executable path:", appPath)
     }
+    
+    log.debug("Final app path for auto-launch:", appPath)
     
     const autoLauncher = new AutoLaunch({
       name: appName,
       path: appPath,
       isHidden: true
     })
-    log.info("Auto-launch module initialized successfully")
+    log.info("Auto-launch module initialized successfully for platform:", process.platform)
     return autoLauncher
   } catch (error) {
     console.error("[Auto-launch] Failed to initialize auto-launch module:", error)
