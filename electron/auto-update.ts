@@ -157,6 +157,8 @@ export async function downloadUpdate(): Promise<{ success: boolean; error?: stri
   }
 }
 
+let updateDownloaded = false
+let downloadedVersion: string | null = null
 /**
  * Install update and restart
  */
@@ -167,49 +169,19 @@ export async function installUpdateAndRestart(): Promise<void> {
       log.warn("[Auto-Update] Cannot install update - auto-updater not available")
       throw new Error("Auto-updater not available")
     }
-    
-    // Check if update is downloaded
-    // Try multiple ways to check if update is ready
-    let updateReady = false
-    let updateVersion = "unknown"
-    
-    // Method 1: Check cachedUpdateInfo
-    const cachedUpdateInfo = (updater as any).cachedUpdateInfo
-    if (cachedUpdateInfo) {
-      updateReady = true
-      updateVersion = cachedUpdateInfo.version || "unknown"
-      log.info(`[Auto-Update] Found cached update info: ${updateVersion}`)
+
+    // Require that an update has been downloaded via the official event
+    if (!updateDownloaded) {
+      log.error("[Auto-Update] Install requested but no downloaded update is available")
+      throw new Error("Update is not downloaded yet. Please download the update before installing.")
     }
-    
-    // Method 2: Check if updateDownloaded event was fired (stored in updater state)
-    // electron-updater might store this differently
-    if (!updateReady) {
-      // Check if there's a downloaded update file
-      const updateFile = (updater as any).downloadedUpdateFile
-      if (updateFile) {
-        updateReady = true
-        log.info("[Auto-Update] Found downloaded update file")
-      }
-    }
-    
-    // For unsigned macOS apps, we might need to proceed anyway
-    // The quitAndInstall will fail gracefully if no update is ready
-    if (!updateReady) {
-      log.warn("[Auto-Update] No update detected in cache, but proceeding with install attempt")
-      log.warn("[Auto-Update] This might work if update was downloaded but not cached")
-    }
-    
-    log.info(`[Auto-Update] Installing update ${updateVersion} and restarting...`)
-    
-    // Set flag to indicate we're installing an update
-    // This allows the before-quit handler to skip cleanup
+
+    const versionLabel = downloadedVersion || "unknown"
+    log.info(`[Auto-Update] Installing downloaded update ${versionLabel} and restarting...`)
+
+    // Set flag to indicate we're installing an update so quit handlers don't block
     sharedState.setIsInstallingUpdate(true)
-    
-    // quitAndInstall will quit the app and install the update
-    // Parameters:
-    // - isSilent: false (show installer UI if needed)
-    // - isForceRunAfter: true (run the app after installation)
-    // For unsigned macOS apps, this should still work
+
     try {
       log.info("[Auto-Update] Calling quitAndInstall...")
       updater.quitAndInstall(false, true)
@@ -220,9 +192,6 @@ export async function installUpdateAndRestart(): Promise<void> {
       log.error(`[Auto-Update] quitAndInstall failed: ${installError.message}`)
       throw new Error(`Failed to install update: ${installError.message}`)
     }
-    
-    // Note: This code won't execute because quitAndInstall quits the app
-    log.info("[Auto-Update] Install command executed")
   } catch (error: any) {
     log.error("[Auto-Update] Error installing update:", error.message)
     throw error
@@ -245,7 +214,11 @@ export async function setupAutoUpdateListeners(): Promise<void> {
   if (!updater) {
     return
   }
-  
+
+  // Reset flags on startup
+  updateDownloaded = false
+  downloadedVersion = null
+
   updater.on("checking-for-update", () => {
     log.info("[Auto-Update] Checking for update...")
     const mainWindow = sharedState.getMainWindow()
@@ -264,6 +237,10 @@ export async function setupAutoUpdateListeners(): Promise<void> {
         releaseNotes: info.releaseNotes || info.releaseName || "",
       })
     }
+
+    // When an update becomes available, we are not yet downloaded
+    updateDownloaded = false
+    downloadedVersion = null
   })
 
   updater.on("update-not-available", (info: any) => {
@@ -272,6 +249,9 @@ export async function setupAutoUpdateListeners(): Promise<void> {
     if (mainWindow) {
       mainWindow.webContents.send("update-not-available")
     }
+
+    updateDownloaded = false
+    downloadedVersion = null
   })
 
   updater.on("error", (error: Error) => {
@@ -280,6 +260,9 @@ export async function setupAutoUpdateListeners(): Promise<void> {
     if (mainWindow) {
       mainWindow.webContents.send("update-error", { message: error.message })
     }
+
+    updateDownloaded = false
+    downloadedVersion = null
   })
 
   updater.on("download-progress", (progressObj: { percent: number; transferred: number; total: number }) => {
@@ -292,6 +275,11 @@ export async function setupAutoUpdateListeners(): Promise<void> {
 
   updater.on("update-downloaded", (info: any) => {
     log.info(`[Auto-Update] Update downloaded: ${info.version}`)
+
+    // Mark that a valid update is ready
+    updateDownloaded = true
+    downloadedVersion = info?.version || null
+
     const mainWindow = sharedState.getMainWindow()
     if (mainWindow) {
       // Store current version before update
@@ -302,7 +290,7 @@ export async function setupAutoUpdateListeners(): Promise<void> {
       `).catch(() => {
         // Ignore errors
       })
-      
+
       mainWindow.webContents.send("update-downloaded", {
         version: info.version,
         releaseNotes: info.releaseNotes || info.releaseName || "",
