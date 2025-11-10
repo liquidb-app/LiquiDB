@@ -533,21 +533,36 @@ class HelperServiceManager {
       let nodeExecutable = 'node'
       try {
         const { stdout } = await execAsync('where node')
-        nodeExecutable = stdout.trim().split('\n')[0]
+        const nodePath = stdout.trim().split('\n')[0]
+        if (nodePath && fs.existsSync(nodePath)) {
+          nodeExecutable = nodePath
+          console.log('[Helper] Found Node.js via where command:', nodeExecutable)
+        }
       } catch (error: any) {
+        console.log('[Helper] where node failed, trying common paths...')
         // Try common Node.js paths
         const commonPaths = [
           path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'node.exe'),
           path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'node.exe'),
-          path.join(os.homedir(), 'AppData', 'Roaming', 'npm', 'node.exe')
+          path.join(os.homedir(), 'AppData', 'Roaming', 'npm', 'node.exe'),
+          path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'nodejs', 'node.exe')
         ]
         for (const nodePath of commonPaths) {
           if (fs.existsSync(nodePath)) {
             nodeExecutable = nodePath
+            console.log('[Helper] Found Node.js at common path:', nodeExecutable)
             break
           }
         }
       }
+      
+      // Verify Node.js executable exists
+      if (nodeExecutable !== 'node' && !fs.existsSync(nodeExecutable)) {
+        console.warn('[Helper] Node.js path does not exist:', nodeExecutable, '- will try using "node" command')
+        nodeExecutable = 'node'
+      }
+      
+      console.log('[Helper] Using Node.js executable:', nodeExecutable)
 
       const username = os.userInfo().username
       const domain = process.env.USERDOMAIN || process.env.COMPUTERNAME || ''
