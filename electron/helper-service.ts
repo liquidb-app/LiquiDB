@@ -329,7 +329,44 @@ class HelperServiceManager {
         fs.mkdirSync(launchAgentsDir, { recursive: true })
       }
 
-      let plistContent = fs.readFileSync(this.serviceTemplate, 'utf8')
+      // Check if template file exists, try alternative paths if needed
+      let templatePath = this.serviceTemplate
+      if (!fs.existsSync(templatePath)) {
+        // Try alternative paths for packaged app
+        if (this.app.isPackaged) {
+          // Try app.asar.unpacked location (where electron-builder unpacks files)
+          const unpackedPath = path.join(process.resourcesPath!, 'app.asar.unpacked', 'helper', 'com.liquidb.helper.plist')
+          if (fs.existsSync(unpackedPath)) {
+            templatePath = unpackedPath
+            console.log(`[Helper] Found template at unpacked location: ${templatePath}`)
+          } else {
+            // Try direct resources path
+            const directPath = path.join(process.resourcesPath!, 'com.liquidb.helper.plist')
+            if (fs.existsSync(directPath)) {
+              templatePath = directPath
+              console.log(`[Helper] Found template at direct path: ${templatePath}`)
+            } else {
+              // Try app path (for development builds)
+              const appPath = this.app.getAppPath()
+              const appPathTemplate = path.join(appPath, '..', 'helper', 'com.liquidb.helper.plist')
+              if (fs.existsSync(appPathTemplate)) {
+                templatePath = appPathTemplate
+                console.log(`[Helper] Found template at app path: ${templatePath}`)
+              } else {
+                const errorMsg = `Service template file not found. Tried: ${this.serviceTemplate}, ${unpackedPath}, ${directPath}, ${appPathTemplate}`
+                console.error(`[Helper] ${errorMsg}`)
+                throw new Error(errorMsg)
+              }
+            }
+          }
+        } else {
+          const errorMsg = `Service template file not found: ${this.serviceTemplate}`
+          console.error(`[Helper] ${errorMsg}`)
+          throw new Error(errorMsg)
+        }
+      }
+
+      let plistContent = fs.readFileSync(templatePath, 'utf8')
       
       const appDataDir = path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB')
       const helperDir = path.join(appDataDir, 'helper')
@@ -344,9 +381,53 @@ class HelperServiceManager {
       }
       
       const helperFiles = ['liquidb-helper.js', 'ipc-client.js']
-      const sourceDir = this.app.isPackaged 
-        ? path.join(process.resourcesPath!, 'helper')
-        : path.join(__dirname, '..', 'helper-dist')
+      
+      // Always try multiple paths for packaged apps to handle different electron-builder configurations
+      let sourceDir: string | null = null
+      const possiblePaths: string[] = []
+      
+      if (this.app.isPackaged) {
+        // Get app path and check if it's in asar
+        const appPath = this.app.getAppPath()
+        console.log(`[Helper] App path: ${appPath}`)
+        console.log(`[Helper] Resources path: ${process.resourcesPath}`)
+        
+        // If appPath is in asar, try unpacked location first (most common)
+        if (appPath.endsWith('.asar')) {
+          const unpackedBase = appPath.replace('.asar', '.asar.unpacked')
+          possiblePaths.push(
+            path.join(unpackedBase, 'helper-dist'),  // Most likely location
+            path.join(unpackedBase, 'helper')
+          )
+        }
+        
+        // Try app.asar.unpacked relative to resources path
+        possiblePaths.push(
+          path.join(process.resourcesPath!, 'app.asar.unpacked', 'helper-dist'),
+          path.join(process.resourcesPath!, 'app.asar.unpacked', 'helper'),
+          path.join(process.resourcesPath!, 'helper-dist'),
+          path.join(process.resourcesPath!, 'helper')
+        )
+      } else {
+        // Development: use helper-dist
+        possiblePaths.push(path.join(__dirname, '..', 'helper-dist'))
+      }
+      
+      // Try each path
+      for (const tryPath of possiblePaths) {
+        console.log(`[Helper] Trying path: ${tryPath}`)
+        if (fs.existsSync(tryPath)) {
+          sourceDir = tryPath
+          console.log(`[Helper] Found helper source directory at: ${sourceDir}`)
+          break
+        }
+      }
+      
+      if (!sourceDir) {
+        const errorMsg = `Helper source directory not found. Tried: ${possiblePaths.join(', ')}`
+        console.error(`[Helper] ${errorMsg}`)
+        throw new Error(errorMsg)
+      }
       
       for (const fileName of helperFiles) {
         const sourceFile = path.join(sourceDir, fileName)
@@ -365,37 +446,86 @@ class HelperServiceManager {
           
           if (shouldCopy) {
             fs.copyFileSync(sourceFile, targetFile)
+            console.log(`[Helper] Copied ${fileName} to ${targetFile}`)
           }
+        } else {
+          console.warn(`[Helper] Source file not found: ${sourceFile}`)
         }
       }
       
+      // Verify helper script exists
+      const helperScriptPath = path.join(helperDir, 'liquidb-helper.js')
+      if (!fs.existsSync(helperScriptPath)) {
+        const errorMsg = `Helper script not found after copy: ${helperScriptPath}`
+        console.error(`[Helper] ${errorMsg}`)
+        throw new Error(errorMsg)
+      }
+      
+      // Find Node.js executable
       let nodeExecutable = '/usr/local/bin/node'
       if (!fs.existsSync(nodeExecutable)) {
         nodeExecutable = '/opt/homebrew/bin/node'
         if (!fs.existsSync(nodeExecutable)) {
           nodeExecutable = '/usr/bin/node'
+          if (!fs.existsSync(nodeExecutable)) {
+            // Try to find node in PATH
+            try {
+              const { stdout } = await execAsync('which node')
+              const nodePath = stdout.trim()
+              if (nodePath && fs.existsSync(nodePath)) {
+                nodeExecutable = nodePath
+                console.log(`[Helper] Found Node.js via which: ${nodeExecutable}`)
+              } else {
+                throw new Error('Node.js executable not found')
+              }
+            } catch (error: any) {
+              const errorMsg = 'Node.js executable not found. Please install Node.js.'
+              console.error(`[Helper] ${errorMsg}`)
+              throw new Error(errorMsg)
+            }
+          }
         }
       }
+      
+      console.log(`[Helper] Using Node.js executable: ${nodeExecutable}`)
 
       const username = os.userInfo().username
       const groupname = os.userInfo().username
       
       plistContent = plistContent
         .replaceAll('NODE_EXECUTABLE_PATH', nodeExecutable)
-        .replaceAll('HELPER_SCRIPT_PATH', path.join(helperDir, 'liquidb-helper.js'))
+        .replaceAll('HELPER_SCRIPT_PATH', helperScriptPath)
         .replaceAll('USER_NAME', username)
         .replaceAll('GROUP_NAME', groupname)
         .replaceAll('LOG_FILE_PATH', logFile)
         .replaceAll('HELPER_DIRECTORY', helperDir)
 
+      // Unload existing service if it exists
+      try {
+        await this.unloadService()
+      } catch (error: any) {
+        console.log('[Helper] Service not loaded or unload failed (continuing):', error.message)
+      }
+
+      // Write plist file
       fs.writeFileSync(this.servicePath, plistContent)
-      await this.loadService()
+      console.log(`[Helper] Plist file written to: ${this.servicePath}`)
+      
+      // Load the service
+      try {
+        await this.loadService()
+        console.log('[Helper] Service loaded successfully')
+      } catch (error: any) {
+        console.error('[Helper] Failed to load service:', error)
+        throw new Error(`Failed to load service: ${error.message}`)
+      }
       
       console.log('[Helper] Service installed successfully (macOS)')
       return true
     } catch (error: any) {
       console.error('[Helper] Installation failed (macOS):', error)
-      return false
+      const errorMessage = error.message || 'Unknown error occurred'
+      throw new Error(`Failed to install helper service: ${errorMessage}`)
     } finally {
       this.isInstalling = false
     }
@@ -403,12 +533,31 @@ class HelperServiceManager {
 
   private async loadService(): Promise<void> {
     return new Promise((resolve, reject) => {
-      exec(`launchctl load "${this.servicePath}"`, (error: ExecException | null, stdout: string, stderr: string) => {
-        if (error && !error.message.includes('already loaded')) {
-          console.error('[Helper] Failed to load service:', stderr)
-          reject(error)
+      // Try modern bootstrap command first (macOS Big Sur+)
+      // For user LaunchAgents, we use the user domain
+      const uid = typeof process.getuid === 'function' ? process.getuid() : os.userInfo().uid
+      exec(`launchctl bootstrap gui/${uid} "${this.servicePath}"`, (error: ExecException | null, stdout: string, stderr: string) => {
+        if (error) {
+          // If bootstrap fails, check if it's because service is already loaded
+          if (error.message.includes('already exists') || error.message.includes('already loaded') || stderr.includes('already exists')) {
+            console.log('[Helper] Service already loaded')
+            resolve()
+            return
+          }
+          
+          // If bootstrap fails, try the deprecated load command for older macOS versions
+          console.log('[Helper] Bootstrap failed, trying legacy load command...')
+          exec(`launchctl load "${this.servicePath}"`, (legacyError: ExecException | null, legacyStdout: string, legacyStderr: string) => {
+            if (legacyError && !legacyError.message.includes('already loaded') && !legacyStderr.includes('already loaded')) {
+              console.error('[Helper] Failed to load service (both methods):', legacyStderr || stderr)
+              reject(new Error(`Failed to load service: ${legacyStderr || stderr || legacyError.message}`))
+            } else {
+              console.log('[Helper] Service loaded (legacy method)')
+              resolve()
+            }
+          })
         } else {
-          console.log('[Helper] Service loaded')
+          console.log('[Helper] Service loaded (bootstrap method)')
           resolve()
         }
       })
@@ -417,12 +566,25 @@ class HelperServiceManager {
 
   private async unloadService(): Promise<void> {
     return new Promise((resolve, reject) => {
-      exec(`launchctl unload "${this.servicePath}"`, (error: ExecException | null, stdout: string, stderr: string) => {
-        if (error && !error.message.includes('not loaded')) {
-          console.error('[Helper] Failed to unload service:', stderr)
-          reject(error)
+      const serviceLabel = 'com.liquidb.helper'
+      // Try modern bootout command first (macOS Big Sur+)
+      const uid = typeof process.getuid === 'function' ? process.getuid() : os.userInfo().uid
+      exec(`launchctl bootout gui/${uid}/${serviceLabel}`, (error: ExecException | null, stdout: string, stderr: string) => {
+        if (error) {
+          // If bootout fails, try the deprecated unload command
+          console.log('[Helper] Bootout failed, trying legacy unload command...')
+          exec(`launchctl unload "${this.servicePath}"`, (legacyError: ExecException | null, legacyStdout: string, legacyStderr: string) => {
+            if (legacyError && !legacyError.message.includes('not loaded') && !legacyStderr.includes('not loaded')) {
+              // If both fail, it might already be unloaded, which is fine
+              console.log('[Helper] Service may already be unloaded')
+              resolve()
+            } else {
+              console.log('[Helper] Service unloaded (legacy method)')
+              resolve()
+            }
+          })
         } else {
-          console.log('[Helper] Service unloaded')
+          console.log('[Helper] Service unloaded (bootout method)')
           resolve()
         }
       })
