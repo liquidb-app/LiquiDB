@@ -99,11 +99,17 @@
           ]
         }
       ],
-      "identity": null,
+      "identity": "-",
       "icon": "build/icon.png",
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "gatekeeperAssess": false,
+      "publish": {
+        "provider": "github",
+        "owner": "liquidb-app",
+        "repo": "LiquiDB"
+      }
     },
     "win": {
       "target": [
