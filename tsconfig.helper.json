@@ -17,7 +17,11 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["helper/ipc-client.ts", "helper/liquidb-helper.ts"],
+  "include": [
+    "helper/ipc-client.ts",
+    "helper/liquidb-helper.ts",
+    "helper/platform/**/*.ts"
+  ],
   "exclude": ["node_modules", "helper-dist"]
 }
 
