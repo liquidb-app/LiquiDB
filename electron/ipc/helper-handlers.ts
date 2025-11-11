@@ -65,10 +65,14 @@ export function registerHelperHandlers(app: App): void {
         sharedState.setHelperService(helperService)
       }
       const success = await helperService.start()
-      return { success, error: success ? null : "Failed to start helper service" }
+      if (!success) {
+        return { success: false, error: "Failed to start helper service" }
+      }
+      return { success: true, error: null }
     } catch (error: any) {
       console.error("[Helper Start On Demand] Error:", error)
-      return { success: false, error: error.message }
+      const errorMessage = error.message || "Failed to start helper service"
+      return { success: false, error: errorMessage }
     }
   })
 
@@ -80,10 +84,14 @@ export function registerHelperHandlers(app: App): void {
         sharedState.setHelperService(helperService)
       }
       const success = await helperService.install()
-      return { success, error: success ? null : "Failed to install helper service" }
+      if (!success) {
+        return { success: false, error: "Failed to install helper service" }
+      }
+      return { success: true, error: null }
     } catch (error: any) {
       console.error("[Helper Install] Error:", error)
-      return { success: false, error: error.message }
+      const errorMessage = error.message || "Failed to install helper service"
+      return { success: false, error: errorMessage }
     }
   })
 
