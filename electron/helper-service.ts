@@ -666,9 +666,40 @@ class HelperServiceManager {
       }
       
       const helperFiles = ['liquidb-helper.js', 'ipc-client.js']
-      const sourceDir = this.app.isPackaged 
+      let sourceDir = this.app.isPackaged 
         ? path.join(process.resourcesPath!, 'helper')
         : path.join(__dirname, '..', 'helper-dist')
+      
+      // Verify source directory exists, try alternative paths if needed
+      if (!fs.existsSync(sourceDir)) {
+        if (this.app.isPackaged) {
+          const unpackedDir = path.join(process.resourcesPath!, 'app.asar.unpacked', 'helper')
+          if (fs.existsSync(unpackedDir)) {
+            sourceDir = unpackedDir
+            console.log(`[Helper] Found Windows helper source directory at unpacked location: ${sourceDir}`)
+          } else {
+            const unpackedDistDir = path.join(process.resourcesPath!, 'app.asar.unpacked', 'helper-dist')
+            if (fs.existsSync(unpackedDistDir)) {
+              sourceDir = unpackedDistDir
+              console.log(`[Helper] Found Windows helper source directory at unpacked dist location: ${sourceDir}`)
+            } else {
+              const directDir = path.join(process.resourcesPath!, 'helper-dist')
+              if (fs.existsSync(directDir)) {
+                sourceDir = directDir
+                console.log(`[Helper] Found Windows helper source directory at direct path: ${sourceDir}`)
+              } else {
+                const errorMsg = `Windows helper source directory not found. Tried: ${path.join(process.resourcesPath!, 'helper')}, ${unpackedDir}, ${unpackedDistDir}, ${directDir}`
+                console.error(`[Helper] ${errorMsg}`)
+                throw new Error(errorMsg)
+              }
+            }
+          }
+        } else {
+          const errorMsg = `Windows helper source directory not found: ${sourceDir}`
+          console.error(`[Helper] ${errorMsg}`)
+          throw new Error(errorMsg)
+        }
+      }
       
       for (const fileName of helperFiles) {
         const sourceFile = path.join(sourceDir, fileName)
@@ -730,7 +761,33 @@ class HelperServiceManager {
       const domain = process.env.USERDOMAIN || process.env.COMPUTERNAME || ''
       const fullUsername = domain ? `${domain}\\${username}` : username
       
-      let xmlContent = fs.readFileSync(this.serviceTemplate, 'utf8')
+      // Check if template file exists, try alternative paths if needed
+      let templatePath = this.serviceTemplate
+      if (!fs.existsSync(templatePath)) {
+        if (this.app.isPackaged) {
+          const unpackedPath = path.join(process.resourcesPath!, 'app.asar.unpacked', 'helper', 'com.liquidb.helper.windows.xml')
+          if (fs.existsSync(unpackedPath)) {
+            templatePath = unpackedPath
+            console.log(`[Helper] Found Windows template at unpacked location: ${templatePath}`)
+          } else {
+            const directPath = path.join(process.resourcesPath!, 'com.liquidb.helper.windows.xml')
+            if (fs.existsSync(directPath)) {
+              templatePath = directPath
+              console.log(`[Helper] Found Windows template at direct path: ${templatePath}`)
+            } else {
+              const errorMsg = `Windows service template file not found. Tried: ${this.serviceTemplate}, ${unpackedPath}, ${directPath}`
+              console.error(`[Helper] ${errorMsg}`)
+              throw new Error(errorMsg)
+            }
+          }
+        } else {
+          const errorMsg = `Windows service template file not found: ${this.serviceTemplate}`
+          console.error(`[Helper] ${errorMsg}`)
+          throw new Error(errorMsg)
+        }
+      }
+      
+      let xmlContent = fs.readFileSync(templatePath, 'utf8')
       const helperScriptPath = path.join(helperDir, 'liquidb-helper.js')
       
       // Windows Task Scheduler XML - paths should be as-is (backslashes are fine)
@@ -916,9 +973,40 @@ class HelperServiceManager {
       }
       
       const helperFiles = ['liquidb-helper.js', 'ipc-client.js']
-      const sourceDir = this.app.isPackaged 
+      let sourceDir = this.app.isPackaged 
         ? path.join(process.resourcesPath!, 'helper')
         : path.join(__dirname, '..', 'helper-dist')
+      
+      // Verify source directory exists, try alternative paths if needed
+      if (!fs.existsSync(sourceDir)) {
+        if (this.app.isPackaged) {
+          const unpackedDir = path.join(process.resourcesPath!, 'app.asar.unpacked', 'helper')
+          if (fs.existsSync(unpackedDir)) {
+            sourceDir = unpackedDir
+            console.log(`[Helper] Found Linux helper source directory at unpacked location: ${sourceDir}`)
+          } else {
+            const unpackedDistDir = path.join(process.resourcesPath!, 'app.asar.unpacked', 'helper-dist')
+            if (fs.existsSync(unpackedDistDir)) {
+              sourceDir = unpackedDistDir
+              console.log(`[Helper] Found Linux helper source directory at unpacked dist location: ${sourceDir}`)
+            } else {
+              const directDir = path.join(process.resourcesPath!, 'helper-dist')
+              if (fs.existsSync(directDir)) {
+                sourceDir = directDir
+                console.log(`[Helper] Found Linux helper source directory at direct path: ${sourceDir}`)
+              } else {
+                const errorMsg = `Linux helper source directory not found. Tried: ${path.join(process.resourcesPath!, 'helper')}, ${unpackedDir}, ${unpackedDistDir}, ${directDir}`
+                console.error(`[Helper] ${errorMsg}`)
+                throw new Error(errorMsg)
+              }
+            }
+          }
+        } else {
+          const errorMsg = `Linux helper source directory not found: ${sourceDir}`
+          console.error(`[Helper] ${errorMsg}`)
+          throw new Error(errorMsg)
+        }
+      }
       
       for (const fileName of helperFiles) {
         const sourceFile = path.join(sourceDir, fileName)
@@ -957,7 +1045,33 @@ class HelperServiceManager {
         }
       }
 
-      let serviceContent = fs.readFileSync(this.serviceTemplate, 'utf8')
+      // Check if template file exists, try alternative paths if needed
+      let templatePath = this.serviceTemplate
+      if (!fs.existsSync(templatePath)) {
+        if (this.app.isPackaged) {
+          const unpackedPath = path.join(process.resourcesPath!, 'app.asar.unpacked', 'helper', 'com.liquidb.helper.service')
+          if (fs.existsSync(unpackedPath)) {
+            templatePath = unpackedPath
+            console.log(`[Helper] Found Linux template at unpacked location: ${templatePath}`)
+          } else {
+            const directPath = path.join(process.resourcesPath!, 'com.liquidb.helper.service')
+            if (fs.existsSync(directPath)) {
+              templatePath = directPath
+              console.log(`[Helper] Found Linux template at direct path: ${templatePath}`)
+            } else {
+              const errorMsg = `Linux service template file not found. Tried: ${this.serviceTemplate}, ${unpackedPath}, ${directPath}`
+              console.error(`[Helper] ${errorMsg}`)
+              throw new Error(errorMsg)
+            }
+          }
+        } else {
+          const errorMsg = `Linux service template file not found: ${this.serviceTemplate}`
+          console.error(`[Helper] ${errorMsg}`)
+          throw new Error(errorMsg)
+        }
+      }
+      
+      let serviceContent = fs.readFileSync(templatePath, 'utf8')
       const helperScriptPath = path.join(helperDir, 'liquidb-helper.js')
       // Escape paths for systemd (paths with spaces need to be quoted)
       const escapedNodePath = nodeExecutable.includes(' ') ? `"${nodeExecutable}"` : nodeExecutable
