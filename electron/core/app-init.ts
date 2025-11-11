@@ -149,7 +149,10 @@ export function setupAppLifecycleHandlers(app: Electron.App): void {
       // Stop file watcher but don't prevent quit
       stopDatabaseFileWatcher()
       // Don't prevent default - allow quit immediately for update installation
-      // This is critical for macOS where quitAndInstall needs the app to quit immediately
+      // This is critical for macOS where quitAndInstall needs the app to quit
+      // The installation process will handle replacing the app bundle
+      // User data is preserved because it's stored in ~/Library/Application Support/LiquiDB
+      // which is separate from the app bundle
       return
     }
     
