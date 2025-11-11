@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Gift } from "lucide-react"
+import { Gift, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
@@ -10,6 +10,7 @@ interface UpdateInfo {
   version: string
   releaseDate?: string
   releaseNotes?: string
+  downloadUrl?: string
 }
 
 interface UpdateNotificationProps {
@@ -18,9 +19,6 @@ interface UpdateNotificationProps {
 
 export function UpdateNotification({ className }: UpdateNotificationProps) {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
-  const [isDownloading, setIsDownloading] = useState(false)
-  const [downloadProgress, setDownloadProgress] = useState(0)
-  const [isDownloaded, setIsDownloaded] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
 
   const handleCheckForUpdate = useCallback(async () => {
@@ -31,6 +29,7 @@ export function UpdateNotification({ className }: UpdateNotificationProps) {
           version: result.info.version,
           releaseDate: result.info.releaseDate,
           releaseNotes: result.info.releaseNotes,
+          downloadUrl: result.info.downloadUrl,
         })
         setIsVisible(true)
       }
@@ -39,73 +38,18 @@ export function UpdateNotification({ className }: UpdateNotificationProps) {
     }
   }, [])
 
-  const handleDownloadUpdate = useCallback(async () => {
-    if (!updateInfo) return
-
-    setIsDownloading(true)
-    setDownloadProgress(0)
-    setIsDownloaded(false)
-    try {
-      // downloadUpdate now waits for download to complete
-      const result = await window.electron?.downloadUpdate?.()
-      if (result?.success) {
-        // Download completed successfully
-        setIsDownloading(false)
-        setDownloadProgress(100)
-        setIsDownloaded(true)
-        console.log("[Update] Download completed successfully")
-        
-        // Automatically install after download completes
-        console.log("[Update] Installing update and restarting...")
-        const installResult = await window.electron?.installUpdate?.()
-        if (installResult?.success) {
-          console.log("[Update] Install command sent successfully")
-        } else {
-          console.error("[Update] Failed to install update:", installResult?.error)
-        }
-      } else {
-        console.error("Failed to download update:", result?.error)
-        setIsDownloading(false)
-        setIsDownloaded(false)
-      }
-    } catch (error) {
-      console.error("Failed to download update:", error)
-      setIsDownloading(false)
-      setIsDownloaded(false)
+  const handleDownload = useCallback(() => {
+    if (updateInfo?.downloadUrl) {
+      window.electron?.openExternalLink?.(updateInfo.downloadUrl)
     }
   }, [updateInfo])
-
-  const handleInstallNow = useCallback(async () => {
-    // If update is not downloaded yet, download it first (which will auto-install)
-    if (!isDownloaded) {
-      await handleDownloadUpdate()
-      return
-    }
-
-    // Update is downloaded, install it
-    try {
-      console.log("[Update] Installing update and restarting...")
-      const result = await window.electron?.installUpdate?.()
-      if (result?.success) {
-        console.log("[Update] Install command sent successfully")
-      } else {
-        console.error("[Update] Failed to install update:", result?.error)
-      }
-    } catch (error) {
-      console.error("[Update] Failed to install update:", error)
-    }
-  }, [isDownloaded, handleDownloadUpdate])
 
   const handleLater = useCallback(() => {
     setIsVisible(false)
   }, [])
 
-  const handleDismiss = useCallback(() => {
-    setIsVisible(false)
-  }, [])
-
   useEffect(() => {
-    // Only enable auto-update in production (packaged app)
+    // Only enable in production (packaged app)
     if (typeof window === 'undefined' || !window.electron?.isElectron) {
       return
     }
@@ -116,31 +60,8 @@ export function UpdateNotification({ className }: UpdateNotificationProps) {
       setIsVisible(true)
     }
 
-    const handleUpdateDownloaded = (info: UpdateInfo) => {
-      setUpdateInfo(info)
-      setIsDownloading(false)
-      setDownloadProgress(100)
-      setIsDownloaded(true)
-      console.log("[Update] Update downloaded and ready to install")
-      // Note: Installation will be handled automatically by handleDownloadUpdate
-      // when it completes, so we don't need to install here
-    }
-
-    const handleUpdateDownloadProgress = (progress: { percent: number }) => {
-      setDownloadProgress(progress.percent)
-    }
-
-    const handleUpdateError = (error: { message: string }) => {
-      console.error("[Update] Update error:", error.message)
-      setIsDownloading(false)
-      setIsDownloaded(false)
-    }
-
     if (window.electron) {
       window.electron.onUpdateAvailable?.(handleUpdateAvailable)
-      window.electron.onUpdateDownloaded?.(handleUpdateDownloaded)
-      window.electron.onUpdateDownloadProgress?.(handleUpdateDownloadProgress)
-      window.electron.onUpdateError?.(handleUpdateError)
     }
 
     // Initial check
@@ -176,9 +97,11 @@ export function UpdateNotification({ className }: UpdateNotificationProps) {
           </div>
 
           {/* Text */}
-          <p className="text-sm text-[#D3D3D3] whitespace-nowrap">
-            New update available
-          </p>
+          <div className="flex flex-col">
+            <p className="text-sm text-[#D3D3D3] whitespace-nowrap">
+              New update available: v{updateInfo.version}
+            </p>
+          </div>
 
           {/* Later Button */}
           <button
@@ -188,34 +111,17 @@ export function UpdateNotification({ className }: UpdateNotificationProps) {
             Later
           </button>
 
-          {/* Install Now Button */}
+          {/* Download Button */}
           <Button
             size="sm"
-            onClick={handleInstallNow}
-            disabled={isDownloading && !isDownloaded}
-            className="bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white rounded-md px-4 py-1.5 h-auto whitespace-nowrap disabled:opacity-50"
+            onClick={handleDownload}
+            className="bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white rounded-md px-4 py-1.5 h-auto whitespace-nowrap flex items-center gap-2"
           >
-            {isDownloading && !isDownloaded
-              ? `Downloading... ${Math.round(downloadProgress)}%`
-              : isDownloaded
-              ? "Install Now"
-              : "Install Now"}
+            <ExternalLink className="h-3.5 w-3.5" />
+            Download
           </Button>
-
-          {/* Download Progress Bar (shown during download) */}
-          {isDownloading && downloadProgress < 100 && (
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-muted/20 rounded-b-lg overflow-hidden">
-              <motion.div
-                className="h-full bg-[#3B82F6]"
-                initial={{ width: 0 }}
-                animate={{ width: `${downloadProgress}%` }}
-                transition={{ duration: 0.3 }}
-              />
-            </div>
-          )}
         </div>
       </motion.div>
     </AnimatePresence>
   )
 }
-
