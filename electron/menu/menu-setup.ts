@@ -1,7 +1,7 @@
 import { app, Menu, BrowserWindow, dialog, shell, nativeImage } from "electron"
 import * as path from "path"
 import * as fs from "fs"
-import { checkForUpdates } from "../auto-update"
+import { checkForUpdate } from "../github-update"
 import { log } from "../logger"
 import sharedState from "../core/shared-state"
 
@@ -275,14 +275,13 @@ async function handleCheckForUpdate(): Promise<void> {
 
   try {
     log.info("[Menu] Checking for updates from menu...")
-    const result = await checkForUpdates()
+    const result = await checkForUpdate()
 
     if (result.available && result.info) {
       const updateMessage = `Update Available!\n\n` +
         `Version: ${result.info.version}\n` +
         `Release Date: ${result.info.releaseDate || "N/A"}\n\n` +
-        `An update is available. The update will be downloaded automatically in the background.\n` +
-        `You will be notified when it's ready to install.`
+        `An update is available. You will be prompted to download it.`
 
       dialog.showMessageBox(mainWindow, {
         type: "info",

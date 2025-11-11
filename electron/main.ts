@@ -29,7 +29,7 @@ import { registerPermissionsHandlers } from "./ipc/permissions-handlers"
 import { registerFileHandlers } from "./ipc/file-handlers"
 import { registerSystemHandlers } from "./ipc/system-handlers"
 import { registerUpdateHandlers } from "./ipc/update-handlers"
-import { initializeAutoUpdater } from "./auto-update"
+import { initializeGitHubUpdater } from "./github-update"
 
 // Check if app is available before initializing
 if (!app) {
@@ -67,9 +67,9 @@ if (!app) {
       registerDashboardReadyHandler(app)
 }
 
-// Initialize auto-updater (async, but don't wait for it)
-initializeAutoUpdater().catch((error) => {
-  console.warn("Failed to initialize auto-updater:", error)
+// Initialize GitHub updater (async, but don't wait for it)
+initializeGitHubUpdater().catch((error) => {
+  console.warn("Failed to initialize GitHub updater:", error)
 })
 
 // Handle app.whenReady() lifecycle
