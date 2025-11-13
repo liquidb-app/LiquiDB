@@ -15,14 +15,21 @@ const IS_LINUX = PLATFORM === 'linux'
 // Platform-specific implementations
 let platformImpl: any = null
 
-if (IS_MAC) {
-  platformImpl = require('./mac')
-} else if (IS_WINDOWS) {
-  platformImpl = require('./windows')
-} else if (IS_LINUX) {
-  platformImpl = require('./linux')
-} else {
-  throw new Error(`Unsupported platform: ${PLATFORM}`)
+try {
+  if (IS_MAC) {
+    platformImpl = require('./mac')
+  } else if (IS_WINDOWS) {
+    platformImpl = require('./windows')
+  } else if (IS_LINUX) {
+    platformImpl = require('./linux')
+  } else {
+    console.error(`[Platform] Unsupported platform: ${PLATFORM}`)
+    // Don't throw, just log - allow app to continue
+  }
+} catch (error: any) {
+  console.error(`[Platform] Failed to load platform module for ${PLATFORM}:`, error.message)
+  // Don't throw - allow app to continue even if platform module fails to load
+  // The app should still be able to start, just without platform-specific features
 }
 
 export const platform = {
