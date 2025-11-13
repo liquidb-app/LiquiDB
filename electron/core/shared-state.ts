@@ -5,7 +5,7 @@
 
 import { BrowserWindow } from "electron"
 import { ChildProcess } from "child_process"
-import { HelperServiceManager } from "../helper-service"
+import HelperServiceManager from "../helper-service"
 import PermissionsManager from "../permissions"
 import { IDatabase } from "../../types/database"
 import AutoLaunch from "auto-launch"
