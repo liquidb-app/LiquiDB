@@ -652,17 +652,101 @@ class HelperServiceManager {
       this.isInstalling = true
       console.log('[Helper] Installing helper service (Windows)...')
       
+      // Pre-installation checks
+      console.log('[Helper] Performing pre-installation checks...')
+      
+      // Check admin privileges (Task Scheduler operations may require admin)
+      try {
+        const platformImpl = require('../helper/platform')
+        if (platformImpl && platformImpl.checkAdminPrivileges && typeof platformImpl.checkAdminPrivileges === 'function') {
+          const hasAdmin = await platformImpl.checkAdminPrivileges()
+          if (!hasAdmin) {
+            console.warn('[Helper] Warning: Not running with admin privileges. Task Scheduler operations may fail.')
+            console.warn('[Helper] If installation fails, try running LiquiDB as administrator.')
+          } else {
+            console.log('[Helper] ✓ Running with admin privileges')
+          }
+        }
+      } catch (error: any) {
+        console.warn(`[Helper] Warning: Could not check admin privileges: ${error.message}`)
+      }
+      
+      // Check Task Scheduler service status
+      try {
+        const platformImpl = require('../helper/platform')
+        if (platformImpl && platformImpl.checkTaskSchedulerService && typeof platformImpl.checkTaskSchedulerService === 'function') {
+          const schedulerCheck = await platformImpl.checkTaskSchedulerService()
+          if (!schedulerCheck.running) {
+            const errorMsg = `Task Scheduler service is not running: ${schedulerCheck.error || 'Service unavailable'}. Please start the Task Scheduler service.`
+            console.error(`[Helper] ${errorMsg}`)
+            throw new Error(errorMsg)
+          }
+          console.log('[Helper] ✓ Task Scheduler service is running')
+        }
+      } catch (error: any) {
+        if (error.message && error.message.includes('Task Scheduler service')) {
+          throw error
+        }
+        console.warn(`[Helper] Warning: Could not verify Task Scheduler service: ${error.message || 'Unknown error'}`)
+      }
+      
+      // Check system command availability
+      try {
+        const platformImpl = require('../helper/platform')
+        if (platformImpl && platformImpl.checkSystemCommandAvailability) {
+          const cmdCheck = await platformImpl.checkSystemCommandAvailability()
+          if (!cmdCheck.available) {
+            const errorMsg = `Required system commands are missing: ${cmdCheck.missing.join(', ')}. Please install them.`
+            console.error(`[Helper] ${errorMsg}`)
+            throw new Error(errorMsg)
+          }
+          console.log('[Helper] ✓ Required system commands are available')
+        }
+      } catch (error: any) {
+        if (error.message.includes('Required system commands')) {
+          throw error
+        }
+        console.warn(`[Helper] Warning: Could not verify system commands: ${error.message}`)
+      }
+      
+      // Check named pipe permissions
+      try {
+        const platformImpl = require('../helper/platform')
+        if (platformImpl && platformImpl.checkNamedPipePermissions && typeof platformImpl.checkNamedPipePermissions === 'function') {
+          const pipeCheck = await platformImpl.checkNamedPipePermissions()
+          if (!pipeCheck.writable) {
+            const errorMsg = `Cannot create named pipes: ${pipeCheck.error || 'Permission denied'}. Please check permissions.`
+            console.error(`[Helper] ${errorMsg}`)
+            throw new Error(errorMsg)
+          }
+          console.log('[Helper] ✓ Named pipe permissions are correct')
+        }
+      } catch (error: any) {
+        if (error.message && error.message.includes('Cannot create named pipes')) {
+          throw error
+        }
+        console.warn(`[Helper] Warning: Could not verify named pipe permissions: ${error.message || 'Unknown error'}`)
+      }
+      
       const appDataPath = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
       const appDataDir = path.join(appDataPath, 'LiquiDB')
       const helperDir = path.join(appDataDir, 'helper')
       const logDir = path.join(appDataPath, '..', 'Local', 'LiquiDB', 'Logs')
       const logFile = path.join(logDir, 'helper.log')
       
-      if (!fs.existsSync(helperDir)) {
-        fs.mkdirSync(helperDir, { recursive: true })
-      }
-      if (!fs.existsSync(logDir)) {
-        fs.mkdirSync(logDir, { recursive: true })
+      try {
+        if (!fs.existsSync(helperDir)) {
+          fs.mkdirSync(helperDir, { recursive: true })
+          console.log(`[Helper] Created helper directory: ${helperDir}`)
+        }
+        if (!fs.existsSync(logDir)) {
+          fs.mkdirSync(logDir, { recursive: true })
+          console.log(`[Helper] Created log directory: ${logDir}`)
+        }
+      } catch (error: any) {
+        const errorMsg = `Cannot create directories: ${error.message}. Please check permissions.`
+        console.error(`[Helper] ${errorMsg}`)
+        throw new Error(errorMsg)
       }
       
       const helperFiles = ['liquidb-helper.js', 'ipc-client.js']
@@ -849,7 +933,18 @@ class HelperServiceManager {
         if (stderr && !stderr.includes('SUCCESS')) {
           console.warn('[Helper] Task creation stderr:', stderr)
         }
-        console.log('[Helper] Task Scheduler task created successfully')
+        
+        // Validate task was created successfully
+        try {
+          const { stdout: queryStdout } = await execAsync(`schtasks /Query /TN "${this.servicePath}" /FO LIST`, { timeout: 5000 }) as { stdout: string }
+          if (queryStdout.includes(this.servicePath)) {
+            console.log('[Helper] ✓ Task Scheduler task created and verified')
+          } else {
+            throw new Error('Task created but not found in Task Scheduler')
+          }
+        } catch (verifyError: any) {
+          console.warn(`[Helper] Warning: Could not verify task creation: ${verifyError.message}`)
+        }
       } catch (error: any) {
         console.error('[Helper] Failed to create task:', error)
         console.error('[Helper] Error message:', error.message)
@@ -868,14 +963,40 @@ class HelperServiceManager {
         if (errorMessage.includes('already exists') || errorMessage.includes('ERROR: The task already exists')) {
           console.log('[Helper] Task already exists, attempting to delete and recreate...')
           try {
-            await execAsync(`schtasks /Delete /TN "${this.servicePath}" /F`)
-            await execAsync(`schtasks /Create /TN "${this.servicePath}" /XML "${tempXmlPath}" /F`)
-            console.log('[Helper] Task recreated successfully')
+            await execAsync(`schtasks /Delete /TN "${this.servicePath}" /F`, { timeout: 10000 })
+            console.log('[Helper] Deleted existing task')
+            
+            const escapedXmlPath = tempXmlPath.includes(' ') ? `"${tempXmlPath}"` : tempXmlPath
+            await execAsync(`schtasks /Create /TN "${this.servicePath}" /XML ${escapedXmlPath} /F`, {
+              maxBuffer: 1024 * 1024,
+              timeout: 30000
+            })
+            console.log('[Helper] ✓ Task recreated successfully')
+            
+            // Verify recreated task
+            try {
+              const { stdout: queryStdout } = await execAsync(`schtasks /Query /TN "${this.servicePath}" /FO LIST`, { timeout: 5000 }) as { stdout: string }
+              if (!queryStdout.includes(this.servicePath)) {
+                throw new Error('Task recreated but not found in Task Scheduler')
+              }
+            } catch (verifyError: any) {
+              console.warn(`[Helper] Warning: Could not verify task recreation: ${verifyError.message}`)
+            }
           } catch (retryError: any) {
-            throw new Error(`Failed to recreate Windows Task Scheduler task: ${retryError.message || retryError.stderr || 'Unknown error'}`)
+            const retryErrorMessage = retryError.message || retryError.stderr || 'Unknown error'
+            const errorMsg = `Failed to recreate Windows Task Scheduler task: ${retryErrorMessage}. Please check permissions and try running as administrator.`
+            console.error(`[Helper] ${errorMsg}`)
+            throw new Error(errorMsg)
           }
         } else {
-          throw new Error(`Failed to create Windows Task Scheduler task: ${errorMessage}`)
+          // Provide helpful error message
+          let userFriendlyError = errorMessage
+          if (errorMessage.includes('Access is denied') || errorMessage.includes('denied')) {
+            userFriendlyError = 'Access denied. Please run LiquiDB as administrator to install the helper service.'
+          } else if (errorMessage.includes('not found') || errorMessage.includes('does not exist')) {
+            userFriendlyError = 'Task Scheduler service not found. Please ensure Task Scheduler service is running.'
+          }
+          throw new Error(`Failed to create Windows Task Scheduler task: ${userFriendlyError}`)
         }
       } finally {
         // Clean up temp file after a delay to ensure it's been read
@@ -896,23 +1017,53 @@ class HelperServiceManager {
       return true
     } catch (error: any) {
       console.error('[Helper] Installation failed (Windows):', error)
-      return false
+      const errorMessage = error.message || 'Unknown error occurred'
+      throw new Error(`Failed to install helper service: ${errorMessage}`)
     } finally {
       this.isInstalling = false
     }
   }
 
   private async startServiceWindows(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      exec(`schtasks /Run /TN "${this.servicePath}"`, (error: ExecException | null, stdout: string, stderr: string) => {
-        if (error) {
-          console.error('[Helper] Failed to start service:', stderr)
-          reject(error)
-        } else {
-          console.log('[Helper] Service started')
-          resolve()
-        }
-      })
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Start the service
+        exec(`schtasks /Run /TN "${this.servicePath}"`, { timeout: 10000 }, async (error: ExecException | null, stdout: string, stderr: string) => {
+          if (error) {
+            console.error('[Helper] Failed to start service:', stderr || error.message)
+            reject(error)
+            return
+          }
+          
+          // Verify service actually started
+          try {
+            await new Promise(resolve => setTimeout(resolve, 2000)) // Wait a moment for service to start
+            
+            const isRunning = await this.isServiceRunningWindows()
+            if (isRunning) {
+              console.log('[Helper] Service started and verified')
+              resolve()
+            } else {
+              // Check task status for more details
+              try {
+                const { stdout: statusStdout } = await execAsync(`schtasks /Query /TN "${this.servicePath}" /FO LIST /V`, { timeout: 5000 }) as { stdout: string }
+                console.warn('[Helper] Service start command succeeded but service is not running:')
+                console.warn(statusStdout)
+                reject(new Error('Service start command succeeded but service is not running. Check Task Scheduler for details.'))
+              } catch (statusError: any) {
+                reject(new Error('Service start command succeeded but service is not running'))
+              }
+            }
+          } catch (verifyError: any) {
+            console.warn('[Helper] Could not verify service status:', verifyError.message)
+            // Assume success if we can't verify
+            console.log('[Helper] Service started (status verification failed)')
+            resolve()
+          }
+        })
+      } catch (error: any) {
+        reject(error)
+      }
     })
   }
 
