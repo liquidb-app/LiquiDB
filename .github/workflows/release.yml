@@ -530,11 +530,7 @@ jobs:
   build:
     needs: version
     if: needs.version.outputs.new_release_published == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
     
     steps:
       - name: Checkout code with updated version
@@ -648,16 +644,7 @@ jobs:
         run: npm run build
 
       - name: Build Electron app (macOS)
-        if: matrix.os == 'macos-latest'
         run: npm run electron:build:mac
-
-      - name: Build Electron app (Windows)
-        if: matrix.os == 'windows-latest'
-        run: npm run electron:build:win
-
-      - name: Build Electron app (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: npm run electron:build:linux
 
       - name: List build artifacts
         shell: bash
@@ -671,7 +658,6 @@ jobs:
           fi
 
       - name: Upload macOS artifacts
-        if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
           name: macos-artifacts
@@ -680,31 +666,6 @@ jobs:
             dist/*.zip
             dist/*.blockmap
             dist/latest-mac.yml
-          if-no-files-found: warn
-          retention-days: 30
-
-      - name: Upload Windows artifacts
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-artifacts
-          path: |
-            dist/*.exe
-            dist/*.blockmap
-            dist/latest.yml
-          if-no-files-found: warn
-          retention-days: 30
-
-      - name: Upload Linux artifacts
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-artifacts
-          path: |
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.blockmap
-            dist/latest.yml
           if-no-files-found: warn
           retention-days: 30
 
@@ -733,20 +694,6 @@ jobs:
           name: macos-artifacts
           path: release-artifacts/macos
 
-      - name: Download Windows artifacts
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-artifacts
-          path: release-artifacts/windows
-
-      - name: Download Linux artifacts
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-artifacts
-          path: release-artifacts/linux
-
       - name: List downloaded artifacts
         shell: bash
         run: |
@@ -769,11 +716,6 @@ jobs:
             release-artifacts/macos/*.zip
             release-artifacts/macos/*.blockmap
             release-artifacts/macos/latest-mac.yml
-            release-artifacts/windows/*.exe
-            release-artifacts/windows/latest.yml
-            release-artifacts/linux/*.AppImage
-            release-artifacts/linux/*.deb
-            release-artifacts/linux/latest.yml
           draft: false
           prerelease: false
           make_latest: true

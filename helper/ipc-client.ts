@@ -10,11 +10,9 @@ import * as net from 'net'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
-import platformImpl from './platform'
 
-// Configuration - platform-specific IPC path
-const SOCKET_PATH = platformImpl.getSocketPath()
-const IS_WINDOWS = process.platform === 'win32'
+// Configuration
+const SOCKET_PATH = path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB', 'helper.sock')
 
 interface HelperMessage {
   type: string
@@ -59,21 +57,15 @@ class HelperClient {
   private socket: net.Socket | null = null
   private connected: boolean = false
   
-  // Connect to helper (platform-specific)
+  // Connect to helper
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (IS_WINDOWS) {
-        // Windows: Use named pipe (no file existence check needed)
-        this.socket = net.createConnection(SOCKET_PATH)
-      } else {
-        // macOS/Linux: Use Unix domain socket
-        if (!fs.existsSync(SOCKET_PATH)) {
-          reject(new Error('Helper IPC socket not found'))
-          return
-        }
-        
-        this.socket = net.createConnection(SOCKET_PATH)
+      if (!fs.existsSync(SOCKET_PATH)) {
+        reject(new Error('Helper IPC socket not found'))
+        return
       }
+      
+      this.socket = net.createConnection(SOCKET_PATH)
       
       this.socket.on('connect', () => {
         this.connected = true

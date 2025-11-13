@@ -6,8 +6,6 @@ import { log } from "../logger"
 
 const execAsync = promisify(exec)
 const IS_MAC = process.platform === 'darwin'
-const IS_WINDOWS = process.platform === 'win32'
-const IS_LINUX = process.platform === 'linux'
 
 /**
  * Register permissions IPC handlers
@@ -48,34 +46,9 @@ export function registerPermissionsHandlers(): void {
 
   ipcMain.handle("permissions:openSettings", async (event) => {
     try {
-      if (IS_MAC) {
-        // macOS: Open System Preferences to Privacy & Security
-        await execAsync('open "x-apple.systempreferences:com.apple.preference.security?Privacy"')
-        return { success: true }
-      } else if (IS_WINDOWS) {
-        // Windows: Open Windows Settings to Privacy section
-        await execAsync('start ms-settings:privacy')
-        return { success: true }
-      } else if (IS_LINUX) {
-        // Linux: Try to open system settings (varies by distribution)
-        const desktop = process.env.XDG_CURRENT_DESKTOP || ''
-        try {
-          if (desktop.includes('GNOME')) {
-            await execAsync('gnome-control-center privacy')
-          } else if (desktop.includes('KDE')) {
-            await execAsync('systemsettings5')
-          } else {
-            // Fallback: try xdg-open
-            await execAsync('xdg-open ~/.config')
-          }
-          return { success: true }
-        } catch (fallbackError: any) {
-          log.warn("[Permissions Open Settings] Failed to open system settings:", fallbackError)
-          return { success: false, error: "Could not open system settings. Please open manually." }
-        }
-      } else {
-        return { success: false, error: "Unsupported platform" }
-      }
+      // macOS: Open System Preferences to Privacy & Security
+      await execAsync('open "x-apple.systempreferences:com.apple.preference.security?Privacy"')
+      return { success: true }
     } catch (error: any) {
       log.error("[Permissions Open Settings] Error:", error)
       return { success: false, error: error.message || "Unknown error" }

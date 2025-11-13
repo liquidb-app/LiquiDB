@@ -1,7 +1,7 @@
 /**
  * LiquiDB Permissions Manager
  * 
- * Cross-platform permission checking and requesting for Windows, macOS, and Linux
+ * macOS permission checking and requesting
  */
 
 import { exec } from 'child_process'
@@ -18,8 +18,6 @@ const execAsync = promisify(exec)
 
 const PLATFORM = process.platform
 const IS_MAC = PLATFORM === 'darwin'
-const IS_WINDOWS = PLATFORM === 'win32'
-const IS_LINUX = PLATFORM === 'linux'
 
 interface PermissionsState {
   accessibility: boolean
@@ -433,599 +431,116 @@ class PermissionsManager extends EventEmitter {
     }
   }
 
-  // ==================== Windows Permission Checks ====================
+  // ==================== Unified Permission Checks ====================
 
-  private async checkFileAccessPermissionWindows(): Promise<boolean> {
+  async checkAccessibilityPermission(): Promise<boolean> {
+    // Don't use cache for accessibility - always check fresh
+    // Cache can cause issues in production where permissions change
+    const result = await this.checkAccessibilityPermissionMac()
+    this.permissions.accessibility = result
+    // Invalidate cache to force fresh check next time
+    this.invalidateCache('accessibility')
+    log.debug(`[Permissions] Accessibility check result: ${result}`)
+    return result
+  }
+
+  async checkFullDiskAccessPermission(): Promise<boolean> {
+    const result = await this.getCachedOrCheck('fullDiskAccess', () => this.checkFullDiskAccessPermissionMac())
+    this.permissions.fullDiskAccess = result
+    return result
+  }
+
+  async checkNetworkAccessPermission(): Promise<boolean> {
+    // macOS: Network access is automatically granted
+    this.permissions.networkAccess = true
+    return true
+  }
+
+  async checkFileAccessPermission(): Promise<boolean> {
     try {
-      if (!IS_WINDOWS) return false
-      const appDataPath = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
-      const testDir = path.join(appDataPath, 'LiquiDB')
+      const testDir = path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB')
       await fs.promises.mkdir(testDir, { recursive: true })
-      
       const testFile = path.join(testDir, 'permission-test.txt')
       await fs.promises.writeFile(testFile, 'test')
       const content = await fs.promises.readFile(testFile, 'utf8')
       await fs.promises.unlink(testFile)
-      
-      return content === 'test'
-    } catch (error: any) {
-      return false
-    }
-  }
-
-  private async checkNetworkAccessPermissionWindows(): Promise<boolean> {
-    try {
-      if (!IS_WINDOWS) return false
-      // On Windows, try to bind to a test port to check network access
-      const net = require('net')
-      return new Promise<boolean>((resolve) => {
-        const server = net.createServer()
-        server.listen(0, () => {
-          const port = (server.address() as any)?.port
-          server.close(() => {
-            resolve(!!port)
-          })
-        })
-        server.on('error', () => {
-          resolve(false)
-        })
-        // Timeout after 1 second
-        setTimeout(() => {
-          server.close()
-          resolve(false)
-        }, 1000)
-      })
-    } catch (error: any) {
-      return false
-    }
-  }
-
-  private async checkAdminPermissionWindows(): Promise<boolean> {
-    try {
-      if (!IS_WINDOWS) return false
-      // Check if running as administrator using multiple methods
-      
-      // Method 1: net session (most reliable)
-      try {
-        const { stdout } = await execAsync('net session 2>&1', { timeout: 3000 }) as { stdout: string }
-        if (!stdout.includes('Access is denied') && !stdout.includes('error')) {
-          return true
-        }
-      } catch (error: any) {
-        // net session fails if not admin
-      }
-      
-      // Method 2: Check via PowerShell (if available)
-      try {
-        const psCommand = '[Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent() | Select-Object -ExpandProperty IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)'
-        const { stdout } = await execAsync(
-          `powershell -Command "${psCommand}"`,
-          { timeout: 5000 }
-        )
-        return stdout.trim().toLowerCase() === 'true'
-      } catch (error: any) {
-        // PowerShell check failed, continue to next method
-      }
-      
-      // Method 3: Import platform implementation to use its admin check
-      try {
-        const platformImpl = require('../helper/platform')
-        if (platformImpl && platformImpl.checkAdminPrivileges && typeof platformImpl.checkAdminPrivileges === 'function') {
-          return await platformImpl.checkAdminPrivileges()
-        }
-      } catch (error: any) {
-        // Platform check failed - log but don't block
-        log.debug('[Permissions] Platform admin check failed:', error.message)
-      }
-      
-      return false
-    } catch (error: any) {
-      log.warn('[Permissions] Admin permission check failed:', error.message)
-      return false
-    }
-  }
-
-  private async checkTaskSchedulerServiceWindows(): Promise<boolean> {
-    try {
-      if (!IS_WINDOWS) return false
-      
-      // Import platform implementation to use its Task Scheduler check
-      try {
-        const platformImpl = require('../helper/platform')
-        if (platformImpl && platformImpl.checkTaskSchedulerService && typeof platformImpl.checkTaskSchedulerService === 'function') {
-          const result = await platformImpl.checkTaskSchedulerService()
-          return result.running
-        }
-      } catch (error: any) {
-        log.debug('[Permissions] Platform Task Scheduler check failed:', error.message)
-      }
-      
-      // Fallback: check via PowerShell
-      try {
-        const psCommand = '(Get-Service -Name Schedule -ErrorAction SilentlyContinue).Status'
-        const { stdout } = await execAsync(
-          `powershell -Command "${psCommand}"`,
-          { timeout: 5000 }
-        )
-        const status = stdout.trim().toLowerCase()
-        return status === 'running'
-      } catch (error: any) {
-        // PowerShell check failed, try sc query
-        try {
-          const { stdout } = await execAsync('sc query Schedule', { timeout: 5000 }) as { stdout: string }
-          return stdout.includes('RUNNING')
-        } catch (error2: any) {
-          log.warn('[Permissions] Task Scheduler service check failed:', error2.message)
-          return false
-        }
-      }
-    } catch (error: any) {
-      log.warn('[Permissions] Task Scheduler permission check failed:', error.message)
-      return false
-    }
-  }
-
-  private async checkNamedPipePermissionsWindows(): Promise<boolean> {
-    try {
-      if (!IS_WINDOWS) return false
-      
-      // Import platform implementation to use its named pipe check
-      try {
-        const platformImpl = require('../helper/platform')
-        if (platformImpl && platformImpl.checkNamedPipePermissions && typeof platformImpl.checkNamedPipePermissions === 'function') {
-          const result = await platformImpl.checkNamedPipePermissions()
-          return result.writable
-        }
-      } catch (error: any) {
-        log.debug('[Permissions] Platform named pipe check failed:', error.message)
-      }
-      
-      // Fallback: check temp directory write access (where pipe handles are created)
-      try {
-        const tempDir = os.tmpdir()
-        await fs.promises.access(tempDir, fs.constants.W_OK)
-        return true
-      } catch (error: any) {
-        log.warn('[Permissions] Named pipe permission check failed:', error.message)
-        return false
-      }
-    } catch (error: any) {
-      log.warn('[Permissions] Named pipe permission check failed:', error.message)
-      return false
-    }
-  }
-
-  private async checkProcessManagementWindows(): Promise<boolean> {
-    try {
-      if (!IS_WINDOWS) return false
-      
-      // Check if we can list processes (basic process management capability)
-      try {
-        const { stdout } = await execAsync('tasklist /FI "PID eq 0" /FO CSV /NH', { timeout: 3000 }) as { stdout: string }
-        // If tasklist works, we have basic process management
-        return true
-      } catch (error: any) {
-        log.warn('[Permissions] Process management check failed:', error.message)
-        return false
-      }
-    } catch (error: any) {
-      log.warn('[Permissions] Process management permission check failed:', error.message)
-      return false
-    }
-  }
-
-  // ==================== Linux Permission Checks ====================
-
-  private async checkFileAccessPermissionLinux(): Promise<boolean> {
-    try {
-      if (!IS_LINUX) return false
-      const configDir = path.join(os.homedir(), '.config', 'LiquiDB')
-      await fs.promises.mkdir(configDir, { recursive: true })
-      
-      const testFile = path.join(configDir, 'permission-test.txt')
-      await fs.promises.writeFile(testFile, 'test')
-      const content = await fs.promises.readFile(testFile, 'utf8')
-      await fs.promises.unlink(testFile)
-      
-      return content === 'test'
-    } catch (error: any) {
-      return false
-    }
-  }
-
-  private async checkNetworkAccessPermissionLinux(): Promise<boolean> {
-    try {
-      if (!IS_LINUX) return false
-      // On Linux, try to bind to a test port
-      const net = require('net')
-      return new Promise<boolean>((resolve) => {
-        const server = net.createServer()
-        server.listen(0, () => {
-          const port = (server.address() as any)?.port
-          server.close(() => {
-            resolve(!!port)
-          })
-        })
-        server.on('error', () => {
-          resolve(false)
-        })
-        setTimeout(() => {
-          server.close()
-          resolve(false)
-        }, 1000)
-      })
-    } catch (error: any) {
-      return false
-    }
-  }
-
-  private async checkSystemdPermissionLinux(): Promise<boolean> {
-    try {
-      if (!IS_LINUX) return false
-      const systemdUserDir = path.join(os.homedir(), '.config', 'systemd', 'user')
-      await fs.promises.mkdir(systemdUserDir, { recursive: true })
-      await fs.promises.access(systemdUserDir, fs.constants.R_OK | fs.constants.W_OK)
-      
-      // Check if systemd user services are enabled
-      try {
-        const { stdout } = await execAsync('systemctl --user list-units --type=service --no-pager 2>&1', { timeout: 5000 }) as { stdout: string }
-        // If command succeeds, systemd user services are available
-        return !stdout.includes('Failed to connect to bus') && !stdout.includes('permission denied')
-      } catch (error: any) {
-        // If systemctl --user fails, systemd user services may not be enabled
-        log.warn('[Permissions] systemd user services check failed:', error.message)
-        return false
-      }
-    } catch (error: any) {
-      log.warn('[Permissions] systemd permission check failed:', error.message)
-      return false
-    }
-  }
-
-  private async checkSystemCommandExecutionLinux(): Promise<boolean> {
-    try {
-      if (!IS_LINUX) return false
-      
-      // Check if required commands exist and are executable
-      const requiredCommands = ['pgrep', 'ps', 'kill']
-      for (const cmd of requiredCommands) {
-        try {
-          const { stdout } = await execAsync(`which ${cmd}`, { timeout: 3000 }) as { stdout: string }
-          if (!stdout.trim()) {
-            log.warn(`[Permissions] Command ${cmd} not found`)
-            return false
-          }
-        } catch (error: any) {
-          log.warn(`[Permissions] Failed to check command ${cmd}:`, error.message)
-          return false
-        }
-      }
-      
-      // Try to execute a simple command to verify we have execution permissions
-      try {
-        await execAsync('ps --version', { timeout: 3000 })
-        return true
-      } catch (error: any) {
-        log.warn('[Permissions] Failed to execute test command:', error.message)
-        return false
-      }
-    } catch (error: any) {
-      log.warn('[Permissions] System command execution check failed:', error.message)
-      return false
-    }
-  }
-
-  private async checkSocketPermissionsLinux(): Promise<boolean> {
-    try {
-      if (!IS_LINUX) return false
-      
-      // Import platform implementation to use its socket permission check
-      try {
-        const platformImpl = require('../helper/platform')
-        if (platformImpl && platformImpl.checkSocketPermissions && typeof platformImpl.checkSocketPermissions === 'function') {
-          const result = await platformImpl.checkSocketPermissions()
-          return result.writable
-        }
-      } catch (error: any) {
-        log.debug('[Permissions] Platform socket check failed:', error.message)
-      }
-      
-      // Fallback: check directory permissions directly
-      const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config')
-      const socketDir = path.join(xdgConfigHome, 'LiquiDB')
-      
-      try {
-        await fs.promises.mkdir(socketDir, { recursive: true, mode: 0o755 })
-        await fs.promises.access(socketDir, fs.constants.W_OK)
-        
-        // Try to create a test file
-        const testFile = path.join(socketDir, '.test-write')
-        await fs.promises.writeFile(testFile, 'test')
-        await fs.promises.unlink(testFile)
-        return true
-      } catch (error: any) {
-        log.warn('[Permissions] Socket directory permission check failed:', error.message)
-        return false
-      }
-    } catch (error: any) {
-      log.warn('[Permissions] Socket permission check failed:', error.message)
-      return false
-    }
-  }
-
-  private async checkProcessManagementLinux(): Promise<boolean> {
-    try {
-      if (!IS_LINUX) return false
-      
-      // Check if we can list our own processes (basic process management capability)
-      try {
-        const currentPid = process.pid
-        const { stdout } = await execAsync(`ps -p ${currentPid} -o pid=`, { timeout: 3000 }) as { stdout: string }
-        if (stdout.trim().includes(String(currentPid))) {
-          return true
-        }
-      } catch (error: any) {
-        log.warn('[Permissions] Process management check failed:', error.message)
-        return false
-      }
-      
-      // Fallback: check if /proc is accessible
-      try {
-        await fs.promises.access('/proc', fs.constants.R_OK)
-        return true
-      } catch (error: any) {
-        log.warn('[Permissions] /proc access check failed:', error.message)
-        return false
-      }
-    } catch (error: any) {
-      log.warn('[Permissions] Process management permission check failed:', error.message)
-      return false
-    }
-  }
-
-  private async checkSudoPermissionLinux(): Promise<boolean> {
-    try {
-      if (!IS_LINUX) return false
-      // Check if sudo command is available
-      const { stdout } = await execAsync('which sudo 2>&1') as { stdout: string }
-      return stdout.trim().length > 0
-    } catch (error: any) {
-      return false
-    }
-  }
-
-  // ==================== Unified Permission Checks ====================
-
-  async checkAccessibilityPermission(): Promise<boolean> {
-    if (IS_MAC) {
-      // Don't use cache for accessibility - always check fresh
-      // Cache can cause issues in production where permissions change
-      const result = await this.checkAccessibilityPermissionMac()
-      this.permissions.accessibility = result
-      // Invalidate cache to force fresh check next time
-      this.invalidateCache('accessibility')
-      log.debug(`[Permissions] Accessibility check result: ${result}`)
-      return result
-    }
-    // Windows/Linux don't have accessibility permission in the same way
-    // On Windows/Linux, we assume accessibility is granted if file access works
-    const fileAccess = await this.checkFileAccessPermission()
-    this.permissions.accessibility = fileAccess
-    return fileAccess
-  }
-
-  async checkFullDiskAccessPermission(): Promise<boolean> {
-    if (IS_MAC) {
-      const result = await this.getCachedOrCheck('fullDiskAccess', () => this.checkFullDiskAccessPermissionMac())
-      this.permissions.fullDiskAccess = result
-      return result
-    }
-    // Windows/Linux: Full disk access is not a separate permission
-    // Check if we can access user directories
-    const fileAccess = await this.checkFileAccessPermission()
-    this.permissions.fullDiskAccess = fileAccess
-    return fileAccess
-  }
-
-  async checkNetworkAccessPermission(): Promise<boolean> {
-    // Network access is generally available, but we verify it works
-    if (IS_WINDOWS) {
-      const result = await this.getCachedOrCheck('networkAccess', () => this.checkNetworkAccessPermissionWindows())
-      this.permissions.networkAccess = result
-      return result
-    } else if (IS_LINUX) {
-      const result = await this.getCachedOrCheck('networkAccess', () => this.checkNetworkAccessPermissionLinux())
-      this.permissions.networkAccess = result
-      return result
-    } else {
-      // macOS: Network access is automatically granted
-      this.permissions.networkAccess = true
-      return true
-    }
-  }
-
-  async checkFileAccessPermission(): Promise<boolean> {
-    if (IS_WINDOWS) {
-      const result = await this.getCachedOrCheck('fileAccess', () => this.checkFileAccessPermissionWindows())
+      const result = content === 'test'
       this.permissions.fileAccess = result
       return result
-    } else if (IS_LINUX) {
-      const result = await this.getCachedOrCheck('fileAccess', () => this.checkFileAccessPermissionLinux())
-      this.permissions.fileAccess = result
-      return result
-    } else {
-      // macOS
-      try {
-        const testDir = path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB')
-        await fs.promises.mkdir(testDir, { recursive: true })
-        const testFile = path.join(testDir, 'permission-test.txt')
-        await fs.promises.writeFile(testFile, 'test')
-        const content = await fs.promises.readFile(testFile, 'utf8')
-        await fs.promises.unlink(testFile)
-        const result = content === 'test'
-        this.permissions.fileAccess = result
-        return result
-      } catch (error: any) {
-        this.permissions.fileAccess = false
-        return false
-      }
+    } catch (error: any) {
+      this.permissions.fileAccess = false
+      return false
     }
   }
 
   async checkLaunchAgentPermission(): Promise<boolean> {
-    if (IS_MAC) {
-      const result = await this.getCachedOrCheck('launchAgent', () => this.checkLaunchAgentPermissionMac())
-      this.permissions.launchAgent = result
-      return result
-    } else if (IS_LINUX) {
-      // Linux: Check systemd permission (includes verification that user services are enabled)
-      const result = await this.getCachedOrCheck('launchAgent', () => this.checkSystemdPermissionLinux())
-      this.permissions.launchAgent = result
-      return result
-    } else {
-      // Windows: Check if we can create startup entries
-      // For now, assume true if file access works
-      const fileAccess = await this.checkFileAccessPermission()
-      this.permissions.launchAgent = fileAccess
-      return fileAccess
-    }
-  }
-
-  // Additional Linux-specific permission checks
-  async checkSystemCommandExecutionPermission(): Promise<boolean> {
-    if (IS_LINUX) {
-      const result = await this.getCachedOrCheck('systemCommandExecution', () => this.checkSystemCommandExecutionLinux())
-      return result
-    }
-    return true // Not applicable on other platforms
-  }
-
-  async checkSocketPermission(): Promise<boolean> {
-    if (IS_LINUX) {
-      const result = await this.getCachedOrCheck('socketPermission', () => this.checkSocketPermissionsLinux())
-      return result
-    }
-    return true // Not applicable on other platforms
-  }
-
-  async checkProcessManagementPermission(): Promise<boolean> {
-    if (IS_LINUX) {
-      const result = await this.getCachedOrCheck('processManagement', () => this.checkProcessManagementLinux())
-      return result
-    } else if (IS_WINDOWS) {
-      const result = await this.getCachedOrCheck('processManagement', () => this.checkProcessManagementWindows())
-      return result
-    }
-    return true // Not applicable on other platforms
-  }
-
-  // Additional Windows-specific permission checks
-  async checkAdminPrivileges(): Promise<boolean> {
-    if (IS_WINDOWS) {
-      const result = await this.getCachedOrCheck('adminPrivileges', () => this.checkAdminPermissionWindows())
-      return result
-    }
-    return true // Not applicable on other platforms
-  }
-
-  async checkTaskSchedulerService(): Promise<boolean> {
-    if (IS_WINDOWS) {
-      const result = await this.getCachedOrCheck('taskSchedulerService', () => this.checkTaskSchedulerServiceWindows())
-      return result
-    }
-    return true // Not applicable on other platforms
-  }
-
-  async checkNamedPipePermission(): Promise<boolean> {
-    if (IS_WINDOWS) {
-      const result = await this.getCachedOrCheck('namedPipePermission', () => this.checkNamedPipePermissionsWindows())
-      return result
-    }
-    return true // Not applicable on other platforms
+    const result = await this.getCachedOrCheck('launchAgent', () => this.checkLaunchAgentPermissionMac())
+    this.permissions.launchAgent = result
+    return result
   }
 
   async checkKeychainAccessPermission(): Promise<boolean> {
-    if (IS_MAC) {
-      const result = await this.getCachedOrCheck('keychainAccess', () => this.checkKeychainAccessPermissionMac())
-      this.permissions.keychainAccess = result
-      return result
-    } else {
-      // Windows/Linux: Use Electron's safeStorage (uses OS credential store)
-      try {
-        const result = safeStorage.isEncryptionAvailable()
-        this.permissions.keychainAccess = result
-        return result
-      } catch (e: any) {
-        this.permissions.keychainAccess = false
-        return false
-      }
-    }
+    const result = await this.getCachedOrCheck('keychainAccess', () => this.checkKeychainAccessPermissionMac())
+    this.permissions.keychainAccess = result
+    return result
   }
 
   // ==================== Permission Requests ====================
 
   async requestAccessibilityPermission(): Promise<boolean> {
-    if (IS_MAC) {
-      try {
-        log.info('[Permissions] Requesting macOS accessibility permission...')
-        // Request permission (this shows the system dialog)
-        systemPreferences.isTrustedAccessibilityClient(true)
-        
-        // Wait for user to respond to dialog
+    try {
+      log.info('[Permissions] Requesting macOS accessibility permission...')
+      // Request permission (this shows the system dialog)
+      systemPreferences.isTrustedAccessibilityClient(true)
+      
+      // Wait for user to respond to dialog
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Invalidate cache and force re-check
+      this.invalidateCache('accessibility')
+      
+      // Check multiple times with delays to catch permission grant
+      // Use longer delays and more attempts for production
+      let granted = false
+      for (let i = 0; i < 10; i++) {
+        // Use the direct check method (bypasses cache)
+        granted = await this.checkAccessibilityPermissionMac()
+        if (granted) {
+          this.permissions.accessibility = true
+          this.emit('permission-changed', { permission: 'accessibility', granted: true })
+          log.info('[Permissions] Accessibility permission granted')
+          break
+        }
+        // Wait longer between checks (2 seconds)
         await new Promise(resolve => setTimeout(resolve, 2000))
-        
-        // Invalidate cache and force re-check
-        this.invalidateCache('accessibility')
-        
-        // Check multiple times with delays to catch permission grant
-        // Use longer delays and more attempts for production
-        let granted = false
-        for (let i = 0; i < 10; i++) {
-          // Use the direct check method (bypasses cache)
-          granted = await this.checkAccessibilityPermissionMac()
-          if (granted) {
-            this.permissions.accessibility = true
-            this.emit('permission-changed', { permission: 'accessibility', granted: true })
-            log.info('[Permissions] Accessibility permission granted')
-            break
-          }
-          // Wait longer between checks (2 seconds)
-          await new Promise(resolve => setTimeout(resolve, 2000))
-        }
-        
-        if (!granted) {
-          log.warn('[Permissions] Accessibility permission not granted after request')
-        }
-        return granted
-      } catch (e: any) {
-        log.error('[Permissions] macOS accessibility request failed:', e.message)
-        return false
       }
+      
+      if (!granted) {
+        log.warn('[Permissions] Accessibility permission not granted after request')
+      }
+      return granted
+    } catch (e: any) {
+      log.error('[Permissions] macOS accessibility request failed:', e.message)
+      return false
     }
-    // Windows/Linux: No separate accessibility permission
-    return await this.checkAccessibilityPermission()
   }
 
   async requestFullDiskAccessPermission(): Promise<boolean> {
-    if (IS_MAC) {
-      try {
-        log.info('[Permissions] Requesting macOS full disk access permission...')
-        // Try to access system logs to trigger permission dialog
-        await execAsync('ls /var/log/system.log 2>&1').catch(() => {})
-        await new Promise(resolve => setTimeout(resolve, 3000))
-        this.invalidateCache('fullDiskAccess')
-        const granted = await this.checkFullDiskAccessPermission()
-        if (granted) {
-          this.emit('permission-changed', { permission: 'fullDiskAccess', granted: true })
-        }
-        return granted
-      } catch (e: any) {
-        log.error('[Permissions] macOS full disk access request failed:', e.message)
-        return false
+    try {
+      log.info('[Permissions] Requesting macOS full disk access permission...')
+      // Try to access system logs to trigger permission dialog
+      await execAsync('ls /var/log/system.log 2>&1').catch(() => {})
+      await new Promise(resolve => setTimeout(resolve, 3000))
+      this.invalidateCache('fullDiskAccess')
+      const granted = await this.checkFullDiskAccessPermission()
+      if (granted) {
+        this.emit('permission-changed', { permission: 'fullDiskAccess', granted: true })
       }
+      return granted
+    } catch (e: any) {
+      log.error('[Permissions] macOS full disk access request failed:', e.message)
+      return false
     }
-    // Windows/Linux: Full disk access is not a separate permission
-    return await this.checkFullDiskAccessPermission()
   }
 
   async requestNetworkAccessPermission(): Promise<boolean> {
@@ -1040,27 +555,11 @@ class PermissionsManager extends EventEmitter {
 
   async requestFileAccessPermission(): Promise<boolean> {
     try {
-      if (IS_WINDOWS) {
-        const appDataPath = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
-        const testDir = path.join(appDataPath, 'LiquiDB')
-        await fs.promises.mkdir(testDir, { recursive: true })
-        const testFile = path.join(testDir, 'permission-test.txt')
-        await fs.promises.writeFile(testFile, 'test')
-        await fs.promises.unlink(testFile)
-      } else if (IS_LINUX) {
-        const configDir = path.join(os.homedir(), '.config', 'LiquiDB')
-        await fs.promises.mkdir(configDir, { recursive: true })
-        const testFile = path.join(configDir, 'permission-test.txt')
-        await fs.promises.writeFile(testFile, 'test')
-        await fs.promises.unlink(testFile)
-      } else {
-        // macOS
-        const testDir = path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB')
-        await fs.promises.mkdir(testDir, { recursive: true })
-        const testFile = path.join(testDir, 'permission-test.txt')
-        await fs.promises.writeFile(testFile, 'test')
-        await fs.promises.unlink(testFile)
-      }
+      const testDir = path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB')
+      await fs.promises.mkdir(testDir, { recursive: true })
+      const testFile = path.join(testDir, 'permission-test.txt')
+      await fs.promises.writeFile(testFile, 'test')
+      await fs.promises.unlink(testFile)
       
       // Invalidate cache and force re-check
       this.invalidateCache('fileAccess')
@@ -1090,7 +589,7 @@ class PermissionsManager extends EventEmitter {
 
   async requestKeychainAccessPermission(): Promise<boolean> {
     try {
-      if (IS_MAC && safeStorage.isEncryptionAvailable()) {
+      if (safeStorage.isEncryptionAvailable()) {
         const testData = 'LiquiDB test data'
         safeStorage.encryptString(testData)
         await new Promise(resolve => setTimeout(resolve, 2000))
@@ -1211,141 +710,48 @@ class PermissionsManager extends EventEmitter {
   // ==================== Permission Descriptions ====================
 
   getPermissionDescriptions(): { [key: string]: PermissionDescription } {
-    if (IS_MAC) {
-      return {
-        accessibility: {
-          name: 'Accessibility',
-          description: 'Required to monitor database processes and detect port conflicts.',
-          why: 'LiquiDB needs accessibility permission to monitor running database processes and automatically clean up orphaned processes.',
-          icon: '🔍',
-          critical: true
-        },
-        fullDiskAccess: {
-          name: 'Full Disk Access',
-          description: 'Optional - provides access to system logs for advanced debugging.',
-          why: 'LiquiDB can work without this, but it helps with advanced debugging and system monitoring.',
-          icon: '💾',
-          critical: false
-        },
-        networkAccess: {
-          name: 'Network Access',
-          description: 'Automatically granted - no permission required.',
-          why: 'Network access is automatically granted to apps on macOS and does not require special permission.',
-          icon: '🌐',
-          critical: false
-        },
-        fileAccess: {
-          name: 'File Access',
-          description: 'Required to create and manage database files.',
-          why: 'LiquiDB needs file access to create database directories, store configuration files, and manage database data.',
-          icon: '📁',
-          critical: true
-        },
-        launchAgent: {
-          name: 'Launch Agent',
-          description: 'Optional - enables background process monitoring.',
-          why: 'LiquiDB can work without this, but it enables the background helper service for better process management.',
-          icon: '⚙️',
-          critical: false
-        },
-        keychainAccess: {
-          name: 'Keychain Access',
-          description: 'Optional - enables secure password storage using Electron safeStorage.',
-          why: 'LiquiDB can work without this, but it enables secure storage of database passwords using macOS keychain via Electron\'s native safeStorage API.',
-          icon: '🔐',
-          critical: false
-        }
-      }
-    } else if (IS_WINDOWS) {
-      return {
-        accessibility: {
-          name: 'File System Access',
-          description: 'Required to create and manage database files.',
-          why: 'LiquiDB needs file access to create database directories, store configuration files, and manage database data.',
-          icon: '📁',
-          critical: true
-        },
-        fullDiskAccess: {
-          name: 'File System Access',
-          description: 'Required to create and manage database files.',
-          why: 'LiquiDB needs file access to create database directories, store configuration files, and manage database data.',
-          icon: '📁',
-          critical: true
-        },
-        networkAccess: {
-          name: 'Network Access',
-          description: 'Required for database connections and port management.',
-          why: 'LiquiDB needs network access to bind database ports and establish connections.',
-          icon: '🌐',
-          critical: true
-        },
-        fileAccess: {
-          name: 'File Access',
-          description: 'Required to create and manage database files.',
-          why: 'LiquiDB needs file access to create database directories, store configuration files, and manage database data.',
-          icon: '📁',
-          critical: true
-        },
-        launchAgent: {
-          name: 'Startup Access',
-          description: 'Optional - enables auto-start functionality.',
-          why: 'LiquiDB can work without this, but it enables automatic startup of databases when the app launches.',
-          icon: '⚙️',
-          critical: false
-        },
-        keychainAccess: {
-          name: 'Credential Storage',
-          description: 'Optional - enables secure password storage using Windows Credential Manager.',
-          why: 'LiquiDB can work without this, but it enables secure storage of database passwords using Windows Credential Manager via Electron\'s safeStorage API.',
-          icon: '🔐',
-          critical: false
-        }
-      }
-    } else {
-      // Linux
-      return {
-        accessibility: {
-          name: 'File System Access',
-          description: 'Required to create and manage database files.',
-          why: 'LiquiDB needs file access to create database directories, store configuration files, and manage database data.',
-          icon: '📁',
-          critical: true
-        },
-        fullDiskAccess: {
-          name: 'File System Access',
-          description: 'Required to create and manage database files.',
-          why: 'LiquiDB needs file access to create database directories, store configuration files, and manage database data.',
-          icon: '📁',
-          critical: true
-        },
-        networkAccess: {
-          name: 'Network Access',
-          description: 'Required for database connections and port management.',
-          why: 'LiquiDB needs network access to bind database ports and establish connections.',
-          icon: '🌐',
-          critical: true
-        },
-        fileAccess: {
-          name: 'File Access',
-          description: 'Required to create and manage database files.',
-          why: 'LiquiDB needs file access to create database directories, store configuration files, and manage database data.',
-          icon: '📁',
-          critical: true
-        },
-        launchAgent: {
-          name: 'Systemd Service',
-          description: 'Optional - enables systemd service management.',
-          why: 'LiquiDB can work without this, but it enables better integration with systemd for background process management.',
-          icon: '⚙️',
-          critical: false
-        },
-        keychainAccess: {
-          name: 'Credential Storage',
-          description: 'Optional - enables secure password storage using libsecret.',
-          why: 'LiquiDB can work without this, but it enables secure storage of database passwords using Linux keyring via Electron\'s safeStorage API.',
-          icon: '🔐',
-          critical: false
-        }
+    return {
+      accessibility: {
+        name: 'Accessibility',
+        description: 'Required to monitor database processes and detect port conflicts.',
+        why: 'LiquiDB needs accessibility permission to monitor running database processes and automatically clean up orphaned processes.',
+        icon: '🔍',
+        critical: true
+      },
+      fullDiskAccess: {
+        name: 'Full Disk Access',
+        description: 'Optional - provides access to system logs for advanced debugging.',
+        why: 'LiquiDB can work without this, but it helps with advanced debugging and system monitoring.',
+        icon: '💾',
+        critical: false
+      },
+      networkAccess: {
+        name: 'Network Access',
+        description: 'Automatically granted - no permission required.',
+        why: 'Network access is automatically granted to apps on macOS and does not require special permission.',
+        icon: '🌐',
+        critical: false
+      },
+      fileAccess: {
+        name: 'File Access',
+        description: 'Required to create and manage database files.',
+        why: 'LiquiDB needs file access to create database directories, store configuration files, and manage database data.',
+        icon: '📁',
+        critical: true
+      },
+      launchAgent: {
+        name: 'Launch Agent',
+        description: 'Optional - enables background process monitoring.',
+        why: 'LiquiDB can work without this, but it enables the background helper service for better process management.',
+        icon: '⚙️',
+        critical: false
+      },
+      keychainAccess: {
+        name: 'Keychain Access',
+        description: 'Optional - enables secure password storage using Electron safeStorage.',
+        why: 'LiquiDB can work without this, but it enables secure storage of database passwords using macOS keychain via Electron\'s native safeStorage API.',
+        icon: '🔐',
+        critical: false
       }
     }
   }
@@ -1424,58 +830,27 @@ class PermissionsManager extends EventEmitter {
   }
 
   async openPermissionPage(permissionType: string): Promise<boolean> {
-    if (IS_MAC) {
-      const urls: { [key: string]: string } = {
-        accessibility: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
-        fullDiskAccess: 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
-        networkAccess: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Network',
-        fileAccess: 'x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders',
-        keychainAccess: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Keychain'
-      }
+    const urls: { [key: string]: string } = {
+      accessibility: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
+      fullDiskAccess: 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
+      networkAccess: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Network',
+      fileAccess: 'x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders',
+      keychainAccess: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Keychain'
+    }
 
-      const url = urls[permissionType]
-      if (!url) {
-        log.error(`[Permissions] Unknown permission type: ${permissionType}`)
-        return false
-      }
+    const url = urls[permissionType]
+    if (!url) {
+      log.error(`[Permissions] Unknown permission type: ${permissionType}`)
+      return false
+    }
 
-      try {
-        await execAsync(`open "${url}"`)
-        log.info(`[Permissions] Opened System Preferences to ${permissionType} section`)
-        return true
-      } catch (error: any) {
-        log.error(`[Permissions] Failed to open ${permissionType} page:`, error)
-        return false
-      }
-    } else if (IS_WINDOWS) {
-      // Windows: Open Windows Settings to Privacy section
-      try {
-        await execAsync('start ms-settings:privacy')
-        log.info('[Permissions] Opened Windows Settings to Privacy section')
-        return true
-      } catch (error: any) {
-        log.error('[Permissions] Failed to open Windows Settings:', error)
-        return false
-      }
-    } else {
-      // Linux: Open system settings (varies by distribution)
-      try {
-        // Try common desktop environments
-        const desktop = process.env.XDG_CURRENT_DESKTOP || ''
-        if (desktop.includes('GNOME')) {
-          await execAsync('gnome-control-center privacy')
-        } else if (desktop.includes('KDE')) {
-          await execAsync('systemsettings5')
-        } else {
-          // Fallback: try xdg-open
-          await execAsync('xdg-open ~/.config')
-        }
-        log.info('[Permissions] Opened system settings')
-        return true
-      } catch (error: any) {
-        log.error('[Permissions] Failed to open system settings:', error)
-        return false
-      }
+    try {
+      await execAsync(`open "${url}"`)
+      log.info(`[Permissions] Opened System Preferences to ${permissionType} section`)
+      return true
+    } catch (error: any) {
+      log.error(`[Permissions] Failed to open ${permissionType} page:`, error)
+      return false
     }
   }
 

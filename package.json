@@ -40,8 +40,6 @@
     "electron": "tsx electron/main.ts",
     "electron:build": "npm run electron:compile && next build && electron-builder",
     "electron:build:mac": "npm run electron:compile && next build && electron-builder --mac --publish never",
-    "electron:build:win": "npm run electron:compile && next build && electron-builder --win --publish never",
-    "electron:build:linux": "npm run electron:compile && next build && electron-builder --linux --publish never",
     "electron:build:mac:verbose": "npm run electron:compile && next build && DEBUG=\"electron-builder\" electron-builder --mac",
     "postinstall": "electron-builder install-app-deps && node scripts/fix-tar-vulnerability.js"
   },
@@ -110,22 +108,6 @@
         "owner": "liquidb-app",
         "repo": "LiquiDB"
       }
-    },
-    "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ],
-      "icon": "build/icon.png"
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "category": "Development",
-      "vendor": "LiquidB",
-      "icon": "build/icon.png"
     }
   },
   "dependencies": {

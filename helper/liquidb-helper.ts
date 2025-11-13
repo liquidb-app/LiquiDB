@@ -14,7 +14,6 @@ import { exec, ExecException } from 'child_process'
 import { promisify } from 'util'
 import * as net from 'net'
 import * as os from 'os'
-import platformImpl from './platform'
 
 const execAsync = promisify(exec)
 
@@ -27,17 +26,12 @@ interface Config {
   SOCKET_PATH: string
 }
 
-// Initialize platform-specific paths
-const APP_DATA_DIR = platformImpl.getAppDataDir()
-const LOG_DIR = platformImpl.getLogDir()
-const SOCKET_PATH = platformImpl.getSocketPath()
-
 const CONFIG: Config = {
   // Check interval in milliseconds (2 minutes for more responsive monitoring)
   CHECK_INTERVAL: 2 * 60 * 1000,
   
-  // App data directory (platform-specific)
-  APP_DATA_DIR,
+  // App data directory
+  APP_DATA_DIR: path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB'),
   
   // Database types and their process names
   DATABASE_TYPES: {
@@ -47,11 +41,11 @@ const CONFIG: Config = {
     redis: 'redis-server'
   },
   
-  // Log file (platform-specific)
-  LOG_FILE: path.join(LOG_DIR, 'helper.log'),
+  // Log file
+  LOG_FILE: path.join(os.homedir(), 'Library', 'Logs', 'LiquiDB', 'helper.log'),
   
-  // Socket/pipe path for IPC communication (platform-specific)
-  SOCKET_PATH
+  // Socket path for IPC communication
+  SOCKET_PATH: path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB', 'helper.sock')
 }
 
 // Ensure log directory exists
@@ -122,14 +116,81 @@ function loadDatabaseConfigs(): DatabaseConfig[] {
   }
 }
 
-// Get all running database processes (platform-specific)
+// Get all running database processes
 async function getRunningDatabaseProcesses(): Promise<DatabaseProcess[]> {
-  return await platformImpl.getRunningDatabaseProcesses(CONFIG.DATABASE_TYPES)
+  const processes: DatabaseProcess[] = []
+  
+  for (const [dbType, processName] of Object.entries(CONFIG.DATABASE_TYPES)) {
+    try {
+      const { stdout } = await execAsync(`pgrep -f "${processName}"`) as { stdout: string }
+      const pids = stdout.trim().split('\n').filter(pid => pid.length > 0)
+      
+      for (const pid of pids) {
+        try {
+          // Get process details
+          const { stdout: psOutput } = await execAsync(`ps -p ${pid} -o pid,ppid,command`) as { stdout: string }
+          const lines = psOutput.trim().split('\n')
+          if (lines.length > 1) {
+            const parts = lines[1].trim().split(/\s+/)
+            const command = parts.slice(2).join(' ')
+            
+            // Extract port from command if possible
+            const portMatch = command.match(/--port\s+(\d+)|-p\s+(\d+)|:(\d+)/)
+            const port = portMatch ? (portMatch[1] || portMatch[2] || portMatch[3]) : null
+            
+            processes.push({
+              pid: parseInt(pid),
+              type: dbType,
+              command,
+              port: port ? parseInt(port) : null
+            })
+          }
+        } catch (_e) {
+          // Process might have died between pgrep and ps
+        }
+      }
+    } catch (_e) {
+      // No processes found for this type
+    }
+  }
+  
+  return processes
 }
 
-// Check if the main LiquiDB app is running (platform-specific)
+// Check if the main LiquiDB app is running
 async function isMainAppRunning(): Promise<boolean> {
-  return await platformImpl.isMainAppRunning()
+  try {
+    // Check for Electron processes running LiquiDB
+    // Look for processes matching "Electron" that have LiquiDB in their path
+    const { stdout } = await execAsync('ps aux | grep -i "[E]lectron.*[Ll]iquidb\|[Ll]iquidb.*[E]lectron" || true') as { stdout: string }
+    const processes = stdout.trim().split('\n').filter(line => {
+      // Filter out grep itself and helper processes
+      return line.length > 0 && 
+             !line.includes('grep') && 
+             !line.includes('liquidb-helper') &&
+             (line.includes('Electron') || line.includes('LiquiDB'))
+    })
+    
+    // Also check for standalone LiquiDB.app processes
+    if (processes.length === 0) {
+      try {
+        const { stdout: appStdout } = await execAsync('pgrep -fl "LiquiDB.app/Contents" || true') as { stdout: string }
+        const appProcesses = appStdout.trim().split('\n').filter(line => 
+          line.length > 0 && !line.includes('liquidb-helper')
+        )
+        if (appProcesses.length > 0) {
+          return true
+        }
+      } catch (_e) {
+        // Ignore errors in this check
+      }
+    }
+    
+    return processes.length > 0
+  } catch (_error) {
+    // If check fails, assume app is not running (safer to clean up orphans)
+    return false
+  }
 }
 
 // Check if a process is legitimate (matches a known database config)
@@ -161,15 +222,16 @@ async function isLegitimateProcess(
   })
 }
 
-// Kill a process (platform-specific)
+// Kill a process
 async function killProcess(pid: number, signal: string = 'SIGTERM'): Promise<boolean> {
-  const result = await platformImpl.killProcess(pid, signal)
-  if (result) {
+  try {
+    await execAsync(`kill -s ${signal} ${pid}`)
     log(`Killed process ${pid} with ${signal}`)
-  } else {
-    log(`Failed to kill process ${pid} with ${signal}`, 'ERROR')
+    return true
+  } catch (error: any) {
+    log(`Failed to kill process ${pid}: ${error.message}`, 'ERROR')
+    return false
   }
-  return result
 }
 
 // Clean up orphaned processes
@@ -202,7 +264,8 @@ export async function cleanupOrphanedProcesses(): Promise<number> {
     let belongsToApp = false
     let command = ''
     try {
-      command = await platformImpl.getProcessCommand(process.pid)
+      const { stdout: psOutput } = await execAsync(`ps -p ${process.pid} -o command=`) as { stdout: string }
+      command = psOutput.trim()
       
       // Check if command line contains our app's data directory or databases dir
       // This ensures we only kill processes that belong to LiquiDB-managed instances
@@ -240,14 +303,11 @@ export async function cleanupOrphanedProcesses(): Promise<number> {
         // Wait a moment and check if it's still running
         await new Promise(resolve => setTimeout(resolve, 2000))
         
-        // Check if process is still running (platform-specific)
         try {
-          const command = await platformImpl.getProcessCommand(process.pid)
-          if (command) {
-            // Still running, force kill
-            log(`Process ${process.pid} still running after SIGTERM, force killing with SIGKILL...`)
-            await killProcess(process.pid, 'SIGKILL')
-          }
+          await execAsync(`ps -p ${process.pid}`)
+          // Still running, force kill
+          log(`Process ${process.pid} still running after SIGTERM, force killing with SIGKILL...`)
+          await killProcess(process.pid, 'SIGKILL')
         } catch (_e) {
           // Process is dead, good
         }
@@ -313,9 +373,29 @@ export async function checkPortAvailability(port: number): Promise<PortCheckResu
   })
 }
 
-// Get process information for a port (platform-specific)
+// Get process information for a port
 async function getProcessUsingPort(port: number): Promise<ProcessInfo | null> {
-  return await platformImpl.getProcessUsingPort(port)
+  return new Promise((resolve) => {
+    exec(`lsof -i :${port}`, (error: ExecException | null, stdout: string, _stderr: string) => {
+      if (error || !stdout.trim()) {
+        resolve(null)
+        return
+      }
+      
+      const lines = stdout.trim().split('\n')
+      if (lines.length > 1) {
+        // Skip header line, get first process
+        const processLine = lines[1]
+        const parts = processLine.split(/\s+/)
+        if (parts.length >= 2) {
+          const processName = parts[0]
+          const pid = parts[1]
+          resolve({ processName, pid })
+        }
+      }
+      resolve(null)
+    })
+  })
 }
 
 // Find next available port starting from a given port
@@ -445,7 +525,7 @@ export async function monitor(): Promise<void> {
   }
 }
 
-// IPC Server for communication with main app (platform-specific)
+// IPC Server for communication with main app
 function startIPCServer(): net.Server {
   const server = net.createServer((socket) => {
     log('Client connected to helper IPC')
@@ -469,38 +549,27 @@ function startIPCServer(): net.Server {
     })
   })
   
-  const isWindows = process.platform === 'win32'
-  
-  if (isWindows) {
-    // Windows: Use named pipe
-    // Named pipes don't need directory creation or file cleanup
-    server.listen(CONFIG.SOCKET_PATH, () => {
-      log(`Helper IPC server listening on named pipe: ${CONFIG.SOCKET_PATH}`)
-    })
-  } else {
-    // macOS/Linux: Use Unix domain socket
-    // Ensure socket directory exists
-    const socketDir = path.dirname(CONFIG.SOCKET_PATH)
-    if (!fs.existsSync(socketDir)) {
-      fs.mkdirSync(socketDir, { recursive: true })
-    }
-    
-    // Remove existing socket file
-    if (fs.existsSync(CONFIG.SOCKET_PATH)) {
-      fs.unlinkSync(CONFIG.SOCKET_PATH)
-    }
-    
-    server.listen(CONFIG.SOCKET_PATH, () => {
-      log(`Helper IPC server listening on Unix socket: ${CONFIG.SOCKET_PATH}`)
-      
-      // Set socket permissions (Unix only)
-      try {
-        fs.chmodSync(CONFIG.SOCKET_PATH, 0o666)
-      } catch (error: any) {
-        log(`Failed to set socket permissions: ${error.message}`, 'ERROR')
-      }
-    })
+  // Ensure socket directory exists
+  const socketDir = path.dirname(CONFIG.SOCKET_PATH)
+  if (!fs.existsSync(socketDir)) {
+    fs.mkdirSync(socketDir, { recursive: true })
   }
+  
+  // Remove existing socket file
+  if (fs.existsSync(CONFIG.SOCKET_PATH)) {
+    fs.unlinkSync(CONFIG.SOCKET_PATH)
+  }
+  
+  server.listen(CONFIG.SOCKET_PATH, () => {
+    log(`Helper IPC server listening on ${CONFIG.SOCKET_PATH}`)
+    
+    // Set socket permissions
+    try {
+      fs.chmodSync(CONFIG.SOCKET_PATH, 0o666)
+    } catch (error: any) {
+      log(`Failed to set socket permissions: ${error.message}`, 'ERROR')
+    }
+  })
   
   server.on('error', (error: Error) => {
     log(`IPC Server error: ${error.message}`, 'ERROR')
