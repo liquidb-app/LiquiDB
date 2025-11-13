@@ -1307,33 +1307,99 @@ class HelperServiceManager {
         .replaceAll('HELPER_DIRECTORY', helperDir)
         .replaceAll('LOG_FILE_PATH', logFile)
 
-      fs.writeFileSync(this.servicePath, serviceContent)
+      // Write service file
+      try {
+        fs.writeFileSync(this.servicePath, serviceContent)
+        console.log(`[Helper] Service file written to: ${this.servicePath}`)
+      } catch (error: any) {
+        const errorMsg = `Failed to write service file: ${error.message}. Please check permissions.`
+        console.error(`[Helper] ${errorMsg}`)
+        throw new Error(errorMsg)
+      }
       
       // Reload systemd and enable service
-      await execAsync('systemctl --user daemon-reload')
-      await execAsync('systemctl --user enable com.liquidb.helper.service')
+      try {
+        console.log('[Helper] Reloading systemd daemon...')
+        await execAsync('systemctl --user daemon-reload', { timeout: 10000 })
+        console.log('[Helper] ✓ systemd daemon reloaded')
+      } catch (error: any) {
+        const errorMsg = `Failed to reload systemd daemon: ${error.message}. Please check systemd user services are enabled.`
+        console.error(`[Helper] ${errorMsg}`)
+        throw new Error(errorMsg)
+      }
+      
+      try {
+        console.log('[Helper] Enabling service...')
+        await execAsync('systemctl --user enable com.liquidb.helper.service', { timeout: 10000 })
+        console.log('[Helper] ✓ Service enabled')
+      } catch (error: any) {
+        const errorMsg = `Failed to enable service: ${error.message}. Please check service file syntax and permissions.`
+        console.error(`[Helper] ${errorMsg}`)
+        throw new Error(errorMsg)
+      }
+      
+      // Validate service file syntax
+      try {
+        const { stdout } = await execAsync('systemctl --user list-unit-files com.liquidb.helper.service', { timeout: 5000 }) as { stdout: string }
+        if (!stdout.includes('com.liquidb.helper.service')) {
+          throw new Error('Service file not recognized by systemd')
+        }
+        console.log('[Helper] ✓ Service file validated')
+      } catch (error: any) {
+        console.warn(`[Helper] Warning: Could not validate service file: ${error.message}`)
+      }
       
       console.log('[Helper] Service installed successfully (Linux)')
       return true
     } catch (error: any) {
       console.error('[Helper] Installation failed (Linux):', error)
-      return false
+      const errorMessage = error.message || 'Unknown error occurred'
+      throw new Error(`Failed to install helper service: ${errorMessage}`)
     } finally {
       this.isInstalling = false
     }
   }
 
   private async startServiceLinux(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      exec('systemctl --user start com.liquidb.helper.service', (error: ExecException | null, stdout: string, stderr: string) => {
-        if (error) {
-          console.error('[Helper] Failed to start service:', stderr)
-          reject(error)
-        } else {
-          console.log('[Helper] Service started')
-          resolve()
-        }
-      })
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Start the service
+        exec('systemctl --user start com.liquidb.helper.service', { timeout: 10000 }, async (error: ExecException | null, stdout: string, stderr: string) => {
+          if (error) {
+            console.error('[Helper] Failed to start service:', stderr || error.message)
+            reject(error)
+            return
+          }
+          
+          // Verify service actually started
+          try {
+            await new Promise(resolve => setTimeout(resolve, 1000)) // Wait a moment for service to start
+            
+            const isRunning = await this.isServiceRunningLinux()
+            if (isRunning) {
+              console.log('[Helper] Service started and verified')
+              resolve()
+            } else {
+              // Check service status for more details
+              try {
+                const { stdout: statusStdout } = await execAsync('systemctl --user status com.liquidb.helper.service --no-pager', { timeout: 5000 }) as { stdout: string }
+                console.warn('[Helper] Service start command succeeded but service is not running:')
+                console.warn(statusStdout)
+                reject(new Error('Service start command succeeded but service is not running. Check logs for details.'))
+              } catch (statusError: any) {
+                reject(new Error('Service start command succeeded but service is not running'))
+              }
+            }
+          } catch (verifyError: any) {
+            console.warn('[Helper] Could not verify service status:', verifyError.message)
+            // Assume success if we can't verify
+            console.log('[Helper] Service started (status verification failed)')
+            resolve()
+          }
+        })
+      } catch (error: any) {
+        reject(error)
+      }
     })
   }
 
