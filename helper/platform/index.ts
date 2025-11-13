@@ -39,10 +39,10 @@ export const platform = {
   isLinux: IS_LINUX
 }
 
-// Export the platform implementation
-export default platformImpl
+// Export the platform implementation (or empty object if loading failed)
+export default platformImpl || {}
 
 // Also export as CommonJS for compatibility
-module.exports = platformImpl
+module.exports = platformImpl || {}
 module.exports.platform = platform
 
