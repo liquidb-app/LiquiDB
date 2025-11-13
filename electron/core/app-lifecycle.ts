@@ -42,20 +42,26 @@ export async function handleAppReady(app: Electron.App): Promise<void> {
  */
 async function handleNormalAppMode(app: Electron.App): Promise<void> {
   // Initialize permissions manager
-  const permissionsManager = new PermissionsManager()
-  sharedState.setPermissionsManager(permissionsManager)
-  
-  // Start automatic permission checking (every 10 seconds)
-  permissionsManager.startAutomaticChecking(10000)
-  
-  // Listen for permission changes and notify renderer
-  permissionsManager.on('permission-changed', (data: { permission: string; granted: boolean }) => {
-    log.info(`[Permissions] Permission changed: ${data.permission} = ${data.granted}`)
-    const mainWindow = sharedState.getMainWindow()
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('permission-changed', data)
-    }
-  })
+  try {
+    const permissionsManager = new PermissionsManager()
+    sharedState.setPermissionsManager(permissionsManager)
+    
+    // Start automatic permission checking (every 10 seconds)
+    // The initial check runs asynchronously and won't block startup
+    permissionsManager.startAutomaticChecking(10000)
+    
+    // Listen for permission changes and notify renderer
+    permissionsManager.on('permission-changed', (data: { permission: string; granted: boolean }) => {
+      log.info(`[Permissions] Permission changed: ${data.permission} = ${data.granted}`)
+      const mainWindow = sharedState.getMainWindow()
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('permission-changed', data)
+      }
+    })
+  } catch (error: any) {
+    // Don't block app startup if permissions manager fails to initialize
+    log.error('[App Lifecycle] Failed to initialize permissions manager:', error.message)
+  }
   
   resetDatabaseStatuses(app)
   
