@@ -1,5 +1,5 @@
 import { ipcMain, App } from "electron"
-import { HelperServiceManager } from "../helper-service"
+import HelperServiceManager from "../helper-service"
 import sharedState from "../core/shared-state"
 
 /**
