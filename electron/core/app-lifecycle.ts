@@ -12,7 +12,7 @@ import {
 import { cleanupOrphanedDatabases, cleanupDatabaseTempFiles } from "../utils/cleanup-utils"
 import { autoStartDatabases } from "../database/auto-start"
 import { createWindow, registerAppProtocolHandler } from "../window/window-manager"
-import { HelperServiceManager } from "../helper-service"
+import HelperServiceManager from "../helper-service"
 import PermissionsManager from "../permissions"
 import { IDatabase } from "../../types/database"
 import { startDatabaseFileWatcher, stopDatabaseFileWatcher } from "../database/file-watcher"
