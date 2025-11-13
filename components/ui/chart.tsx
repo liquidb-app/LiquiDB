@@ -121,14 +121,27 @@ const ChartLegend = RechartsPrimitive.Legend as React.ComponentType<
 export type TooltipIndicator = "line" | "dot" | "dashed"
 
 // Chart tooltip content props
+// In recharts 3.x, the content prop receives TooltipContentProps which includes label and payload
 export interface ChartTooltipContentProps
-  extends Omit<React.ComponentProps<typeof RechartsPrimitive.Tooltip>, 'content'>,
-    React.ComponentProps<"div"> {
+  extends React.ComponentProps<"div"> {
+  active?: boolean
+  payload?: ReadonlyArray<any>
+  label?: string | number
+  labelFormatter?: (label: any, payload: ReadonlyArray<any>) => React.ReactNode
+  formatter?: (value: any, name: any, item: any, index: number, payload: any) => React.ReactNode
+  separator?: string
+  contentStyle?: React.CSSProperties
+  itemStyle?: React.CSSProperties
+  labelStyle?: React.CSSProperties
+  itemSorter?: 'dataKey' | 'value' | 'name' | ((item: any) => number | string | undefined)
+  accessibilityLayer?: boolean
   hideLabel?: boolean
   hideIndicator?: boolean
   indicator?: TooltipIndicator
   nameKey?: string
   labelKey?: string
+  color?: string
+  labelClassName?: string
 }
 
 const ChartTooltipContent = React.forwardRef<
