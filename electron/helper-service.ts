@@ -1106,9 +1106,83 @@ class HelperServiceManager {
       this.isInstalling = true
       console.log('[Helper] Installing helper service (Linux)...')
       
+      // Pre-installation checks
+      console.log('[Helper] Performing pre-installation checks...')
+      
+      // Check if systemd user services are enabled
+      try {
+        const { stdout, stderr } = await execAsync('systemctl --user list-units --type=service --no-pager 2>&1', { timeout: 5000 }) as { stdout: string, stderr: string }
+        if (stdout.includes('Failed to connect to bus') || stderr.includes('Failed to connect to bus') || 
+            stdout.includes('permission denied') || stderr.includes('permission denied')) {
+          const errorMsg = 'systemd user services are not enabled. Please enable them by running: systemctl --user enable --now systemd-user-session.service'
+          console.error(`[Helper] ${errorMsg}`)
+          throw new Error(errorMsg)
+        }
+        console.log('[Helper] ✓ systemd user services are enabled')
+      } catch (error: any) {
+        if (error.message.includes('systemd user services')) {
+          throw error
+        }
+        console.warn(`[Helper] Warning: Could not verify systemd user services: ${error.message}`)
+      }
+      
+      // Check system command availability
+      try {
+        const platformImpl = require('../helper/platform')
+        if (platformImpl && platformImpl.checkSystemCommandAvailability && typeof platformImpl.checkSystemCommandAvailability === 'function') {
+          const cmdCheck = await platformImpl.checkSystemCommandAvailability()
+          if (!cmdCheck.available) {
+            const errorMsg = `Required system commands are missing: ${cmdCheck.missing.join(', ')}. Please install them.`
+            console.error(`[Helper] ${errorMsg}`)
+            throw new Error(errorMsg)
+          }
+          console.log('[Helper] ✓ Required system commands are available')
+        }
+      } catch (error: any) {
+        if (error.message && error.message.includes('Required system commands')) {
+          throw error
+        }
+        console.warn(`[Helper] Warning: Could not verify system commands: ${error.message || 'Unknown error'}`)
+      }
+      
+      // Check socket directory permissions
+      try {
+        const platformImpl = require('../helper/platform')
+        if (platformImpl && platformImpl.checkSocketPermissions && typeof platformImpl.checkSocketPermissions === 'function') {
+          const socketCheck = await platformImpl.checkSocketPermissions()
+          if (!socketCheck.writable) {
+            const errorMsg = `Cannot write to socket directory: ${socketCheck.error || 'Permission denied'}. Please check directory permissions.`
+            console.error(`[Helper] ${errorMsg}`)
+            throw new Error(errorMsg)
+          }
+          console.log('[Helper] ✓ Socket directory permissions are correct')
+        }
+      } catch (error: any) {
+        if (error.message && error.message.includes('Cannot write to socket directory')) {
+          throw error
+        }
+        console.warn(`[Helper] Warning: Could not verify socket permissions: ${error.message || 'Unknown error'}`)
+      }
+      
       const systemdUserDir = path.join(os.homedir(), '.config', 'systemd', 'user')
       if (!fs.existsSync(systemdUserDir)) {
-        fs.mkdirSync(systemdUserDir, { recursive: true })
+        try {
+          fs.mkdirSync(systemdUserDir, { recursive: true, mode: 0o755 })
+          console.log(`[Helper] Created systemd user directory: ${systemdUserDir}`)
+        } catch (error: any) {
+          const errorMsg = `Cannot create systemd user directory: ${error.message}. Please check permissions.`
+          console.error(`[Helper] ${errorMsg}`)
+          throw new Error(errorMsg)
+        }
+      } else {
+        // Verify write permissions
+        try {
+          await fs.promises.access(systemdUserDir, fs.constants.W_OK)
+        } catch (error: any) {
+          const errorMsg = `Cannot write to systemd user directory: ${error.message}. Please check permissions.`
+          console.error(`[Helper] ${errorMsg}`)
+          throw new Error(errorMsg)
+        }
       }
       
       const configDir = path.join(os.homedir(), '.config', 'LiquiDB')
