@@ -206,7 +206,7 @@ export function setupAppLifecycleHandlers(app: Electron.App): void {
       const helperService = sharedState.getHelperService()
       if (helperService) {
         // Don't wait for helper service start - let it run in background
-        helperService.start().catch((error) => {
+        helperService.start().catch((error: any) => {
           console.error("[App Quit] Error starting helper service:", error)
         })
       }
