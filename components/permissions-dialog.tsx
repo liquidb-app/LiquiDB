@@ -84,16 +84,10 @@ export function PermissionsDialog({
   // Get platform-specific instructions
   const platform = typeof window !== 'undefined' && window.electron?.platform
   const isMac = platform === 'darwin'
-  const isWindows = platform === 'win32'
-  const isLinux = platform === 'linux'
 
   const getPlatformInstructions = () => {
     if (isMac) {
       return "You can change these permissions later in System Preferences → Security & Privacy → Privacy"
-    } else if (isWindows) {
-      return "You can change these permissions later in Windows Settings → Privacy & Security"
-    } else if (isLinux) {
-      return "You can change these permissions later in your system settings"
     }
     return "You can change these permissions later in your system settings"
   }
@@ -101,10 +95,6 @@ export function PermissionsDialog({
   const getSettingsButtonText = () => {
     if (isMac) {
       return "System Preferences"
-    } else if (isWindows) {
-      return "Windows Settings"
-    } else if (isLinux) {
-      return "System Settings"
     }
     return "Settings"
   }
@@ -133,7 +123,7 @@ export function PermissionsDialog({
 
   const handleOpenSettings = () => {
     onOpenSettings()
-    const settingsName = isMac ? "System Preferences" : isWindows ? "Windows Settings" : "System Settings"
+    const settingsName = isMac ? "System Preferences" : "System Settings"
     toast.info(`Opening ${settingsName}...`, {
       description: "Please grant the required permissions and return to LiquiDB."
     })
