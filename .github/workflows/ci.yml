@@ -11,6 +11,11 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      checks: write
+      pull-requests: write
     
     steps:
       - name: Checkout code

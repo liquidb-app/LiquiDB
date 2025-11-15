@@ -531,6 +531,9 @@ jobs:
     needs: version
     if: needs.version.outputs.new_release_published == 'true'
     runs-on: macos-latest
+    permissions:
+      contents: read
+      actions: read
     
     steps:
       - name: Checkout code with updated version
