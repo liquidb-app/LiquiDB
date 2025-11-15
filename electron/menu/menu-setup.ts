@@ -7,12 +7,10 @@ import sharedState from "../core/shared-state"
 
 /**
  * Setup application menu bar
- * Works on Windows, macOS, and Linux
+ * macOS only
  */
 export function setupApplicationMenu(): void {
   const isMac = process.platform === "darwin"
-  const isWindows = process.platform === "win32"
-  const isLinux = process.platform === "linux"
 
   const template: Electron.MenuItemConstructorOptions[] = []
 
@@ -68,21 +66,6 @@ export function setupApplicationMenu(): void {
     })
   }
 
-  // Windows/Linux: File menu (or first menu)
-  if (isWindows || isLinux) {
-    template.push({
-      label: "File",
-      submenu: [
-        {
-          label: "Exit",
-          accelerator: isWindows ? "Alt+F4" : "Ctrl+Q",
-          click: () => {
-            app.quit()
-          },
-        },
-      ],
-    })
-  }
 
   // Edit menu (all platforms)
   template.push({
@@ -110,31 +93,10 @@ export function setupApplicationMenu(): void {
       { label: "Zoom In", accelerator: "CmdOrCtrl+=", role: "zoomIn" },
       { label: "Zoom Out", accelerator: "CmdOrCtrl+-", role: "zoomOut" },
       { type: "separator" },
-      { label: "Toggle Fullscreen", accelerator: isMac ? "Ctrl+Command+F" : "F11", role: "togglefullscreen" },
+      { label: "Toggle Fullscreen", accelerator: "Ctrl+Command+F", role: "togglefullscreen" },
     ],
   })
 
-  // Windows/Linux: Help menu with About, Check for Updates, and Website
-  if (isWindows || isLinux) {
-    template.push({
-      label: "Help",
-      submenu: [
-        {
-          label: `About ${app.getName()}`,
-          click: () => showAboutDialog(),
-        },
-        {
-          label: "Check for Updates...",
-          click: () => handleCheckForUpdate(),
-        },
-        { type: "separator" },
-        {
-          label: "Visit Website",
-          click: () => openWebsite(),
-        },
-      ],
-    })
-  }
 
   // macOS: Window menu
   if (isMac) {
