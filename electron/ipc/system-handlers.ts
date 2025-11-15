@@ -98,24 +98,6 @@ export function registerSystemHandlers(app: App): void {
         } else {
           platformDisplay = `macOS (${arch})`
         }
-      } else if (platform === "win32") {
-        // Windows
-        if (arch === "arm64") {
-          platformDisplay = "Windows (ARM64)"
-        } else if (arch === "x64") {
-          platformDisplay = "Windows (x64)"
-        } else {
-          platformDisplay = `Windows (${arch})`
-        }
-      } else if (platform === "linux") {
-        // Linux
-        if (arch === "arm64") {
-          platformDisplay = "Linux (ARM64)"
-        } else if (arch === "x64") {
-          platformDisplay = "Linux (x64)"
-        } else {
-          platformDisplay = `Linux (${arch})`
-        }
       } else {
         platformDisplay = `${platform} (${arch})`
       }
