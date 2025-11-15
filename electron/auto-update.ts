@@ -62,10 +62,6 @@ async function configureAutoUpdater(): Promise<void> {
           (updater as any).disableSignatureVerification = true
         }
         log.info("[Update-Notification] macOS configuration applied")
-      } else if (platform === 'win32') {
-        log.info("[Update-Notification] Windows configuration applied")
-      } else if (platform === 'linux') {
-        log.info("[Update-Notification] Linux configuration applied")
       }
       
       autoUpdaterConfigured = true
