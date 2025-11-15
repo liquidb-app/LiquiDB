@@ -86,32 +86,28 @@ export function initializeAutoLauncher(): AutoLaunch | null {
 export function setupAppLifecycleHandlers(app: Electron.App): void {
   // Window management
   app.on("window-all-closed", async () => {
-    if (process.platform !== "darwin") {
-      app.quit()
-    } else {
-      // On macOS, when all windows are closed, still kill all database processes
-      // This ensures processes are cleaned up even if the app stays running
-      console.log("[Window All Closed] All windows closed, killing all database processes...")
-      try {
-        await killAllDatabaseProcesses(app)
-        
-        // Clear all PIDs from storage
-        const databases = storage.loadDatabases(app)
-        let updated = false
-        for (const db of databases) {
-          if (db.pid !== null) {
-            db.status = 'stopped'
-            db.pid = null
-            updated = true
-          }
+    // On macOS, when all windows are closed, still kill all database processes
+    // This ensures processes are cleaned up even if the app stays running
+    console.log("[Window All Closed] All windows closed, killing all database processes...")
+    try {
+      await killAllDatabaseProcesses(app)
+      
+      // Clear all PIDs from storage
+      const databases = storage.loadDatabases(app)
+      let updated = false
+      for (const db of databases) {
+        if (db.pid !== null) {
+          db.status = 'stopped'
+          db.pid = null
+          updated = true
         }
-        if (updated) {
-          storage.saveDatabases(app, databases)
-          console.log("[Window All Closed] Cleared all PIDs from storage")
-        }
-      } catch (error) {
-        console.error("[Window All Closed] Error killing processes:", error)
       }
+      if (updated) {
+        storage.saveDatabases(app, databases)
+        console.log("[Window All Closed] Cleared all PIDs from storage")
+      }
+    } catch (error) {
+      console.error("[Window All Closed] Error killing processes:", error)
     }
   })
 
