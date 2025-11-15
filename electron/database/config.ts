@@ -873,11 +873,47 @@ export async function configureRedis(config: IDatabase, app: Electron.App): Prom
     if (actualPassword && actualPassword.trim() !== '') {
       try {
         // Set password using CONFIG SET (temporary, until restart)
-        // Try without auth first (initial setup)
-        execSync(`${redisCliCmd} -h localhost -p ${port} CONFIG SET requirepass "${actualPassword.replace(/"/g, '\\"')}"`, {
-          env,
-          stdio: 'pipe',
-          timeout: 5000
+        // Use spawn instead of execSync to prevent command injection
+        // Pass arguments as array to avoid shell interpretation
+        await new Promise<void>((resolve, reject) => {
+          const child = spawn(redisCliCmd, [
+            '-h', 'localhost',
+            '-p', port.toString(),
+            'CONFIG', 'SET', 'requirepass', actualPassword
+          ], {
+            env,
+            stdio: 'pipe'
+          })
+          
+          let stdout = ''
+          let stderr = ''
+          
+          child.stdout.on('data', (data: Buffer) => {
+            stdout += data.toString()
+          })
+          
+          child.stderr.on('data', (data: Buffer) => {
+            stderr += data.toString()
+          })
+          
+          const timeout = setTimeout(() => {
+            child.kill()
+            reject(new Error('Command timeout'))
+          }, 5000)
+          
+          child.on('close', (code) => {
+            clearTimeout(timeout)
+            if (code === 0) {
+              resolve()
+            } else {
+              reject(new Error(`Command failed with code ${code}: ${stderr || stdout}`))
+            }
+          })
+          
+          child.on('error', (error) => {
+            clearTimeout(timeout)
+            reject(error)
+          })
         })
         console.log(`[Redis Config] ${id} Set Redis password`)
         
