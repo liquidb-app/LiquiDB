@@ -20,6 +20,37 @@ import { IDatabase } from "../../types/database"
 const execAsync = promisify(exec)
 
 /**
+ * Sanitize command arguments for logging by redacting sensitive values
+ * @param {string[]} args - Command arguments array
+ * @returns {string[]} - Sanitized arguments with passwords redacted
+ */
+function sanitizeArgsForLogging(args: string[]): string[] {
+  const sanitized = [...args]
+  // Find and redact password arguments (--requirepass, -a, --password, etc.)
+  for (let i = 0; i < sanitized.length; i++) {
+    const arg = sanitized[i]
+    // Check for password flags (note: -p is port, not password for redis-cli)
+    if (
+      arg === '--requirepass' ||
+      arg === '-a' ||
+      arg === '--password' ||
+      arg === '--auth'
+    ) {
+      // Redact the next argument if it's a password value
+      if (i + 1 < sanitized.length) {
+        sanitized[i + 1] = '[REDACTED]'
+      }
+    }
+    // Also check for password=value format
+    if (arg.includes('=') && (arg.includes('password') || arg.includes('requirepass'))) {
+      const [key] = arg.split('=')
+      sanitized[i] = `${key}=[REDACTED]`
+    }
+  }
+  return sanitized
+}
+
+/**
  * Reset all database statuses to stopped on app start
  * @param {object} app - Electron app instance
  */
@@ -1264,11 +1295,13 @@ export async function startDatabaseProcessAsync(
       }
 
       // Log the actual args being used to verify no config file path is included
+      // Sanitize args to prevent logging sensitive information like passwords
+      const sanitizedArgs = sanitizeArgsForLogging(args)
       console.log(
         `[Redis] ${id} Starting Redis with command-line args (no config file)`,
       )
       console.log(`[Redis] ${id} Command: ${cmd}`)
-      console.log(`[Redis] ${id} Args: ${JSON.stringify(args)}`)
+      console.log(`[Redis] ${id} Args: ${JSON.stringify(sanitizedArgs)}`)
 
       // For Redis: Final safety check - ensure no config file path is in args
       if (type === "redis") {
@@ -1278,12 +1311,14 @@ export async function startDatabaseProcessAsync(
           console.error(
             `[Redis] ${id} ERROR: Config file path found in args! This should not happen.`,
           )
-          console.error(`[Redis] ${id} Args: ${argsString}`)
+          // Sanitize args before logging to prevent exposing sensitive information
+          const sanitizedArgsString = JSON.stringify(sanitizeArgsForLogging(args))
+          console.error(`[Redis] ${id} Args: ${sanitizedArgsString}`)
           // Remove any config file references from args
           args = args.filter(
             (arg) => !arg.includes("redis.conf") && !arg.endsWith(".conf"),
           )
-          console.log(`[Redis] ${id} Cleaned args: ${JSON.stringify(args)}`)
+          console.log(`[Redis] ${id} Cleaned args: ${JSON.stringify(sanitizeArgsForLogging(args))}`)
         }
 
         // One more final check to remove config file just before spawning
@@ -2167,19 +2202,90 @@ export async function stopDatabaseProcessGracefully(
           try {
             const actualPassword = (password || "") as string
             if (actualPassword && actualPassword.trim() !== "") {
-              execSync(
-                `${redisCliCmd} -h localhost -p ${dbRecord.port} -a "${actualPassword}" SHUTDOWN SAVE`,
-                {
+              // Use spawn instead of execSync to prevent command injection
+              // Pass arguments as array to avoid shell interpretation
+              await new Promise<void>((resolve, reject) => {
+                const child = spawn(redisCliCmd, [
+                  '-h', 'localhost',
+                  '-p', dbRecord.port.toString(),
+                  '-a', actualPassword,
+                  'SHUTDOWN', 'SAVE'
+                ], {
                   env,
-                  stdio: "pipe",
-                  timeout: 5000,
-                },
-              )
+                  stdio: "pipe"
+                })
+                
+                let stdout = ''
+                let stderr = ''
+                
+                child.stdout.on('data', (data: Buffer) => {
+                  stdout += data.toString()
+                })
+                
+                child.stderr.on('data', (data: Buffer) => {
+                  stderr += data.toString()
+                })
+                
+                const timeout = setTimeout(() => {
+                  child.kill()
+                  reject(new Error('Command timeout'))
+                }, 5000)
+                
+                child.on('close', (code) => {
+                  clearTimeout(timeout)
+                  if (code === 0) {
+                    resolve()
+                  } else {
+                    reject(new Error(`Command failed with code ${code}: ${stderr || stdout}`))
+                  }
+                })
+                
+                child.on('error', (error) => {
+                  clearTimeout(timeout)
+                  reject(error)
+                })
+              })
             } else {
-              execSync(`${redisCliCmd} -h localhost -p ${dbRecord.port} SHUTDOWN SAVE`, {
-                env,
-                stdio: "pipe",
-                timeout: 5000,
+              // Use spawn instead of execSync to prevent command injection
+              await new Promise<void>((resolve, reject) => {
+                const child = spawn(redisCliCmd, [
+                  '-h', 'localhost',
+                  '-p', dbRecord.port.toString(),
+                  'SHUTDOWN', 'SAVE'
+                ], {
+                  env,
+                  stdio: "pipe"
+                })
+                
+                let stdout = ''
+                let stderr = ''
+                
+                child.stdout.on('data', (data: Buffer) => {
+                  stdout += data.toString()
+                })
+                
+                child.stderr.on('data', (data: Buffer) => {
+                  stderr += data.toString()
+                })
+                
+                const timeout = setTimeout(() => {
+                  child.kill()
+                  reject(new Error('Command timeout'))
+                }, 5000)
+                
+                child.on('close', (code) => {
+                  clearTimeout(timeout)
+                  if (code === 0) {
+                    resolve()
+                  } else {
+                    reject(new Error(`Command failed with code ${code}: ${stderr || stdout}`))
+                  }
+                })
+                
+                child.on('error', (error) => {
+                  clearTimeout(timeout)
+                  reject(error)
+                })
               })
             }
             console.log(`[Redis] ${id} Gracefully shut down using redis-cli SHUTDOWN SAVE`)
