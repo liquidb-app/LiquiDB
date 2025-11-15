@@ -22,7 +22,7 @@ export function registerPortHandlers(app: App): void {
     }
 
     if (portNum < 1024) {
-      // macOS/Linux privileged port range
+      // macOS privileged port range
       return { available: false, reason: "privileged" }
     }
 
