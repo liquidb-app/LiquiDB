@@ -10,7 +10,7 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
-import { exec, ExecException } from 'child_process'
+import { exec, ExecException, execFile } from 'child_process'
 import { promisify } from 'util'
 import * as net from 'net'
 import * as os from 'os'
@@ -376,7 +376,9 @@ export async function checkPortAvailability(port: number): Promise<PortCheckResu
 // Get process information for a port
 async function getProcessUsingPort(port: number): Promise<ProcessInfo | null> {
   return new Promise((resolve) => {
-    exec(`lsof -i :${port}`, (error: ExecException | null, stdout: string, _stderr: string) => {
+    // Use execFile instead of exec to avoid shell interpretation and command injection
+    // execFile passes arguments as an array, preventing shell command injection
+    execFile('lsof', ['-i', `:${port}`], (error: ExecException | null, stdout: string, _stderr: string) => {
       if (error || !stdout.trim()) {
         resolve(null)
         return
