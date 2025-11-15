@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Kbd } from "@/components/ui/kbd"
 import { Upload, LinkIcon } from "lucide-react"
+import { sanitizeImageUrl } from "@/lib/utils"
 
 const SavedImageIcon = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
   const [imageSrc, setImageSrc] = useState<string | null>(null)
@@ -317,7 +318,7 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
                 {imageUrl && (
                   <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
                     <img
-                      src={imageUrl || "/placeholder.svg"}
+                      src={sanitizeImageUrl(imageUrl) || "/placeholder.svg"}
                       alt="Preview"
                       className="w-12 h-12 object-cover rounded"
                     />
