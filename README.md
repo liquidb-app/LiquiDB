@@ -7,8 +7,6 @@
   
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![macOS](https://img.shields.io/badge/platform-macOS-blue.svg)](https://www.apple.com/macos/)
-  [![Windows](https://img.shields.io/badge/platform-Windows-blue.svg)](https://www.microsoft.com/windows)
-  [![Linux](https://img.shields.io/badge/platform-Linux-blue.svg)](https://www.linux.org/)
   
   **[💬 Join our Discord community](https://discord.gg/2BuqtXDfVS)**
 </div>
@@ -37,11 +35,9 @@ LiquiDB provides a comprehensive solution for managing local database instances:
 
 ### Download
 
-Visit [liquidb.app](https://liquidb.app) or [GitHub Releases](https://github.com/liquidb-app/LiquiDB/releases) to download LiquiDB for your platform:
+Visit [liquidb.app](https://liquidb.app) or [GitHub Releases](https://github.com/liquidb-app/LiquiDB/releases) to download LiquiDB:
 
 - **macOS**: `LiquiDB-<version>-universal.dmg` (Universal - Intel & Apple Silicon)
-- **Windows**: `LiquiDB Setup <version>.exe` (Installer) or `LiquiDB-<version>-win.zip` (Portable)
-- **Linux**: `LiquiDB-<version>.AppImage` (AppImage) or `LiquiDB-<version>.deb` (DEB package)
 
 ### macOS Installation Note
 
