@@ -18,7 +18,7 @@ export function SystemMetrics({
   setLastSystemInfoCheck,
   lastSystemInfoCheckRef,
 }: SystemMetricsProps) {
-  // Trigger system info fetch if not available - must be called before any early returns
+
   useEffect(() => {
     if (database.status !== "running" || database.systemInfo) {
       return
@@ -69,7 +69,7 @@ export function SystemMetrics({
     )
   }
 
-  // Show placeholder while loading
+
   return (
     <div className="space-y-1 mb-2 pt-2 border-t border-border/50">
       <div className="flex items-center justify-between text-[11px]">

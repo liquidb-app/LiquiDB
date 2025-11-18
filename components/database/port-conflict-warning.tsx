@@ -117,7 +117,7 @@ export function PortConflictWarning({
                   }
                 }
               } catch (_error) {
-                // If check fails, continue with normal flow
+
               }
             }
             

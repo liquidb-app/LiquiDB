@@ -445,7 +445,7 @@ export function OnboardingOverlay({ onFinished, onStartTour: _onStartTour }: { o
   }, [step])
 
   const checkHelperStatus = useCallback(async () => {
-    // Check if this is the initial check by looking at current state
+
     setHelperStatus(prevStatus => {
       const isInitialCheck = !prevStatus
       if (isInitialCheck) {

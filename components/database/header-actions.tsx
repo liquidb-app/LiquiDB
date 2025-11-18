@@ -54,7 +54,7 @@ export function HeaderActions({
   const { showStart, showStop } = getBulkActionButtons()
 
   const handleAddClick = () => {
-    // Check if we're in tour mode, but allow when tour explicitly enables UI
+
     const inTour = document.body.hasAttribute('data-tour-mode')
     const tourAllowsUI = document.body.hasAttribute('data-tour-allow-ui')
     if (inTour && !tourAllowsUI) {
@@ -110,7 +110,7 @@ export function HeaderActions({
             onClick={() => {
               setShowBulkActions(!showBulkActions)
               if (showBulkActions) {
-                // Clear selection when exiting selection mode
+
                 setSelectedDatabases(new Set())
               }
             }}
