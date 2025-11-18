@@ -76,7 +76,7 @@ function useSidebarState() {
         return
       }
       
-      // Check if sidebar wrapper exists
+
       const sidebarWrapper = document.querySelector('[data-slot="sidebar-wrapper"]')
       if (sidebarWrapper) {
         // Look for sidebar state in the wrapper's children
@@ -149,7 +149,7 @@ export function SystemStats() {
         setIsLoading(false)
       }
     } catch (error) {
-      // Log error but preserve previous stats instead of clearing
+
       console.error('[System Stats] Error fetching app stats:', error)
       // Don't clear stats on error - preserve previous values
       setIsLoading(false)
@@ -182,7 +182,7 @@ export function SystemStats() {
       window.electron.onDatabasesUpdated(handleDatabasesUpdated)
     }
 
-    // Start with default interval (increased to reduce load)
+
     intervalRef.current = setInterval(() => {
       if (isVisible) {
       fetchStats()
@@ -205,7 +205,7 @@ export function SystemStats() {
     let resizeTimeout: NodeJS.Timeout | null = null
     
     const handleResize = () => {
-      // Debounce resize to prevent excessive state updates during rapid resizing
+
       if (resizeTimeout) {
         clearTimeout(resizeTimeout)
       }
@@ -240,7 +240,7 @@ export function SystemStats() {
   const diskTotal = stats.disk?.total || 0
   const loadAvg = stats.loadAverage?.[0] || 0
 
-  // Calculate footer left offset based on sidebar state
+
   // When sidebar is expanded: shift by 16rem (256px)
   // When sidebar is collapsed with icon: shift by 3rem (48px)
   // When sidebar is collapsed with offcanvas: no shift (0)
