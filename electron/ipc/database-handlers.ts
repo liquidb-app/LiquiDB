@@ -316,7 +316,7 @@ export function registerDatabaseHandlers(app: App): void {
       // Don't export password for security
       exportDb.password = ""
 
-      // Remove sensitive runtime data
+
       delete exportDb.pid
       delete exportDb.systemInfo
       delete exportDb.status
@@ -327,7 +327,7 @@ export function registerDatabaseHandlers(app: App): void {
         database: exportDb
       }
 
-      // Create zip file directly - no temp directory needed
+
       type ExportSuccess = {
         success: true
         filePath: string
@@ -397,10 +397,10 @@ export function registerDatabaseHandlers(app: App): void {
 
         archive.pipe(output)
         
-        // Add export data as JSON
+
         archive.append(JSON.stringify(exportData, null, 2), { name: 'database.json' })
         
-        // Add database data files if they exist
+
         const databases = storage.loadDatabases(app)
         const dbRecord = databases.find((d: any) => d.id === databaseConfig.id)
         if (dbRecord?.containerId) {
@@ -422,7 +422,7 @@ export function registerDatabaseHandlers(app: App): void {
     try {
       const { id, username, password, name, oldUsername } = dbConfig
       
-      // Load the database from storage
+
       const databases = storage.loadDatabases(app)
       const dbRecord = databases.find((d: any) => d.id === id)
       
@@ -433,13 +433,13 @@ export function registerDatabaseHandlers(app: App): void {
       // Use password directly from config
   const actualPassword = password || ''
       
-      // Check if database is running
+
       const db = runningDatabases.get(id)
       if (!db) {
         return { success: false, error: "Database must be running to update credentials" }
       }
       
-      // Build config object for configuration functions
+
       // Username cannot be changed - always use the database's existing username
       const config: IDatabase & { password: string; oldUsername: string | null } = {
         ...(dbRecord as IDatabase),
@@ -480,7 +480,7 @@ export function registerDatabaseHandlers(app: App): void {
 
   ipcMain.handle("db:delete", async (event, id: string) => {
     try {
-      // Stop the database if it's running
+
       const db = runningDatabases.get(id)
       if (db) {
         try {
@@ -494,7 +494,7 @@ export function registerDatabaseHandlers(app: App): void {
       
       // Password removed with database (no keychain cleanup needed)
       
-      // Delete database data files
+
       const databases = storage.loadDatabases(app)
       const databaseRecord = databases.find((d: any) => d.id === id)
       if (databaseRecord) {
@@ -509,7 +509,7 @@ export function registerDatabaseHandlers(app: App): void {
         }
       }
       
-      // Delete from storage
+
       return storage.deleteDatabase(app, id)
     } catch (error: any) {
       console.error(`[Delete] Error deleting database ${id}:`, error)
@@ -519,7 +519,7 @@ export function registerDatabaseHandlers(app: App): void {
 
   ipcMain.handle("db:deleteAll", async (event) => {
     try {
-      // Stop all running databases first
+
       for (const [id, db] of runningDatabases) {
         try {
           console.log(`[Delete All] Stopping database ${id}`)
@@ -530,12 +530,12 @@ export function registerDatabaseHandlers(app: App): void {
       }
       runningDatabases.clear()
       
-      // Get all databases before deleting them
+
       const databases = storage.loadDatabases(app)
       
       // Passwords removed with databases (no keychain cleanup needed)
       
-      // Delete all database data files
+
       for (const db of databases) {
         try {
           const dataDir = storage.getDatabaseDataDir(app, (db as any).containerId)
@@ -548,7 +548,7 @@ export function registerDatabaseHandlers(app: App): void {
         }
       }
       
-      // Delete all databases from storage
+
       storage.deleteAllDatabases(app)
       console.log("[Delete All] All databases and data files deleted successfully")
       return { success: true }

@@ -27,14 +27,14 @@ export function registerFileHandlers(app: App): void {
         const imageBuffer = await downloadImageFromUrl(imageUrl)
         fs.writeFileSync(filePath, imageBuffer)
       } else if (dataUrl) {
-        // Save data URL to file
+
         console.log(`[Image Save] Saving data URL to file: ${fileName}`)
         await saveDataUrlToFile(dataUrl, filePath)
       } else {
         throw new Error("No image URL or data URL provided")
       }
       
-      // Return the relative path that can be used in the app
+
       const relativePath = `file://${filePath}`
       console.log(`[Image Save] Image saved successfully: ${relativePath}`)
       return { success: true, imagePath: relativePath, fileName }
