@@ -8,7 +8,7 @@ import * as semver from "semver"
 const GITHUB_API_URL = "https://api.github.com/repos/liquidb-app/LiquiDB/releases/latest"
 const CHECK_INTERVAL = 1000 * 60 * 5 // Check every 5 minutes
 
-// Update check state
+
 let updateCheckInterval: NodeJS.Timeout | null = null
 let isChecking = false
 
@@ -96,24 +96,24 @@ async function fetchLatestRelease(): Promise<UpdateInfo | null> {
       return null
     }
 
-    // Filter out drafts and pre-releases
+
     if (release.draft || release.prerelease) {
       log.info("[GitHub Update] Latest release is draft or prerelease, skipping")
       return null
     }
 
-    // Extract version from tag (remove 'v' prefix if present)
+
     const version = release.tag_name.startsWith('v') 
       ? release.tag_name.substring(1) 
       : release.tag_name
 
-    // Validate version format
+
     if (!semver.valid(version)) {
       log.warn(`[GitHub Update] Invalid version format: ${version}`)
       return null
     }
 
-    // Find release page URL (for user to download manually)
+
     const releaseUrl = `https://github.com/liquidb-app/LiquiDB/releases/tag/${release.tag_name}`
 
     return {
@@ -150,7 +150,7 @@ export async function checkForUpdate(): Promise<{ available: boolean; info?: Upd
       return { available: false }
     }
 
-    // Compare versions using SemVer
+
     if (semver.gt(latestRelease.version, currentVersion)) {
       log.info(`[GitHub Update] Update available! Current: ${currentVersion}, Latest: ${latestRelease.version}`)
       return { available: true, info: latestRelease }
@@ -177,7 +177,7 @@ async function checkAndNotifyForUpdate(): Promise<void> {
     if (result.available && result.info) {
       log.info(`[GitHub Update] Update available: ${result.info.version}`)
       
-      // Send notification to renderer process
+
       const mainWindow = sharedState.getMainWindow()
       if (mainWindow) {
         mainWindow.webContents.send("update-available", {
@@ -230,7 +230,7 @@ export function stopPeriodicUpdateChecks(): void {
  */
 export async function initializeGitHubUpdater(): Promise<void> {
   try {
-    // Check if app is available
+
     if (!app || typeof app.getVersion !== 'function') {
       log.debug("[GitHub Update] Skipping GitHub updater - app not available")
       return
