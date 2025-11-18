@@ -150,10 +150,10 @@ export function registerDatabaseHandlers(app: App): void {
         }
       } catch (psError: unknown) {
         const typedError = psError as NodeJS.ErrnoException
-        // Handle EAGAIN errors gracefully
+
         if (typedError.code === 'EAGAIN' || typedError.errno === -35) {
           log.debug(`Resource temporarily unavailable (EAGAIN) for database ${id} stats`)
-          // Return null values instead of failing
+
           memoryUsage = null
           cpuUsage = null
         } else {
@@ -163,7 +163,7 @@ export function registerDatabaseHandlers(app: App): void {
         }
       }
       
-      // Calculate uptime from database config in storage
+
       let uptime = 0
       try {
         const databases = storage.loadDatabases(app)
@@ -204,7 +204,7 @@ export function registerDatabaseHandlers(app: App): void {
 
   ipcMain.handle("db:save", async (event, db) => {
     try {
-      // Validate name length
+
       if (db.name && db.name.length > 15) {
         return { 
           success: false, 
@@ -212,7 +212,7 @@ export function registerDatabaseHandlers(app: App): void {
         }
       }
 
-      // Load existing databases to check for duplicates
+
       const existingDatabases = storage.loadDatabases(app)
       
       // Prevent username changes - username is set during creation and cannot be changed
@@ -226,7 +226,7 @@ export function registerDatabaseHandlers(app: App): void {
         }
       }
       
-      // Check for duplicate name
+
       const nameExists = existingDatabases.some((existingDb: any) => 
         existingDb.name === db.name && existingDb.id !== db.id
       )
@@ -237,7 +237,7 @@ export function registerDatabaseHandlers(app: App): void {
         }
       }
       
-      // Check for duplicate container ID
+
       const containerIdExists = existingDatabases.some((existingDb: any) => 
         existingDb.containerId === db.containerId && existingDb.id !== db.id
       )
@@ -248,7 +248,7 @@ export function registerDatabaseHandlers(app: App): void {
         }
       }
       
-      // Ensure databases directory exists before saving
+
       storage.ensureDatabasesDirectory(app)
       
       // Always set dataPath to the correct absolute path using the app's userData directory
@@ -268,7 +268,7 @@ export function registerDatabaseHandlers(app: App): void {
   })
 
   ipcMain.handle("db:getPassword", async (event, id: string) => {
-    // Get password directly from database config
+
     const databases = storage.loadDatabases(app)
     const db = databases.find((d: any) => d.id === id)
     return db?.password || null
@@ -281,7 +281,7 @@ export function registerDatabaseHandlers(app: App): void {
         return { success: false, error: "No database provided for export" }
       }
 
-      // Show save dialog for zip file first
+
       const dateStr = new Date().toISOString().split('T')[0]
       const dbName = databaseConfig.name || 'database'
       const windowForDialog: BrowserWindow | undefined =
