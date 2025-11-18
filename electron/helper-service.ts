@@ -73,7 +73,7 @@ class HelperServiceManager {
     this.isInstalling = false
     this.platform = PLATFORM
     
-    // Determine the correct path to helper files based on whether app is packaged
+
     if (app.isPackaged) {
       this.helperPath = path.join(process.resourcesPath!, 'helper', 'liquidb-helper.js')
     } else {
@@ -126,7 +126,7 @@ class HelperServiceManager {
           return false
         }
       } else {
-        // Ensure service is loaded/started
+
         try {
           await this.loadService()
         } catch (error: any) {
@@ -134,7 +134,7 @@ class HelperServiceManager {
         }
       }
 
-      // Start the service
+
       await this.startService()
       
       this.isRunning = true
@@ -255,7 +255,7 @@ class HelperServiceManager {
         fs.mkdirSync(launchAgentsDir, { recursive: true })
       }
 
-      // Check if template file exists, try alternative paths if needed
+
       let templatePath = this.serviceTemplate
       if (!fs.existsSync(templatePath)) {
         // Try alternative paths for packaged app
@@ -313,7 +313,7 @@ class HelperServiceManager {
       const possiblePaths: string[] = []
       
       if (this.app.isPackaged) {
-        // Get app path and check if it's in asar
+
         const appPath = this.app.getAppPath()
         console.log(`[Helper] App path: ${appPath}`)
         console.log(`[Helper] Resources path: ${process.resourcesPath}`)
@@ -379,7 +379,7 @@ class HelperServiceManager {
         }
       }
       
-      // Verify helper script exists
+
       const helperScriptPath = path.join(helperDir, 'liquidb-helper.js')
       if (!fs.existsSync(helperScriptPath)) {
         const errorMsg = `Helper script not found after copy: ${helperScriptPath}`
@@ -387,7 +387,7 @@ class HelperServiceManager {
         throw new Error(errorMsg)
       }
       
-      // Find Node.js executable
+
       let nodeExecutable = '/usr/local/bin/node'
       if (!fs.existsSync(nodeExecutable)) {
         nodeExecutable = '/opt/homebrew/bin/node'
@@ -433,11 +433,11 @@ class HelperServiceManager {
         console.log('[Helper] Service not loaded or unload failed (continuing):', error.message)
       }
 
-      // Write plist file
+
       fs.writeFileSync(this.servicePath, plistContent)
       console.log(`[Helper] Plist file written to: ${this.servicePath}`)
       
-      // Load the service
+
       try {
         await this.loadService()
         console.log('[Helper] Service loaded successfully')
@@ -464,14 +464,14 @@ class HelperServiceManager {
       const uid = typeof process.getuid === 'function' ? process.getuid() : os.userInfo().uid
       exec(`launchctl bootstrap gui/${uid} "${this.servicePath}"`, (error: ExecException | null, stdout: string, stderr: string) => {
         if (error) {
-          // If bootstrap fails, check if it's because service is already loaded
+
           if (error.message.includes('already exists') || error.message.includes('already loaded') || stderr.includes('already exists')) {
             console.log('[Helper] Service already loaded')
             resolve()
             return
           }
           
-          // If bootstrap fails, try the deprecated load command for older macOS versions
+
           console.log('[Helper] Bootstrap failed, trying legacy load command...')
           exec(`launchctl load "${this.servicePath}"`, (legacyError: ExecException | null, legacyStdout: string, legacyStderr: string) => {
             if (legacyError && !legacyError.message.includes('already loaded') && !legacyStderr.includes('already loaded')) {
@@ -497,7 +497,7 @@ class HelperServiceManager {
       const uid = typeof process.getuid === 'function' ? process.getuid() : os.userInfo().uid
       exec(`launchctl bootout gui/${uid}/${serviceLabel}`, (error: ExecException | null, stdout: string, stderr: string) => {
         if (error) {
-          // If bootout fails, try the deprecated unload command
+
           console.log('[Helper] Bootout failed, trying legacy unload command...')
           exec(`launchctl unload "${this.servicePath}"`, (legacyError: ExecException | null, legacyStdout: string, legacyStderr: string) => {
             if (legacyError && !legacyError.message.includes('not loaded') && !legacyStderr.includes('not loaded')) {
