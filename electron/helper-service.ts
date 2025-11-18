@@ -744,10 +744,31 @@ class HelperServiceManager {
     try {
       console.log('[Helper] Performing direct cleanup of orphaned processes')
       
-      const helperPath = this.app.isPackaged
-        ? path.join(process.resourcesPath!, 'helper', 'liquidb-helper.js')
-        : path.join(__dirname, '..', 'helper-dist', 'liquidb-helper.js')
+      const helperPath = this.resolveHelperFilePath('liquidb-helper.js')
+      
+      // Check if file exists before requiring
+      if (!fs.existsSync(helperPath)) {
+        const errorMsg = `Helper script not found at ${helperPath}. Please reinstall the helper service.`
+        console.error(`[Helper] ${errorMsg}`)
+        return { 
+          success: false, 
+          error: errorMsg,
+          method: 'direct'
+        }
+      }
+      
       const helper = require(helperPath)
+      
+      // Check if the cleanup function exists
+      if (typeof helper.cleanupOrphanedProcesses !== 'function') {
+        const errorMsg = `Helper script at ${helperPath} does not export cleanupOrphanedProcesses function`
+        console.error(`[Helper] ${errorMsg}`)
+        return { 
+          success: false, 
+          error: errorMsg,
+          method: 'direct'
+        }
+      }
       
       const cleanedCount = await helper.cleanupOrphanedProcesses()
       
@@ -761,6 +782,17 @@ class HelperServiceManager {
       }
     } catch (error: any) {
       console.error('[Helper] Direct cleanup failed:', error)
+      
+      // Handle module not found errors with helpful message
+      if (error.message.includes('Cannot find module') || error.code === 'MODULE_NOT_FOUND') {
+        const errorMsg = `Helper script not found. Please reinstall the helper service. Original error: ${error.message}`
+        return { 
+          success: false, 
+          error: errorMsg,
+          method: 'direct'
+        }
+      }
+      
       return { 
         success: false, 
         error: error.message,
