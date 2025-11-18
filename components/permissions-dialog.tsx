@@ -81,7 +81,7 @@ export function PermissionsDialog({
   const missingOptional = optionalPermissions.filter(p => !p.granted)
   const grantedPermissions = permissions.filter(p => p.granted)
 
-  // Get platform-specific instructions
+
   const platform = typeof window !== 'undefined' && window.electron?.platform
   const isMac = platform === 'darwin'
 
