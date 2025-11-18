@@ -547,6 +547,71 @@ class HelperServiceManager {
 
   // ==================== Helper Methods (Platform-Agnostic) ====================
 
+  /**
+   * Resolve the path to a helper file (ipc-client.js or liquidb-helper.js)
+   * Checks Application Support directory first (where files are copied during installation),
+   * then falls back to resources path for packaged apps
+   */
+  private resolveHelperFilePath(fileName: string): string {
+    if (this.app.isPackaged) {
+      // First, check Application Support directory (where files are copied during installation)
+      const appDataDir = path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB')
+      const helperDir = path.join(appDataDir, 'helper')
+      const appSupportPath = path.join(helperDir, fileName)
+      
+      if (fs.existsSync(appSupportPath)) {
+        console.log(`[Helper] Found ${fileName} at Application Support: ${appSupportPath}`)
+        return appSupportPath
+      }
+      
+      // Fallback to resources path
+      const resourcesPath = path.join(process.resourcesPath!, 'helper', fileName)
+      if (fs.existsSync(resourcesPath)) {
+        console.log(`[Helper] Found ${fileName} at resources path: ${resourcesPath}`)
+        return resourcesPath
+      }
+      
+      // Try unpacked location
+      const unpackedPath = path.join(process.resourcesPath!, 'app.asar.unpacked', 'helper-dist', fileName)
+      if (fs.existsSync(unpackedPath)) {
+        console.log(`[Helper] Found ${fileName} at unpacked path: ${unpackedPath}`)
+        return unpackedPath
+      }
+      
+      // Last resort: return Application Support path (will fail with clear error)
+      console.warn(`[Helper] ${fileName} not found in any expected location, using Application Support path`)
+      return appSupportPath
+    } else {
+      // Development: use helper-dist
+      return path.join(__dirname, '..', 'helper-dist', fileName)
+    }
+  }
+
+  /**
+   * Load HelperClient class from the compiled ipc-client.js file
+   * Handles both CommonJS exports (HelperClient.HelperClient or HelperClient.default)
+   */
+  private loadHelperClient(helperPath: string): any {
+    const module = require(helperPath)
+    
+    // Handle CommonJS exports: exports.HelperClient or exports.default
+    if (module.HelperClient && typeof module.HelperClient === 'function') {
+      return module.HelperClient
+    }
+    
+    // Handle default export
+    if (module.default && typeof module.default === 'function') {
+      return module.default
+    }
+    
+    // If module itself is a constructor (shouldn't happen, but handle it)
+    if (typeof module === 'function') {
+      return module
+    }
+    
+    throw new Error(`HelperClient class not found in module. Available exports: ${Object.keys(module).join(', ')}`)
+  }
+
   async requestCleanup(): Promise<CleanupResult> {
     try {
       const isRunning = await this.isServiceRunning()
