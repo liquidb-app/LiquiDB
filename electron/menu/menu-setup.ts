@@ -134,12 +134,12 @@ function resolveLogoPath(): string | null {
     // Production: check multiple possible locations
     const appPath = app.getAppPath()
     
-    // Try public folder (should be accessible)
+
     let publicPath = path.join(appPath, 'public', 'liquiDB.png')
     
-    // Check if appPath points to app.asar
+
     if (appPath.endsWith('.asar')) {
-      // In asar, public folder should be unpacked or accessible
+
       // Try unpacked location first
       const unpackedPath = appPath.replace('.asar', '.asar.unpacked')
       publicPath = path.join(unpackedPath, 'public', 'liquiDB.png')
