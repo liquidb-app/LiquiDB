@@ -123,7 +123,7 @@ export function registerDatabaseHandlers(app: App): void {
       const pid = db.process.pid
       log.debug(`Database ${id} found with PID ${pid}`)
       
-      // Get memory usage and CPU time using ps command (optimized)
+
       let memoryUsage = null
       let cpuUsage = null
       
