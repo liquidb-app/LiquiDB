@@ -279,7 +279,7 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
     } else {
       setIsVisible(false)
       document.body.removeAttribute('data-tour-mode')
-      // Force a reflow to ensure CSS changes take effect
+
       requestAnimationFrame(() => {
         void document.body.offsetHeight // Force reflow
         const tourModeElements = document.querySelectorAll('.tour-mode\\:ml-80')
@@ -306,13 +306,13 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
     const currentStepData = tourSteps[currentStep]
     const previousStepData = tourSteps[previousStepRef.current]
     
-    // Check if both previous and current steps have highlights for smooth transition
+
     const bothHaveHighlights = previousStepData?.highlight && currentStepData?.highlight && previousTargetRef.current
     
     // If both have highlights, we'll transition smoothly - don't clear immediately
     // Otherwise, clear the target element when step changes
     if (!bothHaveHighlights) {
-      // Store previous target before clearing
+
       setTargetElement((prevTarget) => {
         if (prevTarget) {
           previousTargetRef.current = prevTarget
@@ -332,7 +332,7 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
         
         const element = document.querySelector(`[data-tour="${currentStepData.highlight}"]`) as HTMLElement
         if (element) {
-          // Store previous target before updating
+
           setTargetElement((prevTarget) => {
             if (prevTarget) {
               previousTargetRef.current = prevTarget
@@ -381,7 +381,7 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
           }
           
           if (fallbackElement) {
-            // Store previous target before updating
+
             setTargetElement((prevTarget) => {
               if (prevTarget) {
                 previousTargetRef.current = prevTarget
@@ -501,7 +501,7 @@ export function SidebarTour({ isOpen, onClose, quotes, isLoadingQuotes }: Sideba
   const currentStepData = tourSteps[currentStep]
   const previousStepData = tourSteps[previousStepRef.current]
   
-  // Check if both previous and current steps have highlights for smooth transition
+
   const bothHaveHighlights = previousStepData?.highlight && currentStepData?.highlight && previousTargetRef.current && targetElement
   
   // Use longer, smoother transition when moving between highlighted steps
