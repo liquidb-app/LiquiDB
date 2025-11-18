@@ -52,7 +52,7 @@ export async function checkPortInUse(port: number): Promise<boolean> {
       // Fallback to net.createServer check for ports that might be in use but not listening yet
       const server = net.createServer()
       
-      // Set a timeout to prevent hanging
+
       const timeout = setTimeout(() => {
         server.close(() => {})
         resolve(true) // If we can't determine, assume port is in use to be safe
@@ -103,7 +103,7 @@ export async function getProcessUsingPort(port: number): Promise<{ processName: 
           const processName = parts[0]
           const pid = parts[1]
           
-          // Filter out common false positives
+
           const falsePositives = [
             'node', 'npm', 'yarn', 'pnpm', 'next', 'webpack', 'vite', 'dev',
             'chrome', 'safari', 'firefox', 'electron', 'code', 'cursor',

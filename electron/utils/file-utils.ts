@@ -81,7 +81,7 @@ export function downloadImageFromUrl(url: string): Promise<Buffer> {
 export function saveDataUrlToFile(dataUrl: string, filePath: string): Promise<void> {
   return new Promise((resolve, reject) => {
     try {
-      // Remove data URL prefix (e.g., "data:image/png;base64,")
+
       const base64Data = dataUrl.replace(/^data:image\/[a-z]+;base64,/, "")
       const buffer = Buffer.from(base64Data, "base64")
       fs.writeFile(filePath, buffer, (error: NodeJS.ErrnoException | null) => {

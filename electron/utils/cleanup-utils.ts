@@ -14,14 +14,14 @@ export async function cleanupDatabaseTempFiles(app: App, containerId: string, db
     const dataDir = storage.getDatabaseDataDir(app, containerId)
     const tempDir = path.join(dataDir, 'tmp')
     
-    // Clean up temp directory
+
     if (fs.existsSync(tempDir)) {
       const files = fs.readdirSync(tempDir)
       for (const file of files) {
         try {
           const filePath = path.join(tempDir, file)
           const stats = fs.statSync(filePath)
-          // Remove temp files older than 1 hour or larger than 100MB
+
           const oneHourAgo = Date.now() - (60 * 60 * 1000)
           if (stats.mtimeMs < oneHourAgo || stats.size > 100 * 1024 * 1024) {
             fs.unlinkSync(filePath)
@@ -33,9 +33,9 @@ export async function cleanupDatabaseTempFiles(app: App, containerId: string, db
       }
     }
     
-    // Database-specific cleanup
+
     if (dbType === "postgresql") {
-      // Clean up old PostgreSQL log files (keep only last 7 days)
+
       const logDir = path.join(dataDir, 'log')
       if (fs.existsSync(logDir)) {
         const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
@@ -56,7 +56,7 @@ export async function cleanupDatabaseTempFiles(app: App, containerId: string, db
         }
       }
       
-      // Clean up old WAL files if they exceed limits (PostgreSQL manages this, but we can check)
+
       const pgWalDir = path.join(dataDir, 'pg_wal')
       if (fs.existsSync(pgWalDir)) {
         try {
@@ -88,7 +88,7 @@ export async function cleanupDatabaseTempFiles(app: App, containerId: string, db
         }
       }
     } else if (dbType === "mongodb") {
-      // Clean up old MongoDB log files (keep only last 7 days)
+
       const logFile = path.join(dataDir, 'mongod.log')
       if (fs.existsSync(logFile)) {
         try {
@@ -106,7 +106,7 @@ export async function cleanupDatabaseTempFiles(app: App, containerId: string, db
       }
     } else if (dbType === "mysql") {
       // MySQL log files are disabled (redirected to /dev/null), so no log cleanup needed
-      // Clean up any large temporary files in MySQL data directory
+
       try {
         const files = fs.readdirSync(dataDir)
         for (const file of files) {
@@ -118,7 +118,7 @@ export async function cleanupDatabaseTempFiles(app: App, containerId: string, db
           const filePath = path.join(dataDir, file)
           try {
             const stats = fs.statSync(filePath)
-            // Remove temporary files larger than 50MB or older than 1 day
+
             const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000)
             if (stats.isFile() && (stats.size > 50 * 1024 * 1024 || stats.mtimeMs < oneDayAgo)) {
               // Only remove files that look like temporary files
@@ -136,12 +136,12 @@ export async function cleanupDatabaseTempFiles(app: App, containerId: string, db
         console.debug(`[Cleanup] Could not read MySQL data directory:`, error.message)
       }
     } else if (dbType === "redis") {
-      // Clean up old Redis AOF files if they exist
+
       const aofFile = path.join(dataDir, `appendonly-${containerId}.aof`)
       if (fs.existsSync(aofFile)) {
         try {
           const stats = fs.statSync(aofFile)
-          // If AOF file is larger than 500MB, it should be rewritten (Redis handles this, but we can check)
+
           if (stats.size > 500 * 1024 * 1024) {
             console.log(`[Cleanup] Redis AOF file is large (${(stats.size / 1024 / 1024).toFixed(2)}MB), consider rewriting`)
           }
@@ -179,7 +179,7 @@ export async function cleanupOrphanedDatabases(app: App): Promise<void> {
         const stats = fs.statSync(dirPath)
         if (stats.isDirectory() && !validContainerIds.has(dir)) {
           // This directory doesn't belong to any database - it's orphaned
-          // Calculate size before deleting
+
           let dirSize = 0
           try {
             const calculateSize = (currentPath: string): number => {
@@ -202,7 +202,7 @@ export async function cleanupOrphanedDatabases(app: App): Promise<void> {
             }
             dirSize = calculateSize(dirPath)
             
-            // Remove orphaned directory
+
             fs.rmSync(dirPath, { recursive: true, force: true })
             cleanedCount++
             cleanedSize += dirSize

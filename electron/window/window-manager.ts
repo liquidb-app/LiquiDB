@@ -19,13 +19,13 @@ export function validateNextJsStaticExport(outDir: string): ValidationResult {
   const errors: string[] = []
   const warnings: string[] = []
   
-  // Check if out directory exists
+
   if (!fs.existsSync(outDir)) {
     errors.push(`Out directory does not exist: ${outDir}`)
     return { valid: false, errors, warnings }
   }
   
-  // Check if out directory is actually a directory
+
   try {
     const stats = fs.statSync(outDir)
     if (!stats.isDirectory()) {
@@ -37,7 +37,7 @@ export function validateNextJsStaticExport(outDir: string): ValidationResult {
     return { valid: false, errors, warnings }
   }
   
-  // Check for index.html (required)
+
   const indexPath = path.join(outDir, 'index.html')
   if (!fs.existsSync(indexPath)) {
     errors.push(`index.html not found in out directory: ${indexPath}`)
@@ -52,7 +52,7 @@ export function validateNextJsStaticExport(outDir: string): ValidationResult {
     }
   }
   
-  // Check for _next directory (critical for Next.js static exports)
+
   const nextDir = path.join(outDir, '_next')
   if (!fs.existsSync(nextDir)) {
     errors.push(`_next directory not found in out directory: ${nextDir}`)
@@ -62,7 +62,7 @@ export function validateNextJsStaticExport(outDir: string): ValidationResult {
       if (!nextStats.isDirectory()) {
         errors.push(`_next exists but is not a directory: ${nextDir}`)
       } else {
-        // Check for _next/static directory (contains CSS, JS, and other assets)
+
         const staticDir = path.join(nextDir, 'static')
         if (!fs.existsSync(staticDir)) {
           warnings.push(`_next/static directory not found: ${staticDir} (may indicate incomplete build)`)
@@ -125,7 +125,7 @@ export function registerAppProtocolHandler(app: App): void {
         try {
           let url = request.url.replace('app://', '').replace('app:///', '')
           
-          // Remove leading slash if present
+
           if (url.startsWith('/')) {
             url = url.substring(1)
           }
@@ -137,32 +137,32 @@ export function registerAppProtocolHandler(app: App): void {
             url = url.substring('index.html/'.length)
           }
           
-          // Handle root/index (only if no path after stripping index.html)
+
           if (!url || url === '' || url === '/') {
             url = 'index.html'
           }
           
-          // Fix common path issues: next/ should be _next/ (browser may strip underscore)
+
           if (url.startsWith('next/') && !url.startsWith('_next/')) {
             url = '_next/' + url.substring('next/'.length)
           }
           
-          // Normalize path separators (handle both forward and backslashes)
+
           url = url.replace(/\\/g, '/')
           
           const appPath = app.getAppPath()
           let filePath = path.join(appPath, 'out', url)
           
-          // Normalize the file path for the current platform
+
           filePath = path.normalize(filePath)
           
-          // Check if appPath points to app.asar, and if so, check for unpacked files
+
           if (appPath.endsWith('.asar')) {
             const unpackedPath = appPath.replace('.asar', '.asar.unpacked')
             const unpackedFilePath = path.join(unpackedPath, 'out', url)
             const normalizedUnpackedPath = path.normalize(unpackedFilePath)
             
-            // Check unpacked first
+
             if (fs.existsSync(normalizedUnpackedPath)) {
               filePath = normalizedUnpackedPath
             } else if (fs.existsSync(filePath)) {
@@ -174,7 +174,7 @@ export function registerAppProtocolHandler(app: App): void {
             }
           }
           
-          // Verify file exists before returning
+
           if (!fs.existsSync(filePath)) {
             log.warn(`[Protocol] File not found: ${filePath} (from URL: ${request.url})`)
             
@@ -193,10 +193,10 @@ export function registerAppProtocolHandler(app: App): void {
               }
             }
             
-            // If still not found, try path variations (e.g., next vs _next)
+
             if (!found) {
               let altUrl: string | null = null
-              // Check if we're looking for /next/ but should be /_next/
+
               if (url.includes('/next/') && !url.includes('/_next/')) {
                 altUrl = url.replace('/next/', '/_next/')
               }
@@ -230,7 +230,7 @@ export function registerAppProtocolHandler(app: App): void {
               }
             }
             
-            // If still not found, return error
+
             if (!found && !fs.existsSync(filePath)) {
               log.error(`[Protocol] File not found after all attempts: ${filePath} (from URL: ${request.url})`)
               callback({ error: -6 }) // FILE_NOT_FOUND
@@ -267,12 +267,12 @@ export function createWindow(app: App): BrowserWindow {
     // Production: check multiple possible locations
     const appPath = app.getAppPath()
     
-    // Try public folder (should be accessible)
+
     let publicPath = path.join(appPath, 'public', 'liquiDB.png')
     
-    // Check if appPath points to app.asar
+
     if (appPath.endsWith('.asar')) {
-      // In asar, public folder should be unpacked or accessible
+
       // Try unpacked location first
       const unpackedPath = appPath.replace('.asar', '.asar.unpacked')
       publicPath = path.join(unpackedPath, 'public', 'liquiDB.png')
@@ -300,7 +300,7 @@ export function createWindow(app: App): BrowserWindow {
     }
   }
   
-  // Log icon path for debugging
+
   if (iconPath && fs.existsSync(iconPath)) {
     log.info(`[Window] Using app icon: ${iconPath}`)
   } else {
@@ -333,7 +333,7 @@ export function createWindow(app: App): BrowserWindow {
           log.warn(`[Window] Preload script not found at ${preloadPath} or ${fallbackPath}`)
           return preloadPath // Return the expected path anyway
         } else {
-          // In production: preload.js should be in the same directory as main.js
+
           return path.join(__dirname, "..", "preload.js")
         }
       })(),
@@ -379,7 +379,7 @@ export function createWindow(app: App): BrowserWindow {
   // In development, load from Next.js dev server
   // In production, load from built static files
 
-  // Filter out harmless DevTools Protocol errors (Autofill not supported in Electron)
+
   // These errors come from DevTools trying to enable Autofill features that Electron doesn't support
   mainWindow.webContents.on("console-message", (_event, _level, message) => {
     if (!message) return
@@ -400,16 +400,16 @@ export function createWindow(app: App): BrowserWindow {
     }
   })
 
-  // Check if we should use dev server or static files
+
   // Use dev server only if explicitly running in dev mode AND dev server is available
   const useDevServer = isDev && process.env.USE_DEV_SERVER === 'true'
   
   if (useDevServer) {
     // Development: use Next.js dev server
-    // Add error handling for failed loads
+
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
       log.error(`[Window] Failed to load: ${errorCode} - ${errorDescription} - ${validatedURL}`)
-      // Show error message to user
+
       mainWindow.webContents.executeJavaScript(`
         document.body.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; font-family: system-ui; background: #000; color: #fff;">
           <h1 style="font-size: 24px; margin-bottom: 16px;">Failed to connect to dev server</h1>
@@ -437,14 +437,14 @@ export function createWindow(app: App): BrowserWindow {
     let outDir = path.join(appPath, 'out')
     let indexPath = path.join(appPath, 'out', 'index.html')
     
-    // Check if appPath points to app.asar, and if so, check for unpacked files
+
     if (appPath.endsWith('.asar')) {
       // Files are unpacked, so they're in app.asar.unpacked directory
       const unpackedPath = appPath.replace('.asar', '.asar.unpacked')
       const unpackedOutDir = path.join(unpackedPath, 'out')
       const unpackedIndexPath = path.join(unpackedOutDir, 'index.html')
       
-      // Verify unpacked path exists
+
       if (fs.existsSync(unpackedIndexPath)) {
         outDir = unpackedOutDir
         indexPath = unpackedIndexPath
@@ -454,16 +454,16 @@ export function createWindow(app: App): BrowserWindow {
       }
     }
     
-    // Validate the Next.js static export before loading
+
     const validation = validateNextJsStaticExport(outDir)
     
     if (!validation.valid) {
-      // Log all errors and warnings
+
       log.error(`[Window] Next.js static export validation failed:`)
       validation.errors.forEach(error => log.error(`[Window] ERROR: ${error}`))
       validation.warnings.forEach(warning => log.warn(`[Window] WARNING: ${warning}`))
       
-      // Build detailed error message for user
+
       const errorDetails = validation.errors.map(e => `  • ${e}`).join('\n')
       const warningDetails = validation.warnings.length > 0 
         ? '\n\nWarnings:\n' + validation.warnings.map(w => `  • ${w}`).join('\n')
@@ -572,13 +572,13 @@ export function createWindow(app: App): BrowserWindow {
       return mainWindow
     }
     
-    // Log warnings if any (but continue loading since validation passed)
+
     if (validation.warnings.length > 0) {
       log.warn(`[Window] Next.js static export validation warnings:`)
       validation.warnings.forEach(warning => log.warn(`[Window] WARNING: ${warning}`))
     }
     
-    // Verify the file exists before loading (double-check)
+
     if (fs.existsSync(indexPath)) {
       log.info(`[Window] Loading static file from: ${indexPath}`)
       // Use app:// protocol to support assetPrefix: '/' with next/font
@@ -588,7 +588,7 @@ export function createWindow(app: App): BrowserWindow {
       const fallbackPath = path.join(__dirname, '..', 'out', 'index.html')
       const fallbackOutDir = path.join(__dirname, '..', 'out')
       
-      // Validate fallback path as well
+
       const fallbackValidation = validateNextJsStaticExport(fallbackOutDir)
       
       if (fs.existsSync(fallbackPath) && fallbackValidation.valid) {
@@ -601,7 +601,7 @@ export function createWindow(app: App): BrowserWindow {
           - app.getAppPath(): ${appPath}
         `)
         
-        // Show comprehensive error message
+
         const errorMessage = `<!DOCTYPE html>
 <html>
 <head>

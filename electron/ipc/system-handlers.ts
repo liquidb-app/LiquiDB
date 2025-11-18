@@ -57,7 +57,7 @@ export function registerSystemHandlers(app: App): void {
     }
   })
 
-  // Get app version handler
+
   ipcMain.handle("get-app-version", async () => {
     try {
       const version = app.getVersion()
@@ -68,10 +68,10 @@ export function registerSystemHandlers(app: App): void {
     }
   })
 
-  // Get Electron version handler
+
   ipcMain.handle("get-electron-version", async () => {
     try {
-      // Get Electron version from process.versions.electron
+
       const electronVersion = process.versions.electron || "unknown"
       return { success: true, version: electronVersion }
     } catch (error: any) {
@@ -80,7 +80,7 @@ export function registerSystemHandlers(app: App): void {
     }
   })
 
-  // Get platform information handler
+
   ipcMain.handle("get-platform-info", async () => {
     try {
       const os = require("os")
@@ -116,7 +116,7 @@ export function registerSystemHandlers(app: App): void {
     }
   })
 
-  // Get changelog handler
+
   ipcMain.handle("get-changelog", async () => {
     try {
       const version = app.getVersion()
@@ -170,14 +170,14 @@ export function registerSystemHandlers(app: App): void {
       const url = 'https://programming-quotesapi.vercel.app/api/bulk'
       
       const request = https.get(url, (res) => {
-        // Check status code
+
         if (res.statusCode !== 200) {
           console.error(`[Quotes] API returned status code ${res.statusCode}`)
           resolve({ success: false, error: `API returned status code ${res.statusCode}` })
           return
         }
         
-        // Check content-type header
+
         const contentType = res.headers['content-type'] || ''
         if (!contentType.includes('application/json')) {
           console.error(`[Quotes] API returned non-JSON content type: ${contentType}`)
@@ -193,7 +193,7 @@ export function registerSystemHandlers(app: App): void {
         
         res.on('end', () => {
           try {
-            // Check if response looks like HTML (common error page indicator)
+
             if (data.trim().startsWith('<!DOCTYPE') || data.trim().startsWith('<html')) {
               console.error('[Quotes] API returned HTML instead of JSON (likely an error page)')
               resolve({ success: false, error: 'API returned HTML instead of JSON' })
@@ -234,7 +234,7 @@ export function registerSystemHandlers(app: App): void {
     })
   })
 
-  // Get system stats
+
   let cachedStats: any = null
   let previousAppCpuUsage = 0
   let previousAppCpuCheckTime = Date.now()
@@ -243,7 +243,7 @@ export function registerSystemHandlers(app: App): void {
 
   ipcMain.handle("get-system-stats", async () => {
     try {
-      // Throttle calls to prevent resource exhaustion
+
       const now = Date.now()
       if (cachedStats && (now - lastStatsCallTime) < STATS_THROTTLE_MS) {
         return cachedStats
@@ -259,7 +259,7 @@ export function registerSystemHandlers(app: App): void {
         const databases = storage.loadDatabases(app)
         const actuallyRunning = databases.filter((db: any) => {
           if (db.status === "running" || db.status === "starting") {
-            // Check if process is actually running by PID
+
             if (db.pid && typeof db.pid === 'number') {
               try {
                 process.kill(db.pid, 0) // Signal 0 checks if process exists
@@ -279,16 +279,16 @@ export function registerSystemHandlers(app: App): void {
         console.warn("[System Stats] Error checking database file for count:", error)
       }
       
-      // Get app uptime (time since Electron main process started)
+
       const uptimeSeconds = Math.floor(process.uptime())
       
       // Collect all PIDs for app processes (main + renderer + database instances)
       const pids: number[] = []
       
-      // Add main process PID
+
       pids.push(process.pid)
       
-      // Add renderer process PIDs (from all BrowserWindows)
+
       BrowserWindow.getAllWindows().forEach(win => {
         const pid = win.webContents.getProcessId()
         if (pid) {
@@ -296,7 +296,7 @@ export function registerSystemHandlers(app: App): void {
         }
       })
       
-      // Add all running database instance PIDs
+
       runningDatabases.forEach((db) => {
         if (!db.process.killed && db.process.exitCode === null) {
           if (db.process.pid) {
@@ -316,7 +316,7 @@ export function registerSystemHandlers(app: App): void {
                 pids.push(db.pid)
               }
             } catch {
-              // Process doesn't exist, skip
+
             }
           }
         })
@@ -324,13 +324,13 @@ export function registerSystemHandlers(app: App): void {
         // Ignore errors
       }
       
-      // Calculate total memory and CPU usage from all app processes
+
       let totalMemoryUsage = 0
       let totalCpuUsage = 0
       
       if (pids.length > 0) {
         try {
-          // Get process stats for all PIDs at once
+
           const pidList = pids.join(',')
           const psOutput = execSync(`ps -o pid,rss,pcpu -p ${pidList}`, { 
             encoding: 'utf8', 
@@ -356,13 +356,13 @@ export function registerSystemHandlers(app: App): void {
             }
           }
         } catch (psError: any) {
-          // Handle EAGAIN errors gracefully
+
           if (psError.code === 'EAGAIN' || psError.errno === -35) {
             console.log(`Resource temporarily unavailable (EAGAIN) for stats, using fallback`)
             // Use fallback with delays
             for (const pid of pids) {
               try {
-                // Add small delay between calls to prevent resource exhaustion
+
                 await new Promise(resolve => setTimeout(resolve, 50))
                 const psOutput = execSync(`ps -o rss,pcpu -p ${pid}`, { 
                   encoding: 'utf8', 
@@ -395,7 +395,7 @@ export function registerSystemHandlers(app: App): void {
             // Fallback: try individual processes with delays
             for (const pid of pids) {
               try {
-                // Add small delay between calls to prevent resource exhaustion
+
                 await new Promise(resolve => setTimeout(resolve, 50))
                 const psOutput = execSync(`ps -o rss,pcpu -p ${pid}`, { 
                   encoding: 'utf8', 
@@ -427,7 +427,7 @@ export function registerSystemHandlers(app: App): void {
       // Cap CPU usage at 100% (could be more if multiple cores)
       totalCpuUsage = Math.min(100, totalCpuUsage)
       
-      // Get disk usage for the home directory using df command
+
       let diskUsed = 0
       let diskTotal = 0
       let diskFree = 0
@@ -441,7 +441,7 @@ export function registerSystemHandlers(app: App): void {
         })
         const lines = dfOutput.split('\n')
         if (lines.length > 1) {
-          // Parse the output - format: Filesystem 1024-blocks Used Available Capacity Mounted
+
           const parts = lines[1].trim().split(/\s+/)
           if (parts.length >= 4) {
             diskTotal = parseInt(parts[1]) * 1024 // Convert KB to bytes
@@ -450,7 +450,7 @@ export function registerSystemHandlers(app: App): void {
           }
         }
       } catch (diskError: any) {
-        // Handle EAGAIN errors gracefully - don't fail completely
+
         if (diskError.code === 'EAGAIN' || diskError.errno === -35) {
           console.log(`Resource temporarily unavailable (EAGAIN) for disk stats, using defaults`)
         } else {
@@ -458,7 +458,7 @@ export function registerSystemHandlers(app: App): void {
         }
       }
       
-      // Calculate load average based on number of processes (simplified)
+
       // Use number of active processes as a proxy for load
       const processCount = pids.length
       const loadAverage = [processCount * 0.1, processCount * 0.1, processCount * 0.1]
@@ -467,8 +467,8 @@ export function registerSystemHandlers(app: App): void {
       previousAppCpuUsage = totalCpuUsage
       previousAppCpuCheckTime = Date.now()
       
-      // Ensure we always return valid data, even if some operations failed
-      // Use fallback values to prevent showing 0 when there's an error
+
+
       const stats = {
         success: true,
         memory: {
@@ -497,12 +497,12 @@ export function registerSystemHandlers(app: App): void {
       
       return stats
     } catch (error: any) {
-      // Handle EAGAIN errors gracefully - return cached or default values instead of failing
+
       if (error.code === 'EAGAIN' || error.errno === -35) {
         console.log(`[System Stats] Resource temporarily unavailable (EAGAIN), returning cached stats`)
-        // Return cached stats if available, otherwise return defaults
+
         if (cachedStats) {
-          // Update uptime and running databases count (these are always available)
+
           const runningDatabases = sharedState.getRunningDatabases()
           return {
             ...cachedStats,
@@ -518,10 +518,10 @@ export function registerSystemHandlers(app: App): void {
         console.error(`[System Stats] Stack trace:`, error.stack)
       }
       
-      // Return cached stats if available, otherwise return defaults
+
       if (cachedStats) {
         console.log(`[System Stats] Returning cached stats due to error`)
-        // Update uptime and running databases count (these are always available)
+
         const runningDatabases = sharedState.getRunningDatabases()
         return {
           ...cachedStats,
@@ -553,14 +553,14 @@ export function registerSystemHandlers(app: App): void {
     }
   })
 
-  // Clean up dead processes and reset statuses
+
   ipcMain.handle("cleanup-dead-processes", async () => {
     try {
       const runningDatabases = sharedState.getRunningDatabases()
       // Only log if there's actual work to do
       let cleanedCount = 0
       
-      // Check all running databases
+
       for (const [id, db] of runningDatabases) {
         if (db.process.killed || db.process.exitCode !== null) {
           console.log(`[Cleanup] Removing dead process ${id} (PID: ${db.process.pid})`)
@@ -569,14 +569,14 @@ export function registerSystemHandlers(app: App): void {
         }
       }
       
-      // Update storage to reflect actual status
+
       const databases = storage.loadDatabases(app)
       let updatedCount = 0
       
       for (let i = 0; i < databases.length; i++) {
         const db = databases[i] as any
         if (db.status === "running" || db.status === "starting") {
-          // Check if process is actually running
+
           const isInRunningMap = runningDatabases.has(db.id)
           if (!isInRunningMap) {
             console.log(`[Cleanup] Updating database ${db.id} status from ${db.status} to stopped`)

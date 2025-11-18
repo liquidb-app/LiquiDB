@@ -50,7 +50,7 @@ export async function getStableVersionsFromOfficialSources(databaseType: string)
       try {
         const response = await fetchWithTimeout('https://www.postgresql.org/support/versioning/', 3000)
         const html = await response.text()
-        // Parse HTML to extract supported versions (this is a simplified approach)
+
         // In a real implementation, you'd want to use a proper HTML parser
         const versionMatches = html.match(/PostgreSQL (\d+\.\d+)/g)
         if (versionMatches) {
@@ -73,7 +73,7 @@ export async function getStableVersionsFromOfficialSources(databaseType: string)
       try {
         const response = await fetchWithTimeout('https://dev.mysql.com/doc/relnotes/mysql/8.4/en/', 3000)
         const html = await response.text()
-        // Check if 8.4 is available and stable
+
         if (html.includes('8.4')) {
           stableVersions.mysql = ['8.4', '8.0']
         } else {
@@ -90,7 +90,7 @@ export async function getStableVersionsFromOfficialSources(databaseType: string)
       try {
         const response = await fetchWithTimeout('https://www.mongodb.com/docs/manual/release-notes/', 3000)
         const html = await response.text()
-        // Extract version numbers from release notes
+
         const versionMatches = html.match(/MongoDB (\d+\.\d+)/g)
         if (versionMatches) {
           stableVersions.mongodb = versionMatches
@@ -112,7 +112,7 @@ export async function getStableVersionsFromOfficialSources(databaseType: string)
       try {
         const response = await fetchWithTimeout('https://redis.io/docs/about/releases/', 3000)
         const html = await response.text()
-        // Extract version numbers from releases page
+
         const versionMatches = html.match(/Redis (\d+\.\d+)/g)
         if (versionMatches) {
           stableVersions.redis = versionMatches
@@ -134,7 +134,7 @@ export async function getStableVersionsFromOfficialSources(databaseType: string)
     
   } catch (error: any) {
     console.log(`[Stable Versions] Error fetching stable versions for ${databaseType}:`, error.message)
-    // Return fallback stable versions
+
     const fallbackStable: { [key: string]: string[] } = {
       postgresql: ['16', '15'],
       mysql: ['8.4', '8.0'],
@@ -159,7 +159,7 @@ export async function getMongoDBVersions(): Promise<VersionDetail[]> {
   try {
     console.log(`[Brew] Fetching detailed MongoDB versions`)
     
-    // Ensure MongoDB tap is available
+
     try {
       await execBrewCommand(["tap", "mongodb/brew"])
     } catch (tapError: any) {
@@ -169,12 +169,12 @@ export async function getMongoDBVersions(): Promise<VersionDetail[]> {
     const versionDetails: VersionDetail[] = []
     
     try {
-      // Search for MongoDB community packages
+
       const searchResult = await execBrewCommand(["search", "mongodb/brew/mongodb-community"])
       const lines = searchResult.stdout.trim().split('\n').filter(line => line.trim())
       const mongoPackages: string[] = []
       
-      // Extract versioned package names from mongodb-community@x.x.x format
+
       for (const line of lines) {
         const match = line.match(/mongodb-community@([0-9.]+)/)
         if (match) {
@@ -184,7 +184,7 @@ export async function getMongoDBVersions(): Promise<VersionDetail[]> {
       
       console.log(`[Brew] Found ${mongoPackages.length} MongoDB packages`)
       
-      // Get full version details for each MongoDB package
+
       const packagePromises: Promise<VersionDetail | null>[] = []
       
       for (const pkg of mongoPackages) {
@@ -231,7 +231,7 @@ export async function getMongoDBVersions(): Promise<VersionDetail[]> {
       console.log(`[Brew] Error searching MongoDB versions:`, searchError.message)
     }
     
-    // Sort versions (newest first)
+
     const sortedVersions = versionDetails.sort((a, b) => {
       return compareVersions(b.fullVersion, a.fullVersion)
     })

@@ -35,17 +35,17 @@ export function registerVersionHandlers(): void {
         return await getMongoDBVersions()
       }
       
-      // Get detailed version information with full version numbers using execBrew
+
       const versionDetails: VersionDetail[] = []
       
       try {
-        // First, search for versioned packages (e.g., postgresql@16, postgresql@15)
+
         const searchResult = await execBrewCommand(["search", "--formula", `^${packageName}@`])
         const lines = searchResult.stdout.trim().split('\n').filter(line => line.trim())
         
         console.log(`[Brew] Found ${lines.length} versioned packages for ${packageName}`)
         
-        // Get full version details for each versioned package
+
         const packagePromises: Promise<VersionDetail | null>[] = []
         
         for (const line of lines) {
@@ -54,7 +54,7 @@ export function registerVersionHandlers(): void {
             const majorVersion = match[1]
             const fullPackageName = `${packageName}@${majorVersion}`
             
-            // Get full version details for each package
+
             packagePromises.push(
               execBrewCommand(["info", fullPackageName, "--json"])
                 .then((infoResult) => {
@@ -95,14 +95,14 @@ export function registerVersionHandlers(): void {
         console.log(`[Brew] Error searching for ${packageName} versions:`, searchError.message)
       }
       
-      // Also get main package version (e.g., postgresql without @version)
+
       try {
         const mainInfoResult = await execBrewCommand(["info", packageName, "--json"])
         const info = JSON.parse(mainInfoResult.stdout)
         if (info && info.length > 0) {
           const fullVersion = info[0].versions?.stable || info[0].version
           if (fullVersion) {
-            // Extract major version from full version
+
             const majorVersion = fullVersion.split('.').slice(0, 2).join('.')
             const existingVersion = versionDetails.find(v => v.majorVersion === majorVersion)
             if (!existingVersion) {
