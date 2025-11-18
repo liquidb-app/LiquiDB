@@ -1,4 +1,4 @@
-// Update notification only - checks GitHub releases and notifies user
+
 // No automatic downloading or installing
 let autoUpdaterModule: any = null
 let autoUpdater: any = null
@@ -6,7 +6,7 @@ let autoUpdater: any = null
 async function getAutoUpdater() {
   if (!autoUpdaterModule) {
     try {
-      // Check if app is available before importing electron-updater
+
       const { app } = require("electron")
       if (!app || typeof app.getVersion !== 'function') {
         return null
@@ -15,7 +15,7 @@ async function getAutoUpdater() {
       autoUpdaterModule = await import("electron-updater")
       autoUpdater = autoUpdaterModule.autoUpdater
     } catch (error) {
-      // If import fails or app is not available, return null
+
       return null
     }
   }
@@ -68,7 +68,7 @@ async function configureAutoUpdater(): Promise<void> {
       log.info(`[Update-Notification] Update checker configured for platform: ${platform}`)
     }
   } catch (error) {
-    // If app is not available, skip configuration
+
     log.debug("[Update-Notification] Skipping update checker configuration - app not available")
   }
 }
@@ -220,7 +220,7 @@ export function stopPeriodicUpdateChecks(): void {
  * Initialize update notification checker
  */
 export async function initializeAutoUpdater(): Promise<void> {
-  // Check if app is available before initializing
+
   try {
     if (!app || typeof app.getVersion !== 'function') {
       log.debug("[Update-Notification] Skipping update checker - app not available")
@@ -241,7 +241,7 @@ export async function initializeAutoUpdater(): Promise<void> {
     
     log.info("[Update-Notification] Update notification checker initialized")
   } catch (error) {
-    // If initialization fails, log and continue
+
     log.warn("[Update-Notification] Failed to initialize update checker:", error)
   }
 }
