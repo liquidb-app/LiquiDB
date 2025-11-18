@@ -1,4 +1,4 @@
-// Use require instead of import to ensure app is available
+
 // This is more reliable when Electron is launched via command line
 const { app } = require("electron")
 
@@ -10,7 +10,7 @@ try {
     app.commandLine.appendSwitch('disable-gpu-sandbox')
   }
 } catch (error) {
-  // If app.commandLine is not available, continue without setting switches
+
   // This can happen in certain Electron initialization scenarios
   console.warn('Could not set command line switches:', error)
 }
@@ -31,7 +31,7 @@ import { registerSystemHandlers } from "./ipc/system-handlers"
 import { registerUpdateHandlers } from "./ipc/update-handlers"
 import { initializeGitHubUpdater } from "./github-update"
 
-// Check if app is available before initializing
+
 if (!app) {
   console.error("App object is not available - cannot initialize application")
     process.exit(1)
@@ -63,16 +63,16 @@ if (!app) {
       registerFileHandlers(app)
       registerUpdateHandlers()
       
-      // Register dashboard-ready handler (needs to be registered separately)
+
       registerDashboardReadyHandler(app)
 }
 
-// Initialize GitHub updater (async, but don't wait for it)
+
 initializeGitHubUpdater().catch((error) => {
   console.warn("Failed to initialize GitHub updater:", error)
 })
 
-// Handle app.whenReady() lifecycle
+
 if (app && typeof app.whenReady === 'function') {
   app.whenReady().then(async () => {
     await handleAppReady(app)
