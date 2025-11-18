@@ -26,10 +26,10 @@ const execAsync = promisify(exec)
  */
 function sanitizeArgsForLogging(args: string[]): string[] {
   const sanitized = [...args]
-  // Find and redact password arguments (--requirepass, -a, --password, etc.)
+
   for (let i = 0; i < sanitized.length; i++) {
     const arg = sanitized[i]
-    // Check for password flags (note: -p is port, not password for redis-cli)
+
     if (
       arg === '--requirepass' ||
       arg === '-a' ||
@@ -81,7 +81,7 @@ export async function startDatabaseProcess(
 ): Promise<{ success: boolean }> {
   const { type, port } = config
 
-  // Return immediately to prevent UI freezing
+
   log.info(`Starting ${type} database on port ${port}...`)
 
   // Use process.nextTick to defer the heavy initialization work to the next event loop
@@ -116,7 +116,7 @@ export async function startDatabaseProcessAsync(
   const runningDatabases = sharedState.getRunningDatabases()
   const mainWindow = sharedState.getMainWindow()
 
-  // Ensure containerId is available - use from config, or fallback to id
+
   const containerId = configContainerId || config.containerId || id
 
   try {
@@ -132,12 +132,12 @@ export async function startDatabaseProcessAsync(
     let mysqldPath: string
 
     if (type === "postgresql") {
-      // Get PostgreSQL binary paths from database record or find them
+
       const databases = storage.loadDatabases(app)
       const dbRecord = databases.find((d) => d.id === id)
       let postgresPath, initdbPath
 
-      // Extract major version from config version (e.g., "16.1" -> "16", "15.4" -> "15")
+
       const getMajorVersion = (version: string): string => {
         if (!version || version === "latest") return ""
         const parts = version.split('.')
@@ -147,7 +147,7 @@ export async function startDatabaseProcessAsync(
       // Resolve "latest" version to actual version if needed
       let resolvedVersion = config.version || dbRecord?.version || ""
       if (resolvedVersion === "latest") {
-        // Note: "latest" version resolution is not available
+
         // User should specify an explicit version
         console.warn(`[PostgreSQL] "latest" version specified, but version resolution is not available`)
         resolvedVersion = "16" // Fallback to PostgreSQL 16
@@ -235,7 +235,7 @@ export async function startDatabaseProcessAsync(
         }
       }
 
-      // Create data directory and initialize (async to prevent blocking)
+
       const fsPromises = fs.promises
       const fsSync = fs
       const dataDir = storage.getDatabaseDataDir(app, containerId)
@@ -246,7 +246,7 @@ export async function startDatabaseProcessAsync(
         // Directory might already exist
       }
 
-      // Create container-specific temp directory for PostgreSQL
+
       const tempDir = path.join(dataDir, "tmp")
       try {
         await fsPromises.mkdir(tempDir, { recursive: true })
@@ -286,12 +286,12 @@ export async function startDatabaseProcessAsync(
         "work_mem=64MB", // Increase work memory to reduce temp file usage
       ]
 
-      // Set TMPDIR environment variable to use container-specific temp directory
+
       env.TMPDIR = tempDir
       env.TMP = tempDir
       env.TEMP = tempDir
       
-      // Set locale environment variables for PostgreSQL to prevent "postmaster became multithreaded" error
+
       // PostgreSQL requires consistent locale settings
       env.LC_ALL = process.env.LC_ALL || process.env.LANG || "C"
       env.LANG = process.env.LANG || "C"
@@ -302,7 +302,7 @@ export async function startDatabaseProcessAsync(
       env.LC_NUMERIC = process.env.LC_NUMERIC || process.env.LC_ALL || process.env.LANG || "C"
       env.LC_TIME = process.env.LC_TIME || process.env.LC_ALL || process.env.LANG || "C"
 
-      // Check if database directory already exists and is initialized
+
       const pgVersionPath = `${dataDir}/PG_VERSION`
       const pgConfigPath = `${dataDir}/postgresql.conf`
 
@@ -316,18 +316,18 @@ export async function startDatabaseProcessAsync(
           if (fsSync.existsSync(dataDir)) {
             try {
               const dirContents = fsSync.readdirSync(dataDir)
-              // If directory has any contents (including hidden files), clean it up
+
               if (dirContents.length > 0) {
                 console.log(
                   `[PostgreSQL] Directory exists but is not properly initialized (missing PG_VERSION or postgresql.conf), cleaning up...`,
                 )
                 await fsPromises.rm(dataDir, { recursive: true, force: true })
-                // Wait a bit to ensure filesystem operations complete
+
                 await new Promise((resolve) => setTimeout(resolve, 200))
                 await fsPromises.mkdir(dataDir, { recursive: true })
               }
             } catch (cleanupError: unknown) {
-              // If readdir fails, try to remove directory anyway (might be permission issue or directory in use)
+
               // This can happen if there are hidden files or permission issues
               console.log(
                 `[PostgreSQL] Could not read directory contents, attempting to remove directory anyway:`,
@@ -351,7 +351,7 @@ export async function startDatabaseProcessAsync(
             }
           }
 
-          // Final verification: ensure directory is empty before initializing
+
           // This catches edge cases where files might still exist after cleanup
           if (fsSync.existsSync(dataDir)) {
             try {
@@ -377,8 +377,8 @@ export async function startDatabaseProcessAsync(
           }
 
           console.log(`[PostgreSQL] Initializing database with ${initdbPath}`)
-          // Use spawn instead of execSync to prevent blocking
-          // Ensure locale is set consistently for initdb
+
+
           const initEnv = {
             ...env,
             LC_ALL: env.LC_ALL || "C",
@@ -411,7 +411,7 @@ export async function startDatabaseProcessAsync(
           await new Promise<void>((resolve, reject) => {
             initProcess.on("exit", (code: number | null) => {
               if (code === 0) {
-                // Verify that postgresql.conf was actually created
+
                 if (fsSync.existsSync(pgConfigPath)) {
                   console.log(`[PostgreSQL] Database initialized successfully`)
                   resolve()
@@ -458,7 +458,7 @@ export async function startDatabaseProcessAsync(
         console.log(`[PostgreSQL] Database already initialized, skipping initdb`)
       }
 
-      // Set up authentication (async)
+
       const pgHbaPath = `${dataDir}/pg_hba.conf`
       if (fsSync.existsSync(pgHbaPath)) {
         try {
@@ -482,7 +482,7 @@ export async function startDatabaseProcessAsync(
         }
       }
 
-      // Check for and remove PostgreSQL lock file that might prevent startup
+
       // An unclean shutdown can leave a postmaster.pid file preventing PostgreSQL from starting
       const postmasterPidPath = path.join(dataDir, "postmaster.pid")
       if (fsSync.existsSync(postmasterPidPath)) {
@@ -490,16 +490,16 @@ export async function startDatabaseProcessAsync(
           `[PostgreSQL] ${id} Found postmaster.pid file, checking if process is running...`,
         )
         try {
-          // Read the PID from the lock file
+
           const pidContent = fsSync.readFileSync(postmasterPidPath, "utf8")
           const lines = pidContent.trim().split("\n")
           if (lines.length > 0) {
             const pid = parseInt(lines[0], 10)
             if (!isNaN(pid) && pid > 0) {
-              // Check if the process is actually running
+
               try {
                 process.kill(pid, 0) // Signal 0 doesn't kill, just checks if process exists
-                // Process exists, so it might be a real running instance
+
                 console.log(
                   `[PostgreSQL] ${id} Process ${pid} from postmaster.pid is still running, not removing lock file`,
                 )
@@ -547,11 +547,11 @@ export async function startDatabaseProcessAsync(
         }
       }
     } else if (type === "mysql") {
-      // Get MySQL binary path from database record or find it
+
       const databases = storage.loadDatabases(app)
       const dbRecord = databases.find((d) => d.id === id)
 
-      // Extract major version from config version (e.g., "8.0.35" -> "8.0")
+
       const getMajorVersion = (version: string): string => {
         if (!version) return ""
         const parts = version.split('.')
@@ -620,32 +620,32 @@ export async function startDatabaseProcessAsync(
         }
       }
 
-      // Create data directory (async)
+
       const fsPromises = fs.promises
       const fsSync = fs
       const dataDir = storage.getDatabaseDataDir(app, containerId)
 
-      // Get the MySQL base directory from the mysqld path
+
       const mysqlBaseDir = mysqldPath.replace("/bin/mysqld", "")
 
       // Use container-specific temp directory to allow cleanup
       const tempDir = path.join(dataDir, "tmp")
 
-      // Ensure data directory exists first
+
       try {
         await fsPromises.mkdir(dataDir, { recursive: true })
       } catch (_e) {
         // Directory might already exist
       }
 
-      // Ensure temp directory exists (will be recreated after init if needed)
+
       try {
         await fsPromises.mkdir(tempDir, { recursive: true })
       } catch (_e) {
         // Directory might already exist
       }
 
-      // Check for and remove MySQL lock file that might prevent startup
+
       // An unclean shutdown can leave a mysql.pid file preventing MySQL from starting
       const mysqlPidPath = path.join(dataDir, "mysql.pid")
       if (fsSync.existsSync(mysqlPidPath)) {
@@ -653,14 +653,14 @@ export async function startDatabaseProcessAsync(
           `[MySQL] ${id} Found mysql.pid file, checking if process is running...`,
         )
         try {
-          // Read the PID from the lock file
+
           const pidContent = fsSync.readFileSync(mysqlPidPath, "utf8")
           const pid = parseInt(pidContent.trim(), 10)
           if (!isNaN(pid) && pid > 0) {
-            // Check if the process is actually running
+
             try {
               process.kill(pid, 0) // Signal 0 doesn't kill, just checks if process exists
-              // Process exists, so it might be a real running instance
+
               console.log(
                 `[MySQL] ${id} Process ${pid} from mysql.pid is still running, not removing lock file`,
               )
@@ -708,7 +708,7 @@ export async function startDatabaseProcessAsync(
         "--datadir",
         dataDir,
         "--bind-address=127.0.0.1",
-        // Don't specify --log-error to prevent log file creation
+
         `--basedir=${mysqlBaseDir}`,
         `--tmpdir=${tempDir}`, // Use container-specific temp dir instead of /tmp
         `--pid-file=${dataDir}/mysql.pid`,
@@ -729,7 +729,7 @@ export async function startDatabaseProcessAsync(
         // Directory might already exist
       }
 
-      // Initialize MySQL database if it doesn't exist
+
       const mysqlDataExists = await fsPromises
         .access(`${dataDir}/mysql`)
         .then(() => true)
@@ -740,7 +740,7 @@ export async function startDatabaseProcessAsync(
           console.log(`[MySQL] Initializing database with ${mysqldPath}`)
           console.log(`[MySQL] Data directory: ${dataDir}`)
 
-          // Ensure data directory is empty and has proper permissions
+
           try {
             await fsPromises.rm(dataDir, { recursive: true, force: true })
           } catch (_e) {
@@ -748,11 +748,11 @@ export async function startDatabaseProcessAsync(
           }
           await fsPromises.mkdir(dataDir, { recursive: true })
 
-          // Add a small delay to ensure directory is properly created
+
           await new Promise((resolve) => setTimeout(resolve, 100))
 
-          // Use spawn instead of execSync to prevent blocking
-          // Get the MySQL base directory from the mysqld path
+
+
           const mysqlBaseDir = mysqldPath.replace("/bin/mysqld", "")
 
           const initProcess = spawn(
@@ -760,7 +760,7 @@ export async function startDatabaseProcessAsync(
             [
               "--initialize-insecure",
               `--datadir=${dataDir}`,
-              // Don't specify --log-error to prevent log file creation during initialization
+
               `--basedir=${mysqlBaseDir}`,
               "--tmpdir=/tmp",
             ],
@@ -802,7 +802,7 @@ export async function startDatabaseProcessAsync(
               console.log(`[MySQL] Initialization process exited with code ${code}`)
               if (code === 0) {
                 console.log(`[MySQL] Database initialized successfully`)
-                // Verify the mysql directory was created
+
                 try {
                   const mysqlDirExists = await fsPromises
                     .access(`${dataDir}/mysql`)
@@ -843,7 +843,7 @@ export async function startDatabaseProcessAsync(
                 console.error(`[MySQL] Init output:`, initOutput)
                 console.error(`[MySQL] Init error:`, initError)
 
-                // Log files are disabled, error details are in initError above
+
 
                 // Try alternative initialization method
                 console.log(`[MySQL] Attempting alternative initialization method...`)
@@ -879,7 +879,7 @@ export async function startDatabaseProcessAsync(
         }
       } else {
         console.log(`[MySQL] Database already initialized, skipping initialization`)
-        // Ensure temp directory exists even if database was already initialized
+
         try {
           await fsPromises.mkdir(tempDir, { recursive: true })
           console.log(`[MySQL] Ensured temp directory exists: ${tempDir}`)
@@ -891,12 +891,12 @@ export async function startDatabaseProcessAsync(
         }
       }
     } else if (type === "mongodb") {
-      // Get MongoDB binary path from database record or find it
+
       const databases = storage.loadDatabases(app)
       const dbRecord = databases.find((d) => d.id === id)
       let mongodPath: string
 
-      // Extract major version from config version (e.g., "8.0.1" -> "8.0")
+
       const getMajorVersion = (version: string): string => {
         if (!version) return ""
         const parts = version.split('.')
@@ -967,7 +967,7 @@ export async function startDatabaseProcessAsync(
         }
       }
 
-      // Create data directory (async)
+
       const fsPromises = fs.promises
       const dataDir = storage.getDatabaseDataDir(app, containerId)
 
@@ -977,7 +977,7 @@ export async function startDatabaseProcessAsync(
         // Directory might already exist
       }
 
-      // Create container-specific temp directory for MongoDB
+
       const tempDir = path.join(dataDir, "tmp")
       try {
         await fsPromises.mkdir(tempDir, { recursive: true })
@@ -985,13 +985,13 @@ export async function startDatabaseProcessAsync(
         // Directory might already exist
       }
 
-      // Verify MongoDB binary exists and is executable
+
       const fsSync = fs
       try {
         if (!fsSync.existsSync(mongodPath)) {
           throw new Error(`MongoDB binary not found at ${mongodPath}`)
         }
-        // Check if file is executable (stat mode)
+
         const stats = fsSync.statSync(mongodPath)
         if (!stats.isFile()) {
           throw new Error(`MongoDB path exists but is not a file: ${mongodPath}`)
@@ -1007,7 +1007,7 @@ export async function startDatabaseProcessAsync(
         )
       }
 
-      // Verify data directory is writable
+
       try {
         const testFile = path.join(dataDir, ".write-test")
         fsSync.writeFileSync(testFile, "test")
@@ -1023,7 +1023,7 @@ export async function startDatabaseProcessAsync(
         )
       }
 
-      // Check for and remove MongoDB lock file that might prevent startup
+
       // An unclean shutdown can leave a mongod.lock file preventing MongoDB from starting
       const lockFilePath = path.join(dataDir, "mongod.lock")
       if (fsSync.existsSync(lockFilePath)) {
@@ -1059,12 +1059,12 @@ export async function startDatabaseProcessAsync(
         // Note: --logRotate is not a valid flag, log rotation is handled automatically
       ]
     } else if (type === "redis") {
-      // Get Redis binary path from database record or find it
+
       const databases = storage.loadDatabases(app)
       const dbRecord = databases.find((d) => d.id === id)
       let redisPath
 
-      // Extract major version from config version (e.g., "7.2.1" -> "7.2")
+
       const getMajorVersion = (version: string): string => {
         if (!version) return ""
         const parts = version.split('.')
@@ -1140,7 +1140,7 @@ export async function startDatabaseProcessAsync(
         }
       }
 
-      // Create data directory for Redis
+
       const fsPromises = fs.promises
       const redisDataDir = storage.getDatabaseDataDir(app, containerId)
       try {
@@ -1152,7 +1152,7 @@ export async function startDatabaseProcessAsync(
       // Use password directly from config
       const redisPassword = (password as string) || ""
 
-      // Create container-specific temp directory for Redis
+
       const tempDir = path.join(redisDataDir, "tmp")
       try {
         await fsPromises.mkdir(tempDir, { recursive: true })
@@ -1160,13 +1160,13 @@ export async function startDatabaseProcessAsync(
         // Directory might already exist
       }
 
-      // Verify Redis binary exists and is executable
+
       const fsSync = fs
       try {
         if (!fsSync.existsSync(redisPath)) {
           throw new Error(`Redis binary not found at ${redisPath}`)
         }
-        // Check if file is executable (stat mode)
+
         const stats = fsSync.statSync(redisPath)
         if (!stats.isFile()) {
           throw new Error(`Redis path exists but is not a file: ${redisPath}`)
@@ -1182,7 +1182,7 @@ export async function startDatabaseProcessAsync(
         )
       }
 
-      // Verify data directory is writable
+
       try {
         const testFile = path.join(redisDataDir, ".write-test")
         fsSync.writeFileSync(testFile, "test")
@@ -1198,9 +1198,9 @@ export async function startDatabaseProcessAsync(
         )
       }
 
-      // Check for and remove any existing Redis config files that might cause issues
+
       // Redis 8.2+ has issues with paths containing spaces in config files
-      // We must remove all config files to prevent Redis from auto-discovering them
+
       const possibleConfigFiles = [
         path.join(redisDataDir, "redis.conf"),
         path.join(redisDataDir, "redis-server.conf"),
@@ -1225,7 +1225,7 @@ export async function startDatabaseProcessAsync(
         }
       }
 
-      // Check for Homebrew default config file that might cause issues
+
       const homebrewConfigPath = "/opt/homebrew/etc/redis.conf"
       if (fsSync.existsSync(homebrewConfigPath)) {
         console.log(
@@ -1236,7 +1236,7 @@ export async function startDatabaseProcessAsync(
         )
       }
 
-      // Use command-line arguments instead of config file to avoid path-with-spaces issues
+
       // Redis 8.2+ has issues with paths containing spaces in config files
       // Command-line arguments should override any default config file settings
       // We explicitly avoid using config files and rely on command-line args only
@@ -1267,7 +1267,7 @@ export async function startDatabaseProcessAsync(
         "no", // Disable AOF to avoid conflicts
       ]
 
-      // Add password if provided
+
       if (redisPassword && redisPassword.trim() !== "") {
         args.push("--requirepass", redisPassword)
         console.log(`[Redis] ${id} Starting with password authentication`)
@@ -1294,8 +1294,8 @@ export async function startDatabaseProcessAsync(
         }
       }
 
-      // Log the actual args being used to verify no config file path is included
-      // Sanitize args to prevent logging sensitive information like passwords
+
+
       const sanitizedArgs = sanitizeArgsForLogging(args)
       console.log(
         `[Redis] ${id} Starting Redis with command-line args (no config file)`,
@@ -1305,23 +1305,23 @@ export async function startDatabaseProcessAsync(
 
       // For Redis: Final safety check - ensure no config file path is in args
       if (type === "redis") {
-        // Verify args doesn't contain any config file paths
+
         const argsString = JSON.stringify(args)
         if (argsString.includes("redis.conf") || argsString.includes(".conf")) {
           console.error(
             `[Redis] ${id} ERROR: Config file path found in args! This should not happen.`,
           )
-          // Sanitize args before logging to prevent exposing sensitive information
+
           const sanitizedArgsString = JSON.stringify(sanitizeArgsForLogging(args))
           console.error(`[Redis] ${id} Args: ${sanitizedArgsString}`)
-          // Remove any config file references from args
+
           args = args.filter(
             (arg) => !arg.includes("redis.conf") && !arg.endsWith(".conf"),
           )
           console.log(`[Redis] ${id} Cleaned args: ${JSON.stringify(sanitizeArgsForLogging(args))}`)
         }
 
-        // One more final check to remove config file just before spawning
+
         const redisDataDir = storage.getDatabaseDataDir(app, containerId)
         const configFilePath = path.join(redisDataDir, "redis.conf")
         if (fsSync.existsSync(configFilePath)) {
@@ -1350,7 +1350,7 @@ export async function startDatabaseProcessAsync(
       }
     }
 
-    // Ensure temp directory exists right before starting the process (for MySQL and PostgreSQL)
+
     if (type === "mysql" || type === "postgresql") {
       try {
         const fsPromises = fs.promises
@@ -1368,7 +1368,7 @@ export async function startDatabaseProcessAsync(
       }
     }
 
-    // Use stdio: "pipe" to prevent terminal interactions (password prompts, etc.)
+
     // For Redis, ensure we're not starting from a directory with config files
     const spawnOptions: {
       env: NodeJS.ProcessEnv
@@ -1384,14 +1384,14 @@ export async function startDatabaseProcessAsync(
     // For Redis, set working directory to a safe location (not the data directory)
     // This prevents Redis from auto-discovering config files in the data directory
     if (type === "redis") {
-      // Use a temp directory or system temp to avoid config file auto-discovery
+
       spawnOptions.cwd = os.tmpdir()
       console.log(
         `[Redis] ${id} Starting Redis from ${spawnOptions.cwd} to avoid config file auto-discovery`,
       )
     }
 
-    // Ensure cmd and args are defined before spawning
+
     if (!cmd || !args) {
       throw new Error(
         `Failed to initialize ${type} database: cmd or args not defined`,
@@ -1421,7 +1421,7 @@ export async function startDatabaseProcessAsync(
             `[PostgreSQL] ${id} sending ready event (readyEventSent: ${readyEventSent})`,
           )
 
-          // Update status to running in storage
+
           try {
             const databases = storage.loadDatabases(app)
             const dbIndex = databases.findIndex((db) => db.id === id)
@@ -1479,7 +1479,7 @@ export async function startDatabaseProcessAsync(
         const output = data.toString()
         console.log(`[PostgreSQL] ${id} output:`, output.trim())
 
-        // Check for PostgreSQL ready message
+
         if (
           output.includes("ready to accept connections") ||
           output.includes("database system is ready to accept connections")
@@ -1501,14 +1501,14 @@ export async function startDatabaseProcessAsync(
         // Capture error output for better error messages
         stderrOutput.push(trimmedOutput)
 
-        // Filter out routine checkpoint logs (they're informational, not errors)
+
         const isCheckpointLog =
           trimmedOutput.includes("checkpoint starting:") ||
           trimmedOutput.includes("checkpoint complete:")
 
         // Only log non-checkpoint messages or actual errors
         if (!isCheckpointLog) {
-          // Check if it's an actual error (contains ERROR, FATAL, PANIC)
+
           const isError = /ERROR|FATAL|PANIC/i.test(trimmedOutput)
           if (isError) {
             console.error(`[PostgreSQL] ${id} error:`, trimmedOutput)
@@ -1518,7 +1518,7 @@ export async function startDatabaseProcessAsync(
           }
         }
 
-        // Check for PostgreSQL ready message in stderr too
+
         if (
           output.includes("ready to accept connections") ||
           output.includes("database system is ready to accept connections")
@@ -1535,7 +1535,7 @@ export async function startDatabaseProcessAsync(
         }
       })
 
-      // Set a timeout for PostgreSQL startup (60 seconds)
+
       startupTimeout = setTimeout(() => {
         if (!isStartupComplete) {
           console.log(`[PostgreSQL] ${id} startup timeout - assuming ready`)
@@ -1552,7 +1552,7 @@ export async function startDatabaseProcessAsync(
             `[MySQL] ${id} sending ready event (readyEventSent: ${readyEventSent})`,
           )
 
-          // Update status to running in storage
+
           try {
             const databases = storage.loadDatabases(app)
             const dbIndex = databases.findIndex((db) => db.id === id)
@@ -1599,7 +1599,7 @@ export async function startDatabaseProcessAsync(
           const output = data.toString()
           console.log(`[MySQL] ${id} output:`, output.trim())
 
-          // Check for MySQL ready message
+
           if (
             output.includes("ready for connections") ||
             output.includes("ready to accept connections") ||
@@ -1627,7 +1627,7 @@ export async function startDatabaseProcessAsync(
           // Capture error output for better error messages
           stderrOutput.push(trimmedOutput)
           
-          // Check if it's an actual error
+
           const isError = /ERROR|FATAL|error|fatal/i.test(trimmedOutput)
           if (isError) {
             console.error(`[MySQL] ${id} error:`, trimmedOutput)
@@ -1636,7 +1636,7 @@ export async function startDatabaseProcessAsync(
             console.log(`[MySQL] ${id} output:`, trimmedOutput)
           }
 
-          // Check for MySQL ready message in stderr too
+
           if (
             output.includes("ready for connections") ||
             output.includes("ready to accept connections") ||
@@ -1656,7 +1656,7 @@ export async function startDatabaseProcessAsync(
         }
       })
 
-      // Set a timeout for MySQL startup (30 seconds)
+
       startupTimeout = setTimeout(() => {
         if (!isStartupComplete) {
           console.log(`[MySQL] ${id} startup timeout - assuming ready`)
@@ -1665,7 +1665,7 @@ export async function startDatabaseProcessAsync(
         }
       }, 30000)
     } else if (type === "mongodb") {
-      // Log MongoDB output for debugging
+
       child.stdout!.on("data", (data: Buffer) => {
         try {
           const output = data.toString()
@@ -1683,7 +1683,7 @@ export async function startDatabaseProcessAsync(
           // Capture error output for better error messages
           stderrOutput.push(trimmedOutput)
 
-          // Check if it's an actual error (contains ERROR, FATAL, or critical messages)
+
           const isError =
             /ERROR|FATAL|error|fatal|exception|Assertion/i.test(trimmedOutput)
           if (isError) {
@@ -1699,7 +1699,7 @@ export async function startDatabaseProcessAsync(
 
       // For MongoDB, mark as running after a short delay and configure
       mongodbStatusTimeout = setTimeout(async () => {
-        // Check if process is still running before setting status to running
+
         if (child.killed || child.exitCode !== null) {
           console.log(
             `[Database] ${id} process already exited, not setting status to running (MongoDB)`,
@@ -1717,7 +1717,7 @@ export async function startDatabaseProcessAsync(
           return
         }
 
-        // Check if still in runningDatabases map
+
         if (!runningDatabases.has(id)) {
           console.log(
             `[Database] ${id} not in running databases map, not setting status to running (MongoDB)`,
@@ -1767,7 +1767,7 @@ export async function startDatabaseProcessAsync(
     } else if (type === "redis") {
       // For Redis, mark as running after a short delay and configure
       redisStatusTimeout = setTimeout(async () => {
-        // Check if process is still running before setting status to running
+
         if (child.killed || child.exitCode !== null) {
           console.error(
             `[Database] ${id} process already exited, not setting status to running (Redis)`,
@@ -1781,7 +1781,7 @@ export async function startDatabaseProcessAsync(
               pid: null,
             })
           }
-          // Update storage
+
           try {
             const databases = storage.loadDatabases(app)
             const dbIndex = databases.findIndex((db) => db.id === id)
@@ -1797,7 +1797,7 @@ export async function startDatabaseProcessAsync(
           return
         }
 
-        // Check if still in runningDatabases map
+
         if (!runningDatabases.has(id)) {
           console.log(
             `[Database] ${id} not in running databases map, not setting status to running (Redis)`,
@@ -1845,7 +1845,7 @@ export async function startDatabaseProcessAsync(
         }
       }, 1000)
 
-      // Log Redis output for debugging
+
       child.stdout!.on("data", (data: Buffer) => {
         try {
           const output = data.toString()
@@ -1905,7 +1905,7 @@ export async function startDatabaseProcessAsync(
           redisStatusTimeout = null
         }
 
-        // Build a more helpful error message
+
         let errorMessage = err.message
         if (err.message.includes("ENOENT") || err.message.includes("not found")) {
           errorMessage = `${type} binary not found. Please ensure ${type} is installed via Homebrew.`
@@ -1915,7 +1915,7 @@ export async function startDatabaseProcessAsync(
           errorMessage = `Port ${port} is already in use. Please choose a different port.`
         }
 
-        // Update database in storage to clear PID, update status, and clear lastStarted timestamp
+
         try {
           const databases = storage.loadDatabases(app)
           const dbIndex = databases.findIndex((db) => db.id === id)
@@ -1949,16 +1949,16 @@ export async function startDatabaseProcessAsync(
     child.on("exit", (code: number | null) => {
       console.log(`[Database] ${id} exited with code ${code}`)
 
-      // Build error message from captured output
+
       let errorMessage: string | undefined = undefined
       
-      // Log additional error information for non-zero exit codes
+
       if (code !== 0 && code !== null) {
         console.error(
           `[Database] ${id} exited with non-zero code ${code}. This usually indicates an error.`,
         )
         
-        // Extract meaningful error message from captured output
+
         if (errorOutput.length > 0) {
           // Use the last few error lines (most recent errors are usually most relevant)
           const recentErrors = errorOutput.slice(-3).join("; ")
@@ -1982,7 +1982,7 @@ export async function startDatabaseProcessAsync(
           }
         }
         
-        // Log detailed error information
+
         if (type === "postgresql") {
           console.error(`[PostgreSQL] ${id} PostgreSQL failed to start. Common causes:`)
           console.error(`[PostgreSQL] ${id} - Port ${port} may already be in use`)
@@ -2039,7 +2039,7 @@ export async function startDatabaseProcessAsync(
         redisStatusTimeout = null
       }
 
-      // Update database in storage to clear PID, update status, and clear lastStarted timestamp
+
       try {
         const databases = storage.loadDatabases(app)
         const dbIndex = databases.findIndex((db) => db.id === id)
@@ -2067,7 +2067,7 @@ export async function startDatabaseProcessAsync(
       }
     })
 
-    // Add to running map immediately - we'll let the process events handle cleanup
+
     runningDatabases.set(id, {
       process: child,
       config,
@@ -2075,7 +2075,7 @@ export async function startDatabaseProcessAsync(
     })
     console.log(`[Database] ${type} database process started (PID: ${child.pid})`)
 
-    // Save PID and starting status to storage
+
     try {
       const databases = storage.loadDatabases(app)
       const dbIndex = databases.findIndex((db) => db.id === id)
@@ -2102,7 +2102,7 @@ export async function startDatabaseProcessAsync(
       console.log(`[Database] ${id} starting status sent to frontend`)
     }
 
-    // Return success result for auto-start functionality
+
     return { success: true }
   } catch (error: unknown) {
     console.error(`[Database] ${id} failed to start:`, error)
@@ -2202,8 +2202,8 @@ export async function stopDatabaseProcessGracefully(
           try {
             const actualPassword = (password || "") as string
             if (actualPassword && actualPassword.trim() !== "") {
-              // Use spawn instead of execSync to prevent command injection
-              // Pass arguments as array to avoid shell interpretation
+
+
               await new Promise<void>((resolve, reject) => {
                 const child = spawn(redisCliCmd, [
                   '-h', 'localhost',
@@ -2246,7 +2246,7 @@ export async function stopDatabaseProcessGracefully(
                 })
               })
             } else {
-              // Use spawn instead of execSync to prevent command injection
+
               await new Promise<void>((resolve, reject) => {
                 const child = spawn(redisCliCmd, [
                   '-h', 'localhost',
@@ -2290,7 +2290,7 @@ export async function stopDatabaseProcessGracefully(
             }
             console.log(`[Redis] ${id} Gracefully shut down using redis-cli SHUTDOWN SAVE`)
           } catch (shutdownError: unknown) {
-            // If redis-cli fails, fall back to SIGTERM
+
             console.log(
               `[Redis] ${id} redis-cli shutdown failed, using SIGTERM:`,
               (shutdownError as Error).message,
@@ -2360,7 +2360,7 @@ export async function killProcessByPid(
   signal: NodeJS.Signals = "SIGTERM",
 ): Promise<boolean> {
   return new Promise((resolve) => {
-    // Validate PID is a valid number
+
     if (pid === null || pid === undefined || typeof pid !== "number" || isNaN(pid)) {
       console.log(`[Kill] Invalid PID: ${pid}, skipping`)
       resolve(false)
@@ -2373,7 +2373,7 @@ export async function killProcessByPid(
       resolve(true)
     } catch (error: unknown) {
       if ((error as NodeJS.ErrnoException).code === "ESRCH") {
-        // Process doesn't exist
+
         console.log(`[Kill] Process ${pid} doesn't exist`)
         resolve(false)
       } else {
@@ -2396,7 +2396,7 @@ const KILL_ALL_THROTTLE_MS = 5000 // Throttle to once every 5 seconds
 export async function killAllDatabaseProcesses(
   app: Electron.App | null,
 ): Promise<void> {
-  // Throttle calls to prevent resource exhaustion from multiple simultaneous calls
+
   const now = Date.now()
   if (isKillingInProgress || (now - lastKillAllCallTime) < KILL_ALL_THROTTLE_MS) {
     console.log('[Kill] Throttling killAllDatabaseProcesses call to prevent resource exhaustion')
@@ -2431,7 +2431,7 @@ export async function killAllDatabaseProcesses(
     try {
       const databases = storage.loadDatabases(app)
       for (const db of databases) {
-        // Check that pid is a valid number (not null, undefined, or NaN)
+
         if (
           db.pid !== null &&
           db.pid !== undefined &&
@@ -2482,7 +2482,7 @@ export async function killAllDatabaseProcesses(
           for (const pidStr of pids) {
             const pid = parseInt(pidStr)
             if (!isNaN(pid) && !killedPids.has(pid)) {
-              // Check if this PID matches any known database
+
               const databases = storage.loadDatabases(app)
               const isKnownProcess =
                 databases.some((db) => db.pid === pid) ||
@@ -2491,9 +2491,9 @@ export async function killAllDatabaseProcesses(
                 )
 
               if (!isKnownProcess) {
-                // Verify this process belongs to our app by checking its command line
+
                 try {
-                  // Add small delay between execSync calls to prevent EAGAIN errors (reduced from 200ms)
+
                   await new Promise((resolve) => setTimeout(resolve, 50))
 
                   const psOutput = execSync(`ps -p ${pid} -o command=`, {
@@ -2503,7 +2503,7 @@ export async function killAllDatabaseProcesses(
                   })
                   const command = psOutput.trim()
 
-                  // Check if command line contains our app's data directory
+
                   const belongsToApp =
                     command.includes(appDataDir) || command.includes(databasesDir)
 
@@ -2515,7 +2515,7 @@ export async function killAllDatabaseProcesses(
                     console.log(`[Kill] Command: ${command.substring(0, 200)}`)
                     await killProcessByPid(pid, "SIGTERM")
                     killedPids.add(pid)
-                    // Add small delay after killing to prevent resource exhaustion (reduced from 300ms)
+
                     await new Promise((resolve) => setTimeout(resolve, 100))
                   } else {
                     // This process doesn't belong to our app - leave it alone
@@ -2524,17 +2524,17 @@ export async function killAllDatabaseProcesses(
                     )
                   }
                 } catch (psError: unknown) {
-                  // Handle EAGAIN errors gracefully
+
                   if (
                     (psError as NodeJS.ErrnoException).code === "EAGAIN" ||
                     (psError as NodeJS.ErrnoException).errno === -35 ||
                     (psError as NodeJS.ErrnoException).code === "ETIMEDOUT"
                   ) {
-                    // Skip this PID immediately to prevent further resource exhaustion
+
                     // Don't log to reduce noise
                     continue
                   }
-                  // Process might have died between pgrep and ps, or we can't read it - skip
+
                   console.log(
                     `[Kill] Could not verify process ${pid} belongs to app, skipping:`,
                     (psError as Error).message,
@@ -2559,11 +2559,11 @@ export async function killAllDatabaseProcesses(
   const stillRunning: number[] = []
   for (const pid of killedPids) {
     try {
-      // Check if process is still running using Promise
+
       await new Promise<void>((resolve) => {
         exec(`ps -p ${pid}`, (psError: unknown) => {
           if (!psError) {
-            // Process still running
+
             const pidNum = typeof pid === "number" ? pid : parseInt(String(pid))
             if (!isNaN(pidNum)) {
               stillRunning.push(pidNum)
@@ -2573,7 +2573,7 @@ export async function killAllDatabaseProcesses(
         })
       })
     } catch (_error: unknown) {
-      // Process already dead, ignore
+
     }
   }  // Force kill processes that are still running
   for (const pid of stillRunning) {
@@ -2583,7 +2583,7 @@ export async function killAllDatabaseProcesses(
     await killProcessByPid(pid, "SIGKILL")
   }
 
-  // Final scan to ensure no database processes belonging to our app are left running
+
   if (app) {
     try {
       const appDataDir = app.getPath("userData") // e.g., ~/Library/Application Support/LiquiDB
@@ -2609,7 +2609,7 @@ export async function killAllDatabaseProcesses(
           for (const pidStr of pids) {
             const pid = parseInt(pidStr)
             if (!isNaN(pid) && !killedPids.has(pid)) {
-              // Check if this PID matches any known database
+
               const databases = storage.loadDatabases(app)
               const isKnownProcess =
                 databases.some((db) => db.pid === pid) ||
@@ -2618,7 +2618,7 @@ export async function killAllDatabaseProcesses(
                 )
 
               if (!isKnownProcess) {
-                // Verify this process belongs to our app by checking its command line
+
                 try {
                   const psOutput = execSync(`ps -p ${pid} -o command=`, {
                     encoding: "utf8",
@@ -2626,7 +2626,7 @@ export async function killAllDatabaseProcesses(
                   })
                   const command = psOutput.trim()
 
-                  // Check if command line contains our app's data directory
+
                   const belongsToApp =
                     command.includes(appDataDir) || command.includes(databasesDir)
 
@@ -2639,7 +2639,7 @@ export async function killAllDatabaseProcesses(
                     await killProcessByPid(pid, "SIGKILL")
                   }
                 } catch (_psError: unknown) {
-                  // Process might have died between pgrep and ps, or we can't read it - skip
+
                   // Don't kill processes we can't verify belong to our app
                 }
               }
