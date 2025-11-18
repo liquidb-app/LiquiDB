@@ -37,7 +37,7 @@ function parseChangelog(markdown: string): ChangelogVersion[] {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
     
-    // Match version headers: ## 1.2.0 (2025-11-08) or ## 1.2.0
+
     const versionMatch = line.match(/^##\s+(.+?)(?:\s+\((.+?)\))?$/)
     if (versionMatch) {
       if (currentVersion) {
@@ -52,7 +52,7 @@ function parseChangelog(markdown: string): ChangelogVersion[] {
       continue
     }
 
-    // Match section headers: ### Features, ### Bug Fixes, etc.
+
     const sectionMatch = line.match(/^###\s+(.+)$/)
     if (sectionMatch && currentVersion) {
       const sectionName = sectionMatch[1]
@@ -62,12 +62,12 @@ function parseChangelog(markdown: string): ChangelogVersion[] {
       continue
     }
 
-    // Match list items: * feat: description or * fix: description
+
     const listMatch = line.match(/^\*\s+(.+)$/)
     if (listMatch && currentVersion) {
       let entryText = listMatch[1]
       
-      // Extract issue number: (#123)
+
       const issueMatch = entryText.match(/\(#(\d+)\)/)
       let issueNumber: string | undefined
       let issueUrl: string | undefined
@@ -77,7 +77,7 @@ function parseChangelog(markdown: string): ChangelogVersion[] {
         entryText = entryText.replace(/\(#\d+\)\s*/, "")
       }
       
-      // Extract commit hash: ([hash](url)) or (hash)
+
       const commitLinkMatch = entryText.match(/\(\[([a-f0-9]+)\]\(([^)]+)\)\)\s*$/)
       const commitHashMatch = entryText.match(/\(([a-f0-9]{7,})\)\s*$/)
       let commitHash: string | undefined
@@ -108,7 +108,7 @@ function parseChangelog(markdown: string): ChangelogVersion[] {
           issueUrl,
         }
         
-        // Determine which section this belongs to
+
         const sectionMap: Record<string, string> = {
           feat: "Features",
           fix: "Bug Fixes",

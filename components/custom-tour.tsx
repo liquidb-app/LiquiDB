@@ -247,7 +247,7 @@ export function CustomTour() {
       description: "Tour mode disabled. You can now create databases and use all features.",
       duration: 3000
     })
-    // Remove tour mode flag and force reflow to ensure CSS updates
+
     document.body.removeAttribute('data-tour-mode')
     void document.body.offsetHeight // Force reflow
     setIsOpen(false)
@@ -293,7 +293,7 @@ export function CustomTour() {
     })
     
     setTimeout(() => {
-      // Remove tour mode flag and force reflow to ensure CSS updates
+
       document.body.removeAttribute('data-tour-mode')
       void document.body.offsetHeight // Force reflow
       setIsOpen(false)
@@ -361,7 +361,7 @@ export function CustomTour() {
     let resizeTimeout: NodeJS.Timeout | null = null
     
     const handleResize = () => {
-      // Debounce resize to prevent excessive updates during rapid resizing
+
       if (resizeTimeout) {
         clearTimeout(resizeTimeout)
       }

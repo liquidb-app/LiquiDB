@@ -41,14 +41,14 @@ import type { DatabaseContainer } from "@/lib/types"
 export default function DatabaseManager() {
   const [databases, setDatabases] = useState<DatabaseContainer[]>([])
   
-  // Cache for per-port warning state to prevent UI twitching
+
   const [portWarningCache, setPortWarningCache] = useState<Record<number, {
     show: boolean
     info: { processName: string; pid: string } | null
     freeStreak: number
   }>>({})
 
-  // Update cache only when values actually change to avoid unnecessary re-renders
+
   const updatePortWarningCache = React.useCallback((portNumber: number, next: { show: boolean; info: { processName: string; pid: string } | null; freeStreak: number }) => {
     setPortWarningCache((prev: Record<number, { show: boolean; info: { processName: string; pid: string } | null; freeStreak: number }>): Record<number, { show: boolean; info: { processName: string; pid: string } | null; freeStreak: number }> => {
       const current = prev[portNumber]
@@ -70,22 +70,22 @@ export default function DatabaseManager() {
     })
   }, [])
   
-  // Animated icon hover hooks
+
   const playIconHover = useAnimatedIconHover()
   const plusIconHover = useAnimatedIconHover()
   const gripIconHover = useAnimatedIconHover()
   const fileTextIconHover = useAnimatedIconHover()
   
-  // Database-specific icon hover hook
+
   const { createHoverHandlers } = useDatabaseIconHover()
   
-  // Refs and state that need to be declared before useEffects
+
   const databasesRef = useRef<DatabaseContainer[]>([])
   const lastStatusCheckRef = useRef<Record<string, number>>({})
   const [lastSystemInfoCheck, setLastSystemInfoCheck] = useState<Record<string, number>>({})
   const lastSystemInfoCheckRef = useRef<Record<string, number>>({})
   
-  // Update databases ref whenever databases state changes
+
   useEffect(() => {
     databasesRef.current = databases
   }, [databases])
@@ -123,7 +123,7 @@ export default function DatabaseManager() {
   const [changelogVersion, setChangelogVersion] = useState<string | undefined>(undefined)
   const [changelogContent, setChangelogContent] = useState<string | undefined>(undefined)
   
-  // Delete animation state
+
   const [isDeletingAll, setIsDeletingAll] = useState(false)
   const [deleteAnimationPhase, setDeleteAnimationPhase] = useState<'idle' | 'moving' | 'particles' | 'exploding' | 'complete'>('idle')
   const centerPosition = useRef<{ x: number; y: number } | null>(null)
@@ -141,11 +141,11 @@ export default function DatabaseManager() {
     dashboardOpacity,
   } = useAppInitialization(setAppSettingsOpen)
 
-  // Check if app was just updated and show changelog
+
   useEffect(() => {
     const checkForUpdateChangelog = async () => {
       try {
-        // Check if this is the first launch after an update
+
         const wasUpdated = localStorage.getItem('app-was-updated')
         if (wasUpdated === 'true') {
           const previousVersion = localStorage.getItem('previous-version')
@@ -161,7 +161,7 @@ export default function DatabaseManager() {
             }
           }
           
-          // Clear the flag
+
           localStorage.removeItem('app-was-updated')
           localStorage.removeItem('previous-version')
         }
@@ -175,7 +175,7 @@ export default function DatabaseManager() {
     }
   }, [isLoading])
   
-  // Initialize hooks - order matters due to dependencies
+
   const { checkDatabasesFileExists } = useFileManagement(setDatabases)
   
   const { getVisibleDatabases, getCardAnimationProps, handleOpenExternalLink, handleSettings, handleCopyContainerId } = useUiUtilities(
@@ -199,10 +199,10 @@ export default function DatabaseManager() {
     getVisibleDatabases
   )
   
-  // Create ref for handleBulkStart to avoid circular dependency
+
   const handleBulkStartRef = useRef<((databaseIds: string[]) => Promise<void>) | undefined>(undefined)
   
-  // Port management needs to be initialized before bulk operations (which depends on it)
+
   const { isPortBanned, checkPortConflict, getPortConflictInfo, findFreePort, checkPortConflictsInSelection, showPortConflictDialog, handleConflictDatabaseSelect, handleResolvePortConflict, PortConflictWarning } = usePortManagement(
     databases,
     bannedPorts,
@@ -262,7 +262,7 @@ export default function DatabaseManager() {
     setShowBulkActions
   )
   
-  // Update ref with handleBulkStart for port management
+
   handleBulkStartRef.current = handleBulkStart
   
   const { fetchSystemInfo } = useDatabaseMonitoring(

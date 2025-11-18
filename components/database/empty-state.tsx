@@ -30,7 +30,7 @@ export function EmptyState({
   fileTextIconHover,
 }: EmptyStateProps) {
   const handleAddClick = () => {
-    // Check if we're in tour mode, but allow when tour explicitly enables UI
+
     const inTour = document.body.hasAttribute('data-tour-mode')
     const tourAllowsUI = document.body.hasAttribute('data-tour-allow-ui')
     if (inTour && !tourAllowsUI) {
