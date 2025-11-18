@@ -68,3 +68,5 @@ logs/
 
 # os
 Thumbs.db
+
+scripts/ric.sh

@@ -146,7 +146,7 @@ const areNotificationsEnabled = (): boolean => {
         log.debug("Checked localStorage:", saved, "parsed:", enabled)
         return enabled
       } catch (storageError: unknown) {
-        // Handle SecurityError specifically (access denied)
+
         const error = storageError as Error
         const isSecurityError = error?.name === 'SecurityError' || 
                                 (error?.message && error.message.includes('localStorage') && error.message.includes('denied'))
@@ -222,7 +222,7 @@ export const updateNotificationSetting = (enabled: boolean) => {
         localStorage.setItem("notifications-enabled", JSON.stringify(enabled))
         log.debug("Updated localStorage:", enabled)
       } catch (storageError: unknown) {
-        // Handle SecurityError specifically (access denied)
+
         const error = storageError as Error
         const isSecurityError = error?.name === 'SecurityError' || 
                                 (error?.message && error.message.includes('localStorage') && error.message.includes('denied'))

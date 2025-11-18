@@ -61,14 +61,14 @@ export async function getRunningDatabaseProcesses(
       
       for (const pid of pids) {
         try {
-          // Get process details
+
           const { stdout: psOutput } = await execAsync(`ps -p ${pid} -o pid,ppid,command`) as { stdout: string }
           const lines = psOutput.trim().split('\n')
           if (lines.length > 1) {
             const parts = lines[1].trim().split(/\s+/)
             const command = parts.slice(2).join(' ')
             
-            // Extract port from command if possible
+
             const portMatch = command.match(/--port\s+(\d+)|-p\s+(\d+)|:(\d+)/)
             const port = portMatch ? (portMatch[1] || portMatch[2] || portMatch[3]) : null
             
@@ -80,7 +80,7 @@ export async function getRunningDatabaseProcesses(
             })
           }
         } catch (_e) {
-          // Process might have died between pgrep and ps
+
         }
       }
     } catch (_e) {
@@ -135,7 +135,7 @@ export async function killProcess(pid: number, signal: string = 'SIGTERM'): Prom
  */
 export async function isMainAppRunning(): Promise<boolean> {
   try {
-    // Check for Electron processes running LiquiDB
+
     const { stdout } = await execAsync('ps aux | grep -i "[E]lectron.*[Ll]iquidb\|[Ll]iquidb.*[E]lectron" || true') as { stdout: string }
     const processes = stdout.trim().split('\n').filter(line => {
       return line.length > 0 && 
@@ -161,7 +161,7 @@ export async function isMainAppRunning(): Promise<boolean> {
     
     return processes.length > 0
   } catch (_error) {
-    // If check fails, assume app is not running (safer to clean up orphans)
+
     return false
   }
 }

@@ -13,7 +13,7 @@ export const useBulkOperations = (
   setShowBulkActions: React.Dispatch<React.SetStateAction<boolean>>
 ) => {
   const handleBulkStart = async (databaseIds: string[]) => {
-    // Filter to only include databases that are actually stopped
+
     const stoppedDatabases = databases.filter(db => 
       databaseIds.includes(db.id) && db.status === "stopped"
     )
@@ -57,7 +57,7 @@ export const useBulkOperations = (
           }
         }
 
-        // Check for internal port conflicts (other databases in the selection)
+
         const conflictingDb = stoppedDatabases.find(otherDb => 
           otherDb.id !== targetDb.id && 
           otherDb.port === targetDb.port
@@ -95,7 +95,7 @@ export const useBulkOperations = (
       }
     }
 
-    // First, set all valid databases to "starting" status immediately to prevent race conditions
+
     setDatabases(prev => prev.map(db => 
       validDatabaseIds.includes(db.id) ? { 
         ...db, 
@@ -155,7 +155,7 @@ export const useBulkOperations = (
   }
 
   const handleBulkStop = async (databaseIds: string[]) => {
-    // Filter to only include databases that are actually running
+
     const runningDatabases = databases.filter(db => 
       databaseIds.includes(db.id) && (db.status === "running" || db.status === "starting")
     )
@@ -200,7 +200,7 @@ export const useBulkOperations = (
     const successful = results.filter(r => r.success).length
     const failed = results.filter(r => !r.success).length
 
-    // Show result toast
+
     if (failed === 0) {
       notifySuccess("All Databases Stopped", {
         description: `Successfully stopped ${successful} databases`,
@@ -225,11 +225,11 @@ export const useBulkOperations = (
     const selectedIds = Array.from(selectedDatabases)
     if (selectedIds.length === 0) return
     
-    // Check for port conflicts
+
     const conflicts = checkPortConflictsInSelection(selectedIds)
     
     if (conflicts.length > 0) {
-      // Show port conflict dialog
+
       showPortConflictDialog(conflicts)
       return
     }

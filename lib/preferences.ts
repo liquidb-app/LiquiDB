@@ -112,7 +112,7 @@ export function loadPreferences(): AppPreferences {
       const raw = localStorage.getItem(PREFS_KEY)
       if (raw) return JSON.parse(raw) as AppPreferences
 
-      // Build defaults from scattered keys for backward compatibility
+
       const notificationsEnabled = (() => {
         try {
           const v = localStorage.getItem("notifications-enabled")
@@ -136,7 +136,7 @@ export function loadPreferences(): AppPreferences {
         colorScheme,
       }
     } catch (storageError: unknown) {
-      // Handle SecurityError specifically (access denied)
+
       const error = storageError as Error
       const isSecurityError = error?.name === 'SecurityError' || 
                               (error?.message && error.message.includes('localStorage') && error.message.includes('denied'))
@@ -177,7 +177,7 @@ export async function getBannedPorts(): Promise<number[]> {
 
 export async function setBannedPorts(ports: number[]): Promise<void> {
   try {
-    // Check if the function is available
+
     if (!window.electron?.setBannedPorts) {
       console.warn("setBannedPorts function not available, skipping banned ports setup")
       return
@@ -191,7 +191,7 @@ export async function setBannedPorts(ports: number[]): Promise<void> {
     }
   } catch (error) {
     console.error("Failed to set banned ports:", error)
-    // Don't throw the error to prevent onboarding from failing
+
   }
 }
 
@@ -202,7 +202,7 @@ export function markOnboardingComplete(): void {
       try {
         localStorage.setItem(ONBOARDING_KEY, "true")
       } catch (storageError: unknown) {
-        // Handle SecurityError specifically (access denied)
+
         const error = storageError as Error
         const isSecurityError = error?.name === 'SecurityError' || 
                                 (error?.message && error.message.includes('localStorage') && error.message.includes('denied'))
@@ -225,7 +225,7 @@ export function isOnboardingComplete(): boolean {
       try {
         return localStorage.getItem(ONBOARDING_KEY) === "true"
       } catch (storageError: unknown) {
-        // Handle SecurityError specifically (access denied)
+
         const error = storageError as Error
         const isSecurityError = error?.name === 'SecurityError' || 
                                 (error?.message && error.message.includes('localStorage') && error.message.includes('denied'))

@@ -26,11 +26,11 @@ export const isLikelyFalsePositive = (processName: string): boolean => {
 export const isDatabaseRelatedProcess = (processName: string): boolean => {
   const databaseProcesses = ['postgres', 'mysqld', 'mongod', 'redis-server', 'redis-ser', 'postmaster']
   const lowerProcessName = processName.toLowerCase()
-  // Check if process name matches any database process (handles truncated names from lsof)
+
   return databaseProcesses.some(dp => {
     const lowerDbProcess = dp.toLowerCase()
-    // Check if the process name includes the database process name OR if the database process name includes the process name
-    // This handles cases where lsof truncates names (e.g., "redis-ser" vs "redis-server")
+
+
     return lowerProcessName.includes(lowerDbProcess) || lowerDbProcess.includes(lowerProcessName)
   })
 }

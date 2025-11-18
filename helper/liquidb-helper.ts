@@ -27,7 +27,7 @@ interface Config {
 }
 
 const CONFIG: Config = {
-  // Check interval in milliseconds (2 minutes for more responsive monitoring)
+
   CHECK_INTERVAL: 2 * 60 * 1000,
   
   // App data directory
@@ -41,14 +41,14 @@ const CONFIG: Config = {
     redis: 'redis-server'
   },
   
-  // Log file
+
   LOG_FILE: path.join(os.homedir(), 'Library', 'Logs', 'LiquiDB', 'helper.log'),
   
   // Socket path for IPC communication
   SOCKET_PATH: path.join(os.homedir(), 'Library', 'Application Support', 'LiquiDB', 'helper.sock')
 }
 
-// Ensure log directory exists
+
 const logDir = path.dirname(CONFIG.LOG_FILE)
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true })
@@ -61,7 +61,7 @@ function log(message: string, level: string = 'INFO'): void {
   
   console.log(logMessage.trim())
   
-  // Write to log file
+
   fs.appendFileSync(CONFIG.LOG_FILE, logMessage)
 }
 
@@ -100,7 +100,7 @@ interface PortConflict {
   suggestedPort: number | null
 }
 
-// Load database configurations from storage
+
 function loadDatabaseConfigs(): DatabaseConfig[] {
   try {
     const configFile = path.join(CONFIG.APP_DATA_DIR, 'databases.json')
@@ -116,7 +116,7 @@ function loadDatabaseConfigs(): DatabaseConfig[] {
   }
 }
 
-// Get all running database processes
+
 async function getRunningDatabaseProcesses(): Promise<DatabaseProcess[]> {
   const processes: DatabaseProcess[] = []
   
@@ -127,14 +127,14 @@ async function getRunningDatabaseProcesses(): Promise<DatabaseProcess[]> {
       
       for (const pid of pids) {
         try {
-          // Get process details
+
           const { stdout: psOutput } = await execAsync(`ps -p ${pid} -o pid,ppid,command`) as { stdout: string }
           const lines = psOutput.trim().split('\n')
           if (lines.length > 1) {
             const parts = lines[1].trim().split(/\s+/)
             const command = parts.slice(2).join(' ')
             
-            // Extract port from command if possible
+
             const portMatch = command.match(/--port\s+(\d+)|-p\s+(\d+)|:(\d+)/)
             const port = portMatch ? (portMatch[1] || portMatch[2] || portMatch[3]) : null
             
@@ -146,7 +146,7 @@ async function getRunningDatabaseProcesses(): Promise<DatabaseProcess[]> {
             })
           }
         } catch (_e) {
-          // Process might have died between pgrep and ps
+
         }
       }
     } catch (_e) {
@@ -157,14 +157,14 @@ async function getRunningDatabaseProcesses(): Promise<DatabaseProcess[]> {
   return processes
 }
 
-// Check if the main LiquiDB app is running
+
 async function isMainAppRunning(): Promise<boolean> {
   try {
-    // Check for Electron processes running LiquiDB
+
     // Look for processes matching "Electron" that have LiquiDB in their path
     const { stdout } = await execAsync('ps aux | grep -i "[E]lectron.*[Ll]iquidb\|[Ll]iquidb.*[E]lectron" || true') as { stdout: string }
     const processes = stdout.trim().split('\n').filter(line => {
-      // Filter out grep itself and helper processes
+
       return line.length > 0 && 
              !line.includes('grep') && 
              !line.includes('liquidb-helper') &&
@@ -188,12 +188,12 @@ async function isMainAppRunning(): Promise<boolean> {
     
     return processes.length > 0
   } catch (_error) {
-    // If check fails, assume app is not running (safer to clean up orphans)
+
     return false
   }
 }
 
-// Check if a process is legitimate (matches a known database config)
+
 // This now also checks if the main app is running - if not, all processes are orphaned
 async function isLegitimateProcess(
   process: DatabaseProcess,
@@ -206,13 +206,13 @@ async function isLegitimateProcess(
   }
   
   return configs.some(config => {
-    // Check if process type matches
+
     if (config.type !== process.type) return false
     
-    // Check if port matches (if we can determine it)
+
     if (process.port && config.port !== process.port) return false
     
-    // Check if process is marked as running in config
+
     if (config.status === 'running' || config.status === 'starting') return true
     
     // Additional check: if process has a PID that matches the stored PID
@@ -234,7 +234,7 @@ async function killProcess(pid: number, signal: string = 'SIGTERM'): Promise<boo
   }
 }
 
-// Clean up orphaned processes
+
 export async function cleanupOrphanedProcesses(): Promise<number> {
   log('Starting orphaned process cleanup...')
   
@@ -255,19 +255,19 @@ export async function cleanupOrphanedProcesses(): Promise<number> {
   
   let cleanedCount = 0
   
-  // Get app data directory to verify processes belong to our app
+
   const appDataDir = CONFIG.APP_DATA_DIR // ~/Library/Application Support/LiquiDB
   const databasesDir = path.join(appDataDir, 'databases')
   
   for (const process of runningProcesses) {
-    // Verify this process belongs to our app by checking its command line
+
     let belongsToApp = false
     let command = ''
     try {
       const { stdout: psOutput } = await execAsync(`ps -p ${process.pid} -o command=`) as { stdout: string }
       command = psOutput.trim()
       
-      // Check if command line contains our app's data directory or databases dir
+
       // This ensures we only kill processes that belong to LiquiDB-managed instances
       belongsToApp = command.includes(appDataDir) || command.includes(databasesDir)
       
@@ -309,7 +309,7 @@ export async function cleanupOrphanedProcesses(): Promise<number> {
           log(`Process ${process.pid} still running after SIGTERM, force killing with SIGKILL...`)
           await killProcess(process.pid, 'SIGKILL')
         } catch (_e) {
-          // Process is dead, good
+
         }
       } else {
         log(`Failed to kill process ${process.pid} with SIGTERM, trying SIGKILL...`)
@@ -325,14 +325,14 @@ export async function cleanupOrphanedProcesses(): Promise<number> {
   return cleanedCount
 }
 
-// Check if a port is available
+
 export async function checkPortAvailability(port: number): Promise<PortCheckResult> {
-  // Validate port number
+
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     return { available: false, reason: 'invalid_port', processInfo: null }
   }
   
-  // Check if port is privileged (requires root)
+
   if (port < 1024) {
     return { available: false, reason: 'privileged_port', processInfo: null }
   }
@@ -340,7 +340,7 @@ export async function checkPortAvailability(port: number): Promise<PortCheckResu
   return new Promise((resolve) => {
     const server = net.createServer()
     
-    // Set timeout to prevent hanging
+
     const timeout = setTimeout(() => {
       server.close()
       resolve({ available: false, reason: 'timeout', processInfo: null })
@@ -373,7 +373,7 @@ export async function checkPortAvailability(port: number): Promise<PortCheckResu
   })
 }
 
-// Get process information for a port
+
 async function getProcessUsingPort(port: number): Promise<ProcessInfo | null> {
   return new Promise((resolve) => {
     exec(`lsof -i :${port}`, (error: ExecException | null, stdout: string, _stderr: string) => {
@@ -398,7 +398,7 @@ async function getProcessUsingPort(port: number): Promise<ProcessInfo | null> {
   })
 }
 
-// Find next available port starting from a given port
+
 export async function findNextAvailablePort(startPort: number, maxAttempts: number = 100): Promise<number | null> {
   // Skip privileged ports (1-1023)
   if (startPort < 1024) {
@@ -422,7 +422,7 @@ export async function findNextAvailablePort(startPort: number, maxAttempts: numb
   return null
 }
 
-// Check for port conflicts and suggest alternatives
+
 export async function checkPortConflicts(): Promise<PortConflict[]> {
   log('Checking for port conflicts...')
   
@@ -447,7 +447,7 @@ export async function checkPortConflicts(): Promise<PortConflict[]> {
   
   if (conflicts.length > 0) {
     log(`Found ${conflicts.length} port conflicts`)
-    // Save conflicts to a file for the main app to read
+
     const conflictsFile = path.join(CONFIG.APP_DATA_DIR, 'port-conflicts.json')
     fs.writeFileSync(conflictsFile, JSON.stringify(conflicts, null, 2))
   }
@@ -455,7 +455,7 @@ export async function checkPortConflicts(): Promise<PortConflict[]> {
   return conflicts
 }
 
-// Update database statuses in storage
+
 export async function updateDatabaseStatuses(): Promise<void> {
   log('Updating database statuses...')
   
@@ -474,10 +474,10 @@ export async function updateDatabaseStatuses(): Promise<void> {
     const shouldBeRunning = config.status === 'running' || config.status === 'starting'
     
     if (isRunning && !shouldBeRunning) {
-      // Process is running but config says it shouldn't be
+
       log(`Updating ${config.name} status to running (PID found)`)
       config.status = 'running'
-      // Find the PID
+
       const process = runningProcesses.find(p => 
         p.type === config.type && p.port === config.port
       )
@@ -486,7 +486,7 @@ export async function updateDatabaseStatuses(): Promise<void> {
       }
       updatedCount++
     } else if (!isRunning && shouldBeRunning) {
-      // Process should be running but isn't
+
       log(`Updating ${config.name} status to stopped (no PID found)`)
       config.status = 'stopped'
       config.pid = null
@@ -510,13 +510,13 @@ export async function monitor(): Promise<void> {
   try {
     log('LiquiDB Helper starting monitoring cycle...')
     
-    // Clean up orphaned processes
+
     await cleanupOrphanedProcesses()
     
-    // Check for port conflicts
+
     await checkPortConflicts()
     
-    // Update database statuses
+
     await updateDatabaseStatuses()
     
     log('Monitoring cycle complete')
@@ -549,13 +549,13 @@ function startIPCServer(): net.Server {
     })
   })
   
-  // Ensure socket directory exists
+
   const socketDir = path.dirname(CONFIG.SOCKET_PATH)
   if (!fs.existsSync(socketDir)) {
     fs.mkdirSync(socketDir, { recursive: true })
   }
   
-  // Remove existing socket file
+
   if (fs.existsSync(CONFIG.SOCKET_PATH)) {
     fs.unlinkSync(CONFIG.SOCKET_PATH)
   }
@@ -563,7 +563,7 @@ function startIPCServer(): net.Server {
   server.listen(CONFIG.SOCKET_PATH, () => {
     log(`Helper IPC server listening on ${CONFIG.SOCKET_PATH}`)
     
-    // Set socket permissions
+
     try {
       fs.chmodSync(CONFIG.SOCKET_PATH, 0o666)
     } catch (error: any) {
@@ -583,7 +583,7 @@ interface IPCMessage {
   data?: any
 }
 
-// Handle IPC messages
+
 function handleIPCMessage(message: IPCMessage, socket: net.Socket): void {
   const { type, data } = message
   
@@ -613,7 +613,7 @@ function handleIPCMessage(message: IPCMessage, socket: net.Socket): void {
   }
 }
 
-// Handle status request
+
 function handleStatusRequest(socket: net.Socket): void {
   const status = {
     type: 'status_response',
@@ -628,7 +628,7 @@ function handleStatusRequest(socket: net.Socket): void {
   socket.write(JSON.stringify(status))
 }
 
-// Handle cleanup request
+
 async function handleCleanupRequest(socket: net.Socket): Promise<void> {
   try {
     const result = await cleanupOrphanedProcesses()
@@ -653,7 +653,7 @@ async function handleCleanupRequest(socket: net.Socket): Promise<void> {
   }
 }
 
-// Handle port check request
+
 async function handlePortCheckRequest(socket: net.Socket, data: any): Promise<void> {
   try {
     const port = data.port
@@ -682,7 +682,7 @@ async function handlePortCheckRequest(socket: net.Socket, data: any): Promise<vo
   }
 }
 
-// Handle find port request
+
 async function handleFindPortRequest(socket: net.Socket, data: any): Promise<void> {
   try {
     const startPort = data.startPort || 3000
@@ -721,19 +721,19 @@ process.on('SIGTERM', () => {
   process.exit(0)
 })
 
-// Start the service
+
 log('LiquiDB Helper started')
 log('Core responsibilities:')
 log('  1. Monitor orphaned database processes')
 log('  2. Monitor port conflicts and suggest alternatives')
 
-// Start IPC server
+
 startIPCServer()
 
-// Start monitoring
+
 monitor()
 
-// Set up interval
+
 setInterval(monitor, CONFIG.CHECK_INTERVAL)
 
 // Keep the process alive

@@ -22,7 +22,7 @@ export const useDatabaseCrud = (
   setCardInitialPositions: React.Dispatch<React.SetStateAction<Map<string, { x: number; y: number; left: number; top: number; width: number; height: number }>>>
 ) => {
   const handleAddDatabase = async (database: DatabaseContainer) => {
-    // Check for duplicate name
+
     if (isNameDuplicate(databases, database.name)) {
       notifyError("Database name already exists", {
         description: `A database with the name "${database.name}" already exists. Please choose a different name.`,
@@ -62,7 +62,7 @@ export const useDatabaseCrud = (
     const originalDatabase = databases.find(db => db.id === updatedDatabase.id)
     if (!originalDatabase) return
 
-    // Check for duplicate name (excluding current database)
+
     if (isNameDuplicate(databases, updatedDatabase.name, updatedDatabase.id)) {
       notifyError("Database name already exists", {
         description: `A database with the name "${updatedDatabase.name}" already exists. Please choose a different name.`,
@@ -70,7 +70,7 @@ export const useDatabaseCrud = (
       return
     }
 
-    // Check for duplicate container ID (excluding current database)
+
     if (isContainerIdDuplicate(databases, updatedDatabase.containerId, updatedDatabase.id)) {
       notifyError("Container ID already exists", {
         description: `A database with container ID "${updatedDatabase.containerId}" already exists. Please try again.`,
@@ -78,16 +78,16 @@ export const useDatabaseCrud = (
       return
     }
 
-    // Check if port has changed and database is running
+
     const portChanged = originalDatabase.port !== updatedDatabase.port
     const wasRunning = originalDatabase.status === "running" || originalDatabase.status === "starting"
     
-    // Update the database in state
+
     setDatabases(databases.map((db) => (db.id === updatedDatabase.id ? updatedDatabase : db)))
     
     // Port conflicts are now checked dynamically, no need to cache
     
-    // Save the updated database to Electron storage with validation
+
     try {
       const result = await window.electron?.saveDatabase?.(updatedDatabase)
       if (result && result.success === false) {
@@ -113,11 +113,11 @@ export const useDatabaseCrud = (
       })
 
       try {
-        // Stop the database first
+
         const stopResult = await window.electron?.stopDatabase?.(updatedDatabase.id)
         
         if (stopResult?.success) {
-          // Update database status to stopped immediately to prevent port conflicts
+
           setDatabases(prev => prev.map(db => 
             db.id === updatedDatabase.id ? { ...updatedDatabase, status: "stopped" } : db
           ))
@@ -125,7 +125,7 @@ export const useDatabaseCrud = (
           // Wait a moment for the process to fully stop
           await new Promise(resolve => setTimeout(resolve, 2000))
           
-          // Start the database with the new port
+
           // This will be handled by the caller via startDatabaseWithErrorHandlingRef
           return { shouldRestart: true, databaseId: updatedDatabase.id }
         } else {
@@ -142,7 +142,7 @@ export const useDatabaseCrud = (
     } else {
       setSettingsDialogOpen(false)
       
-      // Check if any settings actually changed (excluding status, pid, and other runtime fields)
+
       const nameChanged = originalDatabase.name !== updatedDatabase.name
       const portChanged_actual = originalDatabase.port !== updatedDatabase.port
       const iconChanged = originalDatabase.icon !== updatedDatabase.icon
@@ -163,12 +163,12 @@ export const useDatabaseCrud = (
   const handleDelete = async (id: string) => {
     const db = databases.find((d) => d.id === id)
     
-    // Optimistically update UI immediately to prevent freeze
+
     setDatabases(prev => prev.filter((d) => d.id !== id))
     setSelectedDatabase(null)
     setSettingsDialogOpen(false)
     
-    // Show notification immediately
+
     notifyError("Database removed", {
       description: `${db?.name} has been removed.`,
     })
@@ -196,19 +196,19 @@ export const useDatabaseCrud = (
     }
   }
 
-  // Handle delete all with animation
+
   const handleDeleteAllWithAnimation = useCallback(async () => {
     if (databases.length === 0) return
     
     setIsDeletingAll(true)
     
-    // Set center position immediately
+
     centerPosition.current = {
       x: window.innerWidth / 2,
       y: window.innerHeight / 2,
     }
     
-    // Start moving cards toward center
+
     setDeleteAnimationPhase('moving')
     
     // Wait for cards to reach center
@@ -217,7 +217,7 @@ export const useDatabaseCrud = (
     const moveDuration = 1000 // ms for cards to move (adjusted for better spring)
     await new Promise(resolve => setTimeout(resolve, (cardCount - 1) * staggerDelay + moveDuration))
     
-    // Transform cards into small particles
+
     setDeleteAnimationPhase('particles')
     
     // Wait for particle transformation
@@ -233,7 +233,7 @@ export const useDatabaseCrud = (
     try {
       const result = await window.electron?.deleteAllDatabases?.()
       if (result?.success) {
-        // Wait a bit more to ensure all animations complete
+
         await new Promise(resolve => setTimeout(resolve, 100))
         
         setDeleteAnimationPhase('complete')
@@ -241,7 +241,7 @@ export const useDatabaseCrud = (
           description: "All databases and their data have been permanently removed.",
         })
         
-        // Clear databases and reset state - this removes elements from DOM
+
         setDatabases([])
         setIsDeletingAll(false)
         setDeleteAnimationPhase('idle')

@@ -32,7 +32,7 @@ export const renderDatabaseIcon = (icon: string | undefined, className: string =
     return <BoxesIcon size={14} />
   }
   
-  // Check if it's a custom image path (starts with file path or data URL)
+
   if (icon.startsWith('/') || icon.startsWith('file://') || icon.startsWith('data:') || icon.includes('.')) {
     return (
       <DatabaseIcon 

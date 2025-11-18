@@ -23,7 +23,7 @@ export function sanitizeImageUrl(url: string | undefined | null): string {
   
   // Allow data URLs (for base64 images)
   if (url.startsWith("data:")) {
-    // Validate data URL format: data:[<mediatype>][;base64],<data>
+
     if (/^data:image\/[^;]+(;base64)?,/.test(url)) {
       return url
     }

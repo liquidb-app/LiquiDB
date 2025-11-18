@@ -34,13 +34,13 @@ export const useUiUtilities = (
   // Capture card positions and center position when animation starts
   useEffect(() => {
     if (deleteAnimationPhase === 'moving' && cardInitialPositions.size === 0) {
-      // Set center position (viewport center)
+
       centerPosition.current = {
         x: window.innerWidth / 2,
         y: window.innerHeight / 2,
       }
       
-      // Use requestAnimationFrame to ensure layout is complete
+
       requestAnimationFrame(() => {
         const positions = new Map<string, { x: number; y: number; left: number; top: number; width: number; height: number }>()
         cardRefs.current.forEach((cardElement, dbId) => {
@@ -73,12 +73,12 @@ export const useUiUtilities = (
       return undefined
     }
     
-    // Calculate delta from initial position to center
+
     const deltaX = centerPosition.current.x - initialPos.x
     const deltaY = centerPosition.current.y - initialPos.y
     
     if (deleteAnimationPhase === 'moving') {
-      // Move from original position to center with stagger
+
       const staggerDelay = index * 0.08 // 80ms per card
       const randomRotation = (Math.random() - 0.5) * 45 // -22.5 to +22.5 degrees
       return {

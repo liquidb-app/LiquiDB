@@ -33,7 +33,7 @@ export const useDatabaseMonitoring = (
   useEffect(() => {
     const uptimeInterval = setInterval(() => {
       setDatabases((prevDatabases: DatabaseContainer[]) => {
-        // Only update if there are changes to avoid unnecessary re-renders
+
         let hasChanges = false
         const updatedDatabases = prevDatabases.map((db: DatabaseContainer) => {
           if (db.status === "running" && db.lastStarted) {
@@ -83,16 +83,16 @@ export const useDatabaseMonitoring = (
         const instanceMemoryRss = systemInfo.memory !== null && systemInfo.memory !== undefined ? systemInfo.memory : null
         const cpuUsage = systemInfo.cpu !== null && systemInfo.cpu !== undefined ? systemInfo.cpu : null
         
-        // Get current database to preserve existing values if new ones are null
+
         const db = databasesRef.current.find((d: DatabaseContainer) => d.id === databaseId)
         
-        // Calculate uptime from lastStarted if available
+
         const uptimeSeconds = db?.lastStarted 
           ? Math.floor((Date.now() - db.lastStarted) / 1000)
           : (db?.systemInfo?.uptime || 0)
         
         // Only update values that are not null - preserve existing values if new ones are null
-        // Ensure we always have numbers, not objects
+
         const existingMemoryValue = db?.systemInfo?.memory
         const existingMemory = typeof existingMemoryValue === 'number' ? existingMemoryValue : 0
         const existingCpuValue = db?.systemInfo?.cpu
@@ -114,7 +114,7 @@ export const useDatabaseMonitoring = (
           memoryRss: `${formatBytes(instanceMemoryRss ?? 0)} (process-specific)`
         })
         
-        // Debug CPU values specifically
+
         log.debug(`CPU debug for ${databaseId}:`, {
           rawCpu: systemInfo.cpu,
           processedCpu: newSystemInfo.cpu,
@@ -122,7 +122,7 @@ export const useDatabaseMonitoring = (
           processedMemory: newSystemInfo.memory
         })
         
-        // Update only the specific database - ensure complete independence
+
         // Each database instance maintains its own separate systemInfo object
         setDatabases((prevDatabases: DatabaseContainer[]) => {
           const updated = prevDatabases.map((db: DatabaseContainer) => {
@@ -134,7 +134,7 @@ export const useDatabaseMonitoring = (
                   currentSystemInfo.memory !== newSystemInfo.memory ||
                   currentSystemInfo.connections !== newSystemInfo.connections) {
                 log.debug(`Updating system info for database ${databaseId} with memory: ${formatBytes(newSystemInfo.memory)}`)
-                // Create a completely new object to ensure independence
+
                 return {
                   ...db,
                   systemInfo: {
@@ -142,10 +142,10 @@ export const useDatabaseMonitoring = (
                   }
                 }
               }
-              // Return existing db unchanged if no updates needed
+
               return db
             }
-            // Return other databases unchanged - they maintain their own independent values
+
             return db
           })
           
@@ -187,7 +187,7 @@ export const useDatabaseMonitoring = (
     const load = async (retryCount = 0) => {
       const maxRetries = 3
       
-      // Check if Electron is available
+
       if (!window.electron) {
         console.log("[Debug] Electron not available yet, retrying in 1 second")
         if (!hasScheduledRetry) {
@@ -200,7 +200,7 @@ export const useDatabaseMonitoring = (
         return
       }
       
-      // Check if databases.json file exists (only log if file is missing)
+
       let fileExists = false
       try {
         const fileCheckFn = checkDatabasesFileExistsRef.current
@@ -252,7 +252,7 @@ export const useDatabaseMonitoring = (
               }
             })
             
-            // Clean up any dead processes only once on initial load
+
             if (!hasRunInitialCleanup) {
               hasRunInitialCleanup = true
               try {
@@ -260,7 +260,7 @@ export const useDatabaseMonitoring = (
                   const cleanupResult = await window.electron.cleanupDeadProcesses()
                   if (cleanupResult.success && (cleanupResult.cleanedProcesses > 0 || cleanupResult.updatedStatuses > 0)) {
                     console.log(`[Cleanup] Cleaned up ${cleanupResult.cleanedProcesses} dead processes, updated ${cleanupResult.updatedStatuses} statuses`)
-                    // Reload databases after cleanup
+
                     const cleanedList = await window.electron.getDatabases()
                     const cleanedDatabases = Array.isArray(cleanedList) ? cleanedList : []
                     setDatabases(cleanedDatabases)
@@ -300,14 +300,14 @@ export const useDatabaseMonitoring = (
               if (!isMounted) return
               
               try {
-                // Check if databases file still exists every 20 checks (every 10 minutes) - reduced frequency
+
                 fileCheckCounter++
                 if (fileCheckCounter >= 20) {
                   await ensureDatabasesFileExists()
                   fileCheckCounter = 0
                 }
                 
-                // Get current database list from state at the time of check
+
                 // Use a ref to access current state without triggering nested updates
                 const databasesSnapshot = databasesRef.current
                 const databasesToCheck = databasesSnapshot.filter((db: DatabaseContainer) => 
@@ -319,7 +319,7 @@ export const useDatabaseMonitoring = (
                   noActiveDatabasesCount++
                   // Skip monitoring if no active databases for 3 consecutive checks (30 seconds)
                   if (noActiveDatabasesCount < 3) return
-                  // Reset counter and continue with minimal checks
+
                   noActiveDatabasesCount = 0
                 } else {
                   noActiveDatabasesCount = 0
@@ -331,7 +331,7 @@ export const useDatabaseMonitoring = (
                 }
                 lastDatabaseCount = databasesSnapshot.length
                 
-                // Process status checks sequentially to prevent state update accumulation
+
                 // Batch all updates into a single setState call
                 const statusUpdates: Array<{id: string, status: DatabaseStatus, pid?: number}> = []
                 
@@ -344,7 +344,7 @@ export const useDatabaseMonitoring = (
                       // Protection against race conditions during startup
                       // Don't update from "starting" to "stopped" too quickly
                       if (db.status === "starting" && status.status === "stopped") {
-                        // Check if the database was recently started (within last 30 seconds)
+
                         const timeSinceStarted = Date.now() - (db.lastStarted || 0)
                         if (timeSinceStarted < 30000) {
                           console.log(`[Status Protection] Database ${db.id} still in startup phase, ignoring status change to stopped`)
@@ -372,7 +372,7 @@ export const useDatabaseMonitoring = (
                   }
                 }
                 
-                // Batch all status updates into a single setState call to prevent UI freeze
+
                 if (statusUpdates.length > 0 && isMounted) {
                   setDatabases((prev: DatabaseContainer[]) => {
                     const updated = prev.map((db: DatabaseContainer) => {
@@ -382,7 +382,7 @@ export const useDatabaseMonitoring = (
                         if (update.status === "running" && db.status !== "running") {
                           const now = Date.now()
                           const lastCheck = lastSystemInfoCheckRef.current[db.id] || 0
-                          // Only fetch system info every 30 seconds to avoid excessive calls
+
                           if (now - lastCheck > 30000) {
                             setLastSystemInfoCheck((prevCheck: Record<string, number>) => ({ ...prevCheck, [db.id]: now }))
                             // Use requestAnimationFrame to defer state updates
@@ -408,7 +408,7 @@ export const useDatabaseMonitoring = (
           
           statusInterval = startStatusMonitoring()
           
-          // Set up system info monitoring for running databases (optimized)
+
           const startSystemInfoMonitoring = () => {
             let isRunning = false // Prevent overlapping interval executions
             return setInterval(async () => {
@@ -416,7 +416,7 @@ export const useDatabaseMonitoring = (
               isRunning = true
               
               try {
-                // Get current databases state from ref
+
                 const currentDatabases = databasesRef.current.filter((db: DatabaseContainer) => db.status === "running")
                 
                 // Only monitor if there are running databases and reduce frequency
@@ -428,7 +428,7 @@ export const useDatabaseMonitoring = (
                 log.debug(`Found ${currentDatabases.length} running databases`)
                 
                 // Fetch system info for each running database with staggered timing
-                // Use sequential processing to prevent timeout accumulation
+
                 for (let i = 0; i < currentDatabases.length; i++) {
                   if (!isMounted) break
                   
@@ -436,12 +436,12 @@ export const useDatabaseMonitoring = (
                   const now = Date.now()
                   const lastCheck = lastSystemInfoCheckRef.current[db.id] || 0
                   
-                  // Update system info every 10 seconds for live updates
+
                   if (now - lastCheck > 10000) {
                     log.debug(`Updating system info for database ${db.id}`)
                     setLastSystemInfoCheck((prev: Record<string, number>) => ({ ...prev, [db.id]: now }))
                     
-                    // Process sequentially with delay to prevent timeout accumulation
+
                     await new Promise(resolve => {
                       const timeoutId = setTimeout(() => {
                         pendingTimeouts.delete(timeoutId)
@@ -464,7 +464,7 @@ export const useDatabaseMonitoring = (
           
           systemInfoInterval = startSystemInfoMonitoring()
           
-          // Set up real-time status change listener from electron main process
+
           if (window.electron?.onDatabaseStatusChanged) {
             log.debug(`Setting up database status listener`)
             window.electron.onDatabaseStatusChanged((data: { id: string, status: DatabaseStatus, error?: string, exitCode?: number, ready?: boolean, pid?: number }) => {
@@ -472,13 +472,13 @@ export const useDatabaseMonitoring = (
               
               log.debug(`Database ${data.id} status changed to ${data.status}${data.ready ? ' (ready)' : ''} (PID: ${data.pid})`)
               
-              // Create a simple event key to prevent duplicate processing
-              // For stopped events, use a simpler key to prevent duplicates from error/exit events
+
+
               const eventKey = data.status === 'stopped' 
                 ? `${data.id}-stopped` 
                 : `${data.id}-${data.status}-${data.ready ? 'ready' : 'not-ready'}`
               
-              // Check if we've already processed this exact event in the last 500ms (reduced further)
+
               const now = Date.now()
               const lastProcessed = lastStatusCheckRef.current[eventKey] || 0
               
@@ -489,12 +489,12 @@ export const useDatabaseMonitoring = (
               
               log.debug(`Processing event: ${eventKey} (time since last: ${now - lastProcessed}ms)`)
               
-              // Update the last processed time (both ref and state)
+
               lastStatusCheckRef.current[eventKey] = now
               
               log.debug(`Processing event: ${eventKey}`)
               
-              // Update database status immediately
+
               if (isMounted) {
                 setDatabases((prev: DatabaseContainer[]) => {
                   const updated = prev.map((db: DatabaseContainer) => 
@@ -502,9 +502,9 @@ export const useDatabaseMonitoring = (
                       ...db, 
                       status: data.status, 
                       pid: data.pid,
-                      // Set lastStarted timestamp when database starts running
+
                       lastStarted: data.status === "running" ? Date.now() : db.lastStarted,
-                      // Initialize systemInfo when database starts running
+
                       systemInfo: data.status === "running" ? {
                         cpu: 0,
                         memory: 0,
@@ -514,7 +514,7 @@ export const useDatabaseMonitoring = (
                     } : db
                   )
                   
-                  // Show notifications only for actual status changes
+
                   if (data.status === "stopped") {
                     const db = prev.find((d: DatabaseContainer) => d.id === data.id)
                     if (db && db.status !== "stopped") {
@@ -564,7 +564,7 @@ export const useDatabaseMonitoring = (
             })
           }
           
-          // Set up databases-updated listener
+
           if (window.electron?.onDatabasesUpdated) {
             log.debug(`Setting up databases updated listener`)
             window.electron.onDatabasesUpdated(() => {
@@ -572,12 +572,12 @@ export const useDatabaseMonitoring = (
               
               log.debug(`Databases updated event received, reloading databases`)
               
-              // Reload databases from file
+
               load()
             })
           }
           
-          // Set up auto-start event listeners (remove existing listeners first to prevent leaks)
+
           if (window.electron?.removeAllListeners) {
             window.electron.removeAllListeners('auto-start-port-conflicts')
             window.electron.removeAllListeners('auto-start-completed')
@@ -589,7 +589,7 @@ export const useDatabaseMonitoring = (
               
               console.log(`[Auto-start] Port conflicts detected:`, data.conflicts)
               
-              // Show individual conflict notifications
+
               data.conflicts.forEach((conflict) => {
                 notifyWarning("Auto-start Port Conflict Resolved", {
                   description: `${conflict.databaseName} port changed from ${conflict.originalPort} to ${conflict.newPort} due to conflict with ${conflict.conflictingDatabase}`,
@@ -605,7 +605,7 @@ export const useDatabaseMonitoring = (
               
               console.log(`[Auto-start] Completed:`, data)
               
-              // Show summary notification
+
               if (data.portConflicts > 0) {
                 notifyInfo("Auto-start Completed with Port Conflicts", {
                   description: `${data.successful} databases started, ${data.failed} failed, ${data.portConflicts} port conflicts resolved`,
@@ -652,11 +652,11 @@ export const useDatabaseMonitoring = (
       
       load()
 
-      // Clean up interval and listeners on unmount
+
       return () => {
         isMounted = false
         
-        // Clear all intervals
+
         if (statusInterval) {
           clearInterval(statusInterval)
           statusInterval = null
@@ -666,7 +666,7 @@ export const useDatabaseMonitoring = (
           systemInfoInterval = null
         }
         
-        // Clear all pending timeouts to prevent memory leaks
+
         pendingTimeouts.forEach(timeoutId => {
           clearTimeout(timeoutId)
         })

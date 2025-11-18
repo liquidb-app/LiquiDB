@@ -18,11 +18,11 @@ export const useDatabaseOperations = (
     const targetDb = databases.find((db) => db.id === id)
     if (!targetDb) return
 
-    // Check for port conflicts before starting
+
     if (targetDb.port) {
       const conflictResult = await checkPortConflict(targetDb.port, id)
       
-      // Check for external port conflicts
+
       if (conflictResult.inUse) {
         notifyError("Cannot start database", {
           description: `Port ${targetDb.port} is already in use by external process: ${conflictResult.processName} (PID: ${conflictResult.pid}). Please choose a different port.`,
@@ -30,7 +30,7 @@ export const useDatabaseOperations = (
         return
       }
       
-      // Check for internal port conflicts (other databases in the app)
+
       const conflictingDb = databases.find(otherDb => 
         otherDb.id !== targetDb.id && 
         otherDb.port === targetDb.port && 
@@ -45,7 +45,7 @@ export const useDatabaseOperations = (
       }
     }
 
-    // Check if database is already running
+
     if (targetDb.status === "running") {
       notifyWarning("Database already running", {
         description: `${targetDb.name} is already running.`,
@@ -53,7 +53,7 @@ export const useDatabaseOperations = (
       return
     }
     
-    // Check if database is already starting by verifying it's actually in the running databases map
+
     // This prevents duplicate starts while allowing bulk start to work
     // In bulk start scenarios, the status is set to "starting" but the process hasn't started yet
     // So we check the actual backend status to see if it's really starting
@@ -78,12 +78,12 @@ export const useDatabaseOperations = (
         // If backend says it's stopped, the frontend status is stale - proceed with start
         // This allows bulk start to work properly
       } catch (error) {
-        // If check fails, continue anyway - it's likely not actually starting
+
         console.log(`[Start DB] Status check failed for ${id}, continuing anyway:`, error)
       }
     }
 
-    // Check if the database port is banned
+
     if (isPortBanned(targetDb.port)) {
       notifyError("Cannot start database", {
         description: `Port ${targetDb.port} is banned. Please change the port in database settings.`,
@@ -114,7 +114,7 @@ export const useDatabaseOperations = (
         action: {
           label: "Use Suggested Port",
           onClick: async () => {
-            // Update the database port and save it
+
             const updatedDb = { ...targetDb, port: suggestedPort }
             try {
               await window.electron?.saveDatabase?.(updatedDb)
@@ -122,7 +122,7 @@ export const useDatabaseOperations = (
               notifySuccess("Port Updated", {
                 description: `Database port changed to ${suggestedPort}`,
               })
-              // Start the database with the new port
+
               await startDatabaseWithErrorHandlingRef.current(id)
             } catch (error) {
               console.log(`[Port Update] Error updating database port:`, error)
@@ -138,7 +138,7 @@ export const useDatabaseOperations = (
       console.log(`[Port Conflict] Starting database ${id} on port ${targetDb.port} despite conflict with ${portConflict.name}`)
     }
 
-    // Set status to starting and show starting toast
+
     setDatabases((prev) =>
       prev.map((db) =>
         db.id === id ? { 
@@ -155,7 +155,7 @@ export const useDatabaseOperations = (
       )
     )
 
-      // Final port conflict check right before starting (race condition protection)
+
       try {
         const finalCheck = await checkPortConflict(targetDb.port, id)
       if (finalCheck.inUse) {
@@ -187,7 +187,7 @@ export const useDatabaseOperations = (
         // The "starting" status will be maintained until we get a real status change from the process
         console.log(`[Database] ${targetDb.name} process started, waiting for status confirmation...`)
         
-        // Add a timeout to prevent databases from staying in "starting" status indefinitely
+
         setTimeout(() => {
           setDatabases((prev) =>
             prev.map((db) => {
@@ -210,7 +210,7 @@ export const useDatabaseOperations = (
         // Status changes will be handled by the real-time listener
         // No need for manual status checking here
       } else {
-        // Start command failed immediately
+
         setDatabases((prev) =>
           prev.map((db) =>
             db.id === id ? { ...db, status: "stopped" as const } : db
@@ -289,7 +289,7 @@ export const useDatabaseOperations = (
           action: {
             label: "Use Suggested Port",
             onClick: async () => {
-              // Update the database port and save it
+
               const updatedDb = { ...targetDb, port: suggestedPort }
               try {
                 await window.electron?.saveDatabase?.(updatedDb)
@@ -297,7 +297,7 @@ export const useDatabaseOperations = (
                 notifySuccess("Port Updated", {
                   description: `Database port changed to ${suggestedPort}`,
                 })
-                // Start the database with the new port
+
                 await startDatabaseWithErrorHandlingRef.current(id)
               } catch (error) {
                 console.log(`[Port Update] Error updating database port:`, error)
@@ -316,8 +316,8 @@ export const useDatabaseOperations = (
 
       await startDatabaseWithErrorHandlingRef.current(id)
     } else {
-      // Stop the database
-      // Set status to stopping first
+
+
       setDatabases((prev) =>
         prev.map((db) =>
           db.id === id ? { ...db, status: "stopping" as const } : db
@@ -381,14 +381,14 @@ export const useDatabaseOperations = (
       })
 
       try {
-        // Stop the database first
+
         const stopResult = await window.electron?.stopDatabase?.(id)
         
         if (stopResult?.success) {
           // Wait a moment for the process to fully stop
           await new Promise(resolve => setTimeout(resolve, 2000))
           
-          // Start the database again - this will trigger the real-time listener notifications
+
           await startDatabaseWithErrorHandlingRef.current(id)
         } else {
           notifyError("Failed to restart database", {

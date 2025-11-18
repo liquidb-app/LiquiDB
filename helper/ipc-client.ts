@@ -57,7 +57,7 @@ class HelperClient {
   private socket: net.Socket | null = null
   private connected: boolean = false
   
-  // Connect to helper
+
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!fs.existsSync(SOCKET_PATH)) {
@@ -85,7 +85,7 @@ class HelperClient {
     })
   }
   
-  // Send message and wait for response
+
   private async sendMessage(type: string, data: Record<string, unknown> = {}): Promise<HelperResponse> {
     if (!this.connected) {
       throw new Error('Not connected to helper')
@@ -127,7 +127,7 @@ class HelperClient {
     })
   }
   
-  // Get helper status
+
   async getStatus(): Promise<StatusResponse> {
     return this.sendMessage('status') as Promise<StatusResponse>
   }
@@ -137,12 +137,12 @@ class HelperClient {
     return this.sendMessage('cleanup') as Promise<CleanupResponse>
   }
   
-  // Check port availability
+
   async checkPort(port: number): Promise<PortCheckResponse> {
     return this.sendMessage('check-port', { port }) as Promise<PortCheckResponse>
   }
   
-  // Find next available port
+
   async findPort(startPort: number = 3000, maxAttempts: number = 100): Promise<FindPortResponse> {
     return this.sendMessage('find-port', { startPort, maxAttempts }) as Promise<FindPortResponse>
   }
@@ -161,7 +161,7 @@ class HelperClient {
     }
   }
   
-  // Check if connected
+
   isConnected(): boolean {
     return this.connected
   }

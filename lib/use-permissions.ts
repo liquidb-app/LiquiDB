@@ -28,7 +28,7 @@ export function usePermissions() {
   const checkInProgress = useRef<boolean>(false)
 
   const checkPermissions = useCallback(async () => {
-    // Throttle checks to once every 5 seconds to prevent resource exhaustion
+
     const now = Date.now()
     if (checkInProgress.current || (now - lastCheckTime.current < 5000)) {
       console.log('[Permissions] Throttling permission check')
@@ -50,7 +50,7 @@ export function usePermissions() {
         const result: PermissionsResult = permissionsResult.data
         const descriptions = descriptionsResult.data
 
-        // Map the results to permission objects
+
         const permissionList: Permission[] = result.results.map((result) => {
           const desc = descriptions[result.permission]
           return {
@@ -148,7 +148,7 @@ export function usePermissions() {
     try {
       const result = await window.electron?.requestPermission?.(permissionName)
       if (result?.success) {
-        // Refresh permissions after requesting
+
         await checkPermissions()
       } else {
         throw new Error(result?.error || 'Failed to request permission')

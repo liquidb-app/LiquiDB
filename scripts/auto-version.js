@@ -9,12 +9,12 @@ const fs = require('fs');
 const { execSync } = require('child_process');
 const path = require('path');
 
-// Read package.json
+
 const packagePath = path.join(process.cwd(), 'package.json');
 const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const currentVersion = packageJson.version;
 
-// Get commits since last tag
+
 let commits = [];
 try {
   const lastTag = execSync('git describe --tags --abbrev=0 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
@@ -34,35 +34,35 @@ try {
   process.exit(1);
 }
 
-// Determine version bump type
+
 let bumpType = null;
 let hasBreaking = false;
 
 for (const commit of commits) {
   const lowerCommit = commit.toLowerCase();
   
-  // Check for breaking changes
+
   if (lowerCommit.includes('breaking change') || lowerCommit.includes('breaking:') || commit.match(/^BREAKING/)) {
     hasBreaking = true;
     bumpType = 'major';
     break;
   }
   
-  // Check for features
+
   if (commit.match(/^feat(\(.+\))?:/) || commit.match(/^feature(\(.+\))?:/)) {
     if (!bumpType || bumpType === 'patch') {
       bumpType = 'minor';
     }
   }
   
-  // Check for fixes
+
   if (commit.match(/^fix(\(.+\))?:/) || commit.match(/^bugfix(\(.+\))?:/)) {
     if (!bumpType) {
       bumpType = 'patch';
     }
   }
   
-  // Check for other patch-level changes
+
   if (commit.match(/^(perf|refactor|revert)(\(.+\))?:/)) {
     if (!bumpType) {
       bumpType = 'patch';
@@ -76,7 +76,7 @@ if (!bumpType && !hasBreaking) {
   process.exit(0);
 }
 
-// Calculate new version
+
 const [major, minor, patch] = currentVersion.split('.').map(Number);
 let newVersion;
 
@@ -91,7 +91,7 @@ if (hasBreaking || bumpType === 'major') {
   process.exit(0);
 }
 
-// Update package.json
+
 packageJson.version = newVersion;
 fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
 
