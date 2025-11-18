@@ -13,8 +13,8 @@ export function registerAutoLaunchHandlers(): void {
     try {
       const autoLauncher = sharedState.getAutoLauncher()
       if (!autoLauncher) {
-        // Auto-launcher is not available in development mode (expected behavior)
-        // Return false silently without logging warnings
+
+
         return false
       }
       return await autoLauncher.isEnabled()
@@ -28,8 +28,8 @@ export function registerAutoLaunchHandlers(): void {
     try {
       const autoLauncher = sharedState.getAutoLauncher()
       if (!autoLauncher) {
-        // Auto-launcher is not available in development mode (expected behavior)
-        // Return error response without logging warnings
+
+
         return { success: false, error: "Auto-launch is only available in production builds" }
       }
       
@@ -44,7 +44,7 @@ export function registerAutoLaunchHandlers(): void {
       await autoLauncher.enable()
       console.log("[Auto-launch] Successfully enabled startup launch")
       
-      // Verify it was enabled
+
       const isEnabled = await autoLauncher.isEnabled()
       console.log("[Auto-launch] Verification - isEnabled:", isEnabled)
       
@@ -59,8 +59,8 @@ export function registerAutoLaunchHandlers(): void {
     try {
       const autoLauncher = sharedState.getAutoLauncher()
       if (!autoLauncher) {
-        // Auto-launcher is not available in development mode (expected behavior)
-        // Return success since it's effectively disabled
+
+
         return { success: true }
       }
       
@@ -75,7 +75,7 @@ export function registerAutoLaunchHandlers(): void {
       await autoLauncher.disable()
       console.log("[Auto-launch] Successfully disabled startup launch")
       
-      // Verify it was disabled
+
       const isEnabled = await autoLauncher.isEnabled()
       console.log("[Auto-launch] Verification - isEnabled:", isEnabled)
       
@@ -83,7 +83,7 @@ export function registerAutoLaunchHandlers(): void {
     } catch (error: any) {
       console.error("[Auto-launch] Error disabling:", error)
       
-      // Handle specific case where login item doesn't exist
+
       if (error.message && error.message.includes("Can't get login item")) {
         console.log("[Auto-launch] Login item doesn't exist, considering as already disabled")
         return { success: true }
