@@ -28,7 +28,7 @@ export function startDatabaseFileWatcher(app: App): void {
 
   const databasesFile = path.join(app.getPath("userData"), "databases.json")
   
-  // Get initial modification time and database IDs
+
   try {
     if (fs.existsSync(databasesFile)) {
       const stats = fs.statSync(databasesFile)
@@ -68,7 +68,7 @@ export function startDatabaseFileWatcher(app: App): void {
  */
 async function handleFileChange(app: App, databasesFile: string): Promise<void> {
   try {
-    // Check if file actually changed (avoid false positives)
+
     if (!fs.existsSync(databasesFile)) {
       log.debug("[File Watcher] databases.json deleted")
       return
@@ -77,13 +77,13 @@ async function handleFileChange(app: App, databasesFile: string): Promise<void> 
     const stats = fs.statSync(databasesFile)
     
     // Always check for changes, even if mtimeMs hasn't changed (handles rapid writes)
-    // Compare file content hash or database count to detect actual changes
+
     const currentDatabases = storage.loadDatabases(app)
     const currentIds = new Set(currentDatabases.map((db: any) => db.id))
     const newDatabaseIds = new Set([...currentIds].filter(id => !lastDatabaseIds.has(id)))
     const removedDatabaseIds = new Set([...lastDatabaseIds].filter(id => !currentIds.has(id)))
     
-    // Check if databases were added or removed, or if count changed
+
     const hasChanges = newDatabaseIds.size > 0 || removedDatabaseIds.size > 0 || currentDatabases.length !== lastDatabaseIds.size
     
     // Only skip if no actual changes detected AND mtimeMs hasn't changed
@@ -111,7 +111,7 @@ async function handleFileChange(app: App, databasesFile: string): Promise<void> 
       log.info(`[File Watcher] Detected ${removedDatabaseIds.size} removed database(s): ${Array.from(removedDatabaseIds).join(', ')}`)
     }
     
-    // Update last known IDs
+
     lastDatabaseIds = new Set(currentIds)
     
     // Always send update event when file changes (even if no new databases, in case of updates)
@@ -119,32 +119,32 @@ async function handleFileChange(app: App, databasesFile: string): Promise<void> 
     log.debug(`[File Watcher] Sending databases-updated event (changes: ${hasChanges ? 'yes' : 'no'})`)
     mainWindow.webContents.send("databases-updated")
     
-    // Check each database for status changes
+
     for (const db of currentDatabases) {
       const wasRunning = runningDatabases.has(db.id)
       const shouldBeRunning = db.status === "running" || db.status === "starting"
       
       // If status changed, check actual process status
       if (shouldBeRunning && !wasRunning) {
-        // Database should be running but isn't in our map
-        // Check if process is actually running by PID
+
+
         if (db.pid && typeof db.pid === 'number') {
           try {
-            // Check if process with this PID exists
+
             process.kill(db.pid, 0) // Signal 0 checks if process exists
-            // Process exists, update our map
+
             log.debug(`[File Watcher] Database ${db.id} is running (PID: ${db.pid}), updating state`)
             
-            // Send status change event to UI
+
             mainWindow.webContents.send("database-status-changed", {
               id: db.id,
               status: db.status || "running",
               pid: db.pid,
             })
           } catch (error: any) {
-            // Process doesn't exist (ESRCH) or other error
+
             if (error.code === 'ESRCH') {
-              // Process not found, update file
+
               log.debug(`[File Watcher] Database ${db.id} marked as running but process not found, updating status`)
               db.status = "stopped"
               db.pid = null
@@ -173,13 +173,13 @@ async function handleFileChange(app: App, databasesFile: string): Promise<void> 
           })
         }
       } else if (!shouldBeRunning && wasRunning) {
-        // Database should be stopped but is in our map
+
         log.debug(`[File Watcher] Database ${db.id} marked as stopped, cleaning up`)
         
-        // Remove from running map
+
         runningDatabases.delete(db.id)
         
-        // Send status change event to UI
+
         mainWindow.webContents.send("database-status-changed", {
           id: db.id,
           status: "stopped",
@@ -201,7 +201,7 @@ async function handleFileChange(app: App, databasesFile: string): Promise<void> 
       }
     }
     
-    // Check for databases that were deleted
+
     for (const [id, runningDb] of runningDatabases.entries()) {
       if (!currentIds.has(id)) {
         log.debug(`[File Watcher] Database ${id} was deleted, cleaning up`)
