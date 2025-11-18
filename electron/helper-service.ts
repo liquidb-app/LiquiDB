@@ -620,10 +620,15 @@ class HelperServiceManager {
         return await this.performDirectCleanup()
       }
 
-      const helperPath = this.app.isPackaged
-        ? path.join(process.resourcesPath!, 'helper', 'ipc-client.js')
-        : path.join(__dirname, '..', 'helper-dist', 'ipc-client.js')
-      const HelperClient = require(helperPath)
+      const helperPath = this.resolveHelperFilePath('ipc-client.js')
+      
+      // Check if file exists before requiring
+      if (!fs.existsSync(helperPath)) {
+        console.warn(`[Helper] IPC client not found at ${helperPath}, performing direct cleanup`)
+        return await this.performDirectCleanup()
+      }
+      
+      const HelperClient = this.loadHelperClient(helperPath)
       const client = new HelperClient()
       
       await client.connect()
@@ -634,8 +639,16 @@ class HelperServiceManager {
     } catch (error: any) {
       console.error('[Helper] Cleanup request failed:', error)
       
-      if (error.message.includes('ECONNREFUSED') || error.message.includes('socket not found')) {
-        console.log('[Helper] Socket unavailable, performing direct cleanup')
+      // Handle module not found, constructor errors, or connection errors - fall back to direct cleanup
+      if (
+        error.message.includes('Cannot find module') ||
+        error.message.includes('is not a constructor') ||
+        error.message.includes('HelperClient class not found') ||
+        error.message.includes('ECONNREFUSED') ||
+        error.message.includes('socket not found') ||
+        error.code === 'MODULE_NOT_FOUND'
+      ) {
+        console.log('[Helper] IPC client unavailable, performing direct cleanup')
         return await this.performDirectCleanup()
       }
       
