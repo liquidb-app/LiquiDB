@@ -305,7 +305,7 @@ export function registerDatabaseHandlers(app: App): void {
       }
 
       let zipFilePath = result.filePath
-      // Ensure .zip extension
+
       if (!zipFilePath.endsWith('.zip')) {
         zipFilePath = zipFilePath + '.zip'
       }
