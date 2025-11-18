@@ -98,18 +98,18 @@ class PermissionsManager extends EventEmitter {
       log.error('[Permissions] Initial check failed:', err)
     })
 
-    // Set up polling
+
     this.checkInterval = setInterval(() => {
       this.checkAllPermissions().catch(err => {
         log.error('[Permissions] Periodic check failed:', err)
       })
     }, intervalMs)
 
-    // Set up window focus listener
+
     const mainWindow = sharedState.getMainWindow()
     if (mainWindow) {
       mainWindow.on('focus', () => {
-        // Debounce focus checks to prevent rapid re-checking
+
         if (this.focusTimeout) {
           clearTimeout(this.focusTimeout)
         }
@@ -123,10 +123,10 @@ class PermissionsManager extends EventEmitter {
       })
     }
 
-    // Set up app focus listener (macOS)
+
     if (IS_MAC && app) {
       app.on('activate', () => {
-        // Debounce activate checks to prevent rapid re-checking
+
         if (this.activateTimeout) {
           clearTimeout(this.activateTimeout)
         }
@@ -187,7 +187,7 @@ class PermissionsManager extends EventEmitter {
       return value
     } catch (error: any) {
       log.error(`[Permissions] Check failed for ${permissionKey}:`, error)
-      // Return cached value if available, otherwise false
+
       return cached?.value ?? false
     }
   }
@@ -240,7 +240,7 @@ class PermissionsManager extends EventEmitter {
     }
     this.isChecking = false
 
-    // Process next item in queue
+
     if (this.checkQueue.length > 0) {
       setImmediate(() => this.processCheckQueue())
     }
@@ -265,7 +265,7 @@ class PermissionsManager extends EventEmitter {
       
       // Method 2: Check TCC database directly (most reliable for production)
       try {
-        // Get app name and construct possible bundle IDs
+
         const appName = app.getName()
         // Try to get bundle ID from process or construct common variants
         const bundleIdVariants = [
@@ -285,10 +285,10 @@ class PermissionsManager extends EventEmitter {
         
         for (const tccPath of tccPaths) {
           try {
-            // Check if database exists and is accessible
+
             await fs.promises.access(tccPath, fs.constants.R_OK)
             
-            // Query TCC database for accessibility permission
+
             // Try all bundle ID variants
             for (const variant of bundleIdVariants) {
               try {
@@ -333,7 +333,7 @@ class PermissionsManager extends EventEmitter {
           `osascript -e 'tell application "System Events" to get name of every process' 2>&1`
         ) as { stdout: string, stderr: string }
         
-        // Check for success indicators
+
         const hasProcesses = stdout && stdout.trim().length > 0
         const noErrors = !stdout.includes('not allowed') && 
                          !stdout.includes('denied') && 
@@ -346,7 +346,7 @@ class PermissionsManager extends EventEmitter {
           return true
         }
       } catch (e: any) {
-        // If osascript fails with specific error, log it
+
         const errorMsg = e.message || String(e)
         if (!errorMsg.includes('not allowed') && !errorMsg.includes('denied')) {
           log.warn('[Permissions] System Events check failed:', errorMsg)
@@ -499,7 +499,7 @@ class PermissionsManager extends EventEmitter {
       // Invalidate cache and force re-check
       this.invalidateCache('accessibility')
       
-      // Check multiple times with delays to catch permission grant
+
       // Use longer delays and more attempts for production
       let granted = false
       for (let i = 0; i < 10; i++) {
@@ -564,7 +564,7 @@ class PermissionsManager extends EventEmitter {
       // Invalidate cache and force re-check
       this.invalidateCache('fileAccess')
       
-      // Check multiple times to ensure permission is detected
+
       let granted = false
       for (let i = 0; i < 3; i++) {
         granted = await this.checkFileAccessPermission()
@@ -612,7 +612,7 @@ class PermissionsManager extends EventEmitter {
   async checkAllPermissions(force: boolean = false): Promise<CheckAllPermissionsResult> {
     const now = Date.now()
     if (!force && now - this.lastCheckTime < this.checkDebounceMs) {
-      // Return cached results if check was recent
+
       return {
         permissions: this.permissions,
         allGranted: Object.values(this.permissions).every(v => v),
@@ -626,7 +626,7 @@ class PermissionsManager extends EventEmitter {
 
     this.lastCheckTime = now
 
-    // Save previous permissions state (don't reset yet!)
+
     const previousPermissions = { ...this.permissions }
 
     // Invalidate cache when force checking
@@ -634,7 +634,7 @@ class PermissionsManager extends EventEmitter {
       this.invalidateCache()
     }
 
-    // Check all permissions in parallel with timeout
+
     const checkWithTimeout = async (fn: () => Promise<boolean>, timeout: number = 5000): Promise<boolean> => {
       try {
         return await Promise.race([
@@ -643,7 +643,7 @@ class PermissionsManager extends EventEmitter {
         ])
       } catch (error: any) {
         log.error('[Permissions] Check timeout or error:', error)
-        // Return false on error, but don't reset existing state
+
         return false
       }
     }
@@ -659,21 +659,21 @@ class PermissionsManager extends EventEmitter {
 
     const permissionNames = ['accessibility', 'fullDiskAccess', 'networkAccess', 'fileAccess', 'launchAgent', 'keychainAccess']
     
-    // Update permissions state only with confirmed results
-    // If a check fails or times out, preserve the previous state
+
+
     // If a check succeeds but returns false, update to false (permission was revoked)
     const permissionResults: PermissionResult[] = results.map((result, index) => {
       const key = permissionNames[index] as keyof PermissionsState
       let granted = false
       
       if (result.status === 'fulfilled') {
-        // Check succeeded - use the result (true or false)
+
         // Note: Individual check methods may have already updated this.permissions[key],
         // but we ensure it matches the result here
         granted = result.value === true
         this.permissions[key] = granted
       } else {
-        // Check failed (error or timeout) - preserve previous state
+
         // This prevents permissions from being reset to false when checks fail
         granted = previousPermissions[key]
         this.permissions[key] = previousPermissions[key]
