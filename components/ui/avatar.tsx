@@ -6,7 +6,7 @@ export function Avatar({ children, className, style }: { children: React.ReactNo
 }
 
 export function AvatarImage({ src, alt, className, draggable, style }: { src?: string; alt?: string; className?: string; draggable?: boolean; style?: React.CSSProperties }) {
-  // Sanitize URL to prevent XSS vulnerabilities
+
   const sanitizedSrc = sanitizeImageUrl(src)
   
   return (
