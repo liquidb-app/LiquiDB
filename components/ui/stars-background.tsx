@@ -54,7 +54,7 @@ export function StarsBackground({
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    // Track if component is still mounted to prevent operations after unmount
+
     let isMounted = true
 
     let cssWidth = canvas.offsetWidth
@@ -79,7 +79,7 @@ export function StarsBackground({
       setCanvasScale()
     }
     
-    // Track previous dimensions to avoid unnecessary re-initialization
+
     let lastWidth = cssWidth
     let lastHeight = cssHeight
     let resizeTimeout: NodeJS.Timeout | null = null
@@ -87,12 +87,12 @@ export function StarsBackground({
     const onResize = () => {
       if (!isMounted) return
       
-      // Clear any pending resize operation
+
       if (resizeTimeout) {
         clearTimeout(resizeTimeout)
       }
       
-      // Debounce resize operations to prevent excessive calls during rapid resizing
+
       resizeTimeout = setTimeout(() => {
         if (!isMounted) return
         
@@ -214,24 +214,24 @@ export function StarsBackground({
         animationRef.current = null
       }
       
-      // Clear any pending resize operations
+
       if (resizeTimeout) {
         clearTimeout(resizeTimeout)
         resizeTimeout = null
       }
       
-      // Disconnect resize observer
+
       resizeObserver.disconnect()
       
-      // Remove event listeners
+
       window.removeEventListener("mousemove", onMouseMove)
       
-      // Clear the canvas
+
       if (ctx && canvas) {
         ctx.clearRect(0, 0, canvas.width, canvas.height)
       }
       
-      // Clear stars array to free memory
+
       stars = []
     }
   }, [factor, starColor, parallaxFactor, glow])
