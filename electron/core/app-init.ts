@@ -56,7 +56,7 @@ export function initializeAutoLauncher(): AutoLaunch | null {
     
     // macOS: Use app bundle path if available
     if (process.execPath.includes('.app')) {
-      // Extract the app bundle path from the executable path
+
       const pathParts = process.execPath.split('/')
       const appIndex = pathParts.findIndex(part => part.endsWith('.app'))
       if (appIndex !== -1) {
@@ -92,7 +92,7 @@ export function setupAppLifecycleHandlers(app: Electron.App): void {
     try {
       await killAllDatabaseProcesses(app)
       
-      // Clear all PIDs from storage
+
       const databases = storage.loadDatabases(app)
       let updated = false
       for (const db of databases) {
@@ -117,30 +117,30 @@ export function setupAppLifecycleHandlers(app: Electron.App): void {
     }
   })
 
-  // Cleanup on app termination
+
   // Import file watcher for cleanup
   const { stopDatabaseFileWatcher } = require("../database/file-watcher")
   
   app.on("before-quit", async (event: Electron.Event) => {
-    // Check if we're installing an update
+
     // If so, skip cleanup and allow immediate quit
     if (sharedState.getIsInstallingUpdate()) {
       log.info("[App Quit] Update installation detected, skipping cleanup and allowing immediate quit")
-      // Stop file watcher but don't prevent quit
+
       stopDatabaseFileWatcher()
       // Don't prevent default - allow quit immediately for update installation
       // This is critical for macOS where quitAndInstall needs the app to quit immediately
       return
     }
     
-    // Stop file watcher on quit
+
     stopDatabaseFileWatcher()
     // Prevent default quit behavior until cleanup is done
     event.preventDefault()
     
     log.info("Stopping all databases...")
     
-    // Set a timeout to prevent blocking indefinitely (max 5 seconds for cleanup)
+
     const cleanupTimeout = setTimeout(() => {
       console.warn("[App Quit] Cleanup timeout reached, forcing quit...")
       app.exit(0)
@@ -160,7 +160,7 @@ export function setupAppLifecycleHandlers(app: Electron.App): void {
       ])
       await killTimeout
       
-      // Clean up temporary files (non-blocking, don't wait)
+
       const tempCleanupPromises: Promise<void>[] = []
       for (const [id] of runningDatabases) {
         tempCleanupPromises.push(
@@ -182,7 +182,7 @@ export function setupAppLifecycleHandlers(app: Electron.App): void {
       
       runningDatabases.clear()
       
-      // Start helper service when main app closes (helper must continue running) - non-blocking
+
       const helperService = sharedState.getHelperService()
       if (helperService) {
         // Don't wait for helper service start - let it run in background
@@ -191,7 +191,7 @@ export function setupAppLifecycleHandlers(app: Electron.App): void {
         })
       }
       
-      // Clear all PIDs from storage when app quits
+
       try {
         const databases = storage.loadDatabases(app)
         let updated = false
@@ -223,14 +223,14 @@ export function setupAppLifecycleHandlers(app: Electron.App): void {
  * Setup process signal handlers
  */
 export function setupProcessSignalHandlers(app: Electron.App): void {
-  // Handle app termination
+
   process.on("SIGINT", async () => {
     console.log("[App Quit] Received SIGINT, stopping all databases...")
     
     // Kill all database processes (from memory and storage)
     await killAllDatabaseProcesses(app)
     
-    // Clear all PIDs from storage (skip if app is not available)
+
     if (app) {
       try {
         const databases = storage.loadDatabases(app)
@@ -260,7 +260,7 @@ export function setupProcessSignalHandlers(app: Electron.App): void {
     // Kill all database processes (from memory and storage)
     await killAllDatabaseProcesses(app)
     
-    // Clear all PIDs from storage (skip if app is not available)
+
     if (app) {
       try {
         const databases = storage.loadDatabases(app)
@@ -284,13 +284,13 @@ export function setupProcessSignalHandlers(app: Electron.App): void {
     process.exit(0)
   })
 
-  // Handle uncaught exceptions (app crashes)
+
   process.on("uncaughtException", async (error: Error) => {
     console.error("[App Crash] Uncaught exception:", error)
     
     const runningDatabases = sharedState.getRunningDatabases()
     
-    // Handle EAGAIN errors gracefully - don't crash the app
+
     if ((error as NodeJS.ErrnoException).code === 'EAGAIN' || (error as NodeJS.ErrnoException).errno === -35) {
       console.error("[App Crash] Resource exhaustion (EAGAIN) detected, waiting before cleanup...")
       // Wait a bit to let resources recover
@@ -317,7 +317,7 @@ export function setupProcessSignalHandlers(app: Electron.App): void {
       return
     }
     
-    // Kill all database processes before crashing
+
     try {
       console.log("[App Crash] Killing all database processes before exit...")
       await killAllDatabaseProcesses(app)
@@ -325,7 +325,7 @@ export function setupProcessSignalHandlers(app: Electron.App): void {
       console.error("[App Crash] Error killing processes:", killError)
     }
     
-    // Clear all PIDs from storage (skip if app is not available)
+
     if (app) {
       try {
         const databases = storage.loadDatabases(app)
@@ -350,11 +350,11 @@ export function setupProcessSignalHandlers(app: Electron.App): void {
     throw error
   })
 
-  // Handle unhandled promise rejections (app crashes)
+
   process.on("unhandledRejection", async (reason: unknown, _promise: Promise<unknown>) => {
     console.error("[App Crash] Unhandled rejection:", reason)
     
-    // Kill all database processes before crashing
+
     try {
       console.log("[App Crash] Killing all database processes before exit (unhandled rejection)...")
       await killAllDatabaseProcesses(app)
@@ -362,7 +362,7 @@ export function setupProcessSignalHandlers(app: Electron.App): void {
       console.error("[App Crash] Error killing processes:", killError)
     }
     
-    // Clear all PIDs from storage (skip if app is not available)
+
     if (app) {
       try {
         const databases = storage.loadDatabases(app)

@@ -56,7 +56,7 @@ export function registerHelperHandlers(app: App): void {
     }
   })
 
-  // Start helper service on demand (for onboarding step 4 or app settings)
+
   ipcMain.handle("helper:start-on-demand", async (event) => {
     try {
       let helperService = sharedState.getHelperService()

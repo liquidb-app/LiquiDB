@@ -28,7 +28,7 @@ export async function handleAppReady(app: Electron.App): Promise<void> {
   log.debug("Auto-launcher available:", !!autoLauncher)
   
   // Register custom protocol handler for static files (required for assetPrefix: '/')
-  // Must be registered before creating window
+
   // Register for both dev and production builds to support static file testing
     registerAppProtocolHandler(app)
   
@@ -41,12 +41,12 @@ export async function handleAppReady(app: Electron.App): Promise<void> {
  * Handle normal app mode initialization
  */
 async function handleNormalAppMode(app: Electron.App): Promise<void> {
-  // Initialize permissions manager
+
   try {
     const permissionsManager = new PermissionsManager()
     sharedState.setPermissionsManager(permissionsManager)
     
-    // Start automatic permission checking (every 10 seconds)
+
     // The initial check runs asynchronously and won't block startup
     permissionsManager.startAutomaticChecking(10000)
     
@@ -65,17 +65,17 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
   
   resetDatabaseStatuses(app)
   
-  // Ensure databases directory exists
+
   storage.ensureDatabasesDirectory(app)
   
-  // Start watching databases.json for changes
+
   startDatabaseFileWatcher(app)
   
-  // Clean up orphaned database directories on startup
+
   await cleanupOrphanedDatabases(app)
   
-  // Clean up orphaned database processes on startup
-  // Add a small delay to ensure app is fully ready before checking processes
+
+
   // This helps prevent crashes from calling process.kill() too early
   await new Promise(resolve => setTimeout(resolve, 100))
   
@@ -86,7 +86,7 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
     
     // Helper function to check if a process exists using process.kill(pid, 0)
     // This is safer than using exec() and doesn't require shell commands
-    // Added additional validation to prevent SIGSEGV crashes
+
     const isProcessRunning = (pid: number): boolean => {
       try {
         // Additional validation: PIDs on macOS are typically 1-999999
@@ -109,14 +109,14 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
           console.log(`[App Start] Invalid signal for PID ${pid}`)
           return false
         }
-        // Other errors (like EPERM) mean process exists but we can't signal it
+
         // In that case, assume it's running
         return true
       }
     }
     
     for (const db of databases) {
-      // Validate PID before using it
+
       if (db.pid !== null && db.pid !== undefined) {
         const pid = typeof db.pid === 'number' ? db.pid : parseInt(String(db.pid), 10)
         
@@ -128,22 +128,22 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
           continue
         }
         
-        // Check if process is actually running using safer method
-        // Wrap in try-catch to prevent crashes from process.kill()
+
+
         try {
           const isRunning = isProcessRunning(pid)
           if (!isRunning) {
-            // Process doesn't exist, mark as orphaned in storage
+
             console.log(`[App Start] Process ${pid} for database ${db.id} doesn't exist, clearing from storage`)
             db.status = 'stopped'
             db.pid = null
           } else {
-            // Process exists but app isn't tracking it - it's orphaned
+
             console.log(`[App Start] Found orphaned database process ${pid} for database ${db.id}, will kill it`)
             orphanedPids.push({ pid, id: db.id })
           }
         } catch (error: any) {
-          // Catch any errors (including potential crashes) and assume process doesn't exist
+
           console.log(`[App Start] Error checking process ${pid} for database ${db.id}: ${error.message || error}, clearing from storage`)
           db.status = 'stopped'
           db.pid = null
@@ -160,7 +160,7 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
           await killProcessByPid(pid, "SIGTERM")
           await new Promise(resolve => setTimeout(resolve, 500))
           
-          // Check if still running using safer method
+
           try {
             const stillRunning = isProcessRunning(pid)
             if (stillRunning) {
@@ -169,14 +169,14 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
               await killProcessByPid(pid, "SIGKILL")
             }
           } catch (_error) {
-            // Process already dead or error checking
+
             console.log(`[App Start] Error checking if process ${pid} is still running:`, _error)
           }
         } catch (killError) {
           console.error(`[App Start] Error killing orphaned process ${pid} for database ${id}:`, killError)
         }
         
-        // Update storage
+
         const dbIndex = databases.findIndex((d) => d.id === id)
         if (dbIndex >= 0) {
           databases[dbIndex].status = 'stopped'
@@ -185,7 +185,7 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
         }
       }
       
-      // Save updated database statuses
+
       storage.saveDatabases(app, databases)
       console.log(`[App Start] Cleaned up ${orphanedPids.length} orphaned processes`)
     }
@@ -198,7 +198,7 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
   // Setup application menu bar (About, Check for Updates, etc.)
   setupApplicationMenu()
   
-  // Check if onboarding is complete before starting background processes
+
   let onboardingCheckCount = 0
   const maxOnboardingChecks = 30 // Maximum 30 checks (30 seconds)
   
@@ -214,7 +214,7 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
       if (isOnboardingComplete) {
         log.info("Onboarding complete, starting background processes...")
         
-        // Start helper service after onboarding is complete
+
         let helperService = sharedState.getHelperService()
         if (!helperService) {
           helperService = new HelperServiceManager(app)
@@ -256,7 +256,7 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
         if (onboardingCheckCount % 5 === 0) {
           log.info(`Onboarding in progress, deferring background processes... (${onboardingCheckCount}/${maxOnboardingChecks})`)
         }
-        // Check again in 2 seconds (reduced frequency)
+
         setTimeout(checkOnboardingAndStartProcesses, 2000)
       } else {
         log.warn("Onboarding check timeout reached, starting background processes anyway...")
@@ -307,7 +307,7 @@ async function handleNormalAppMode(app: Electron.App): Promise<void> {
     }
   }
   
-  // Start checking after a short delay to ensure the window is ready
+
   setTimeout(checkOnboardingAndStartProcesses, 2000)
 }
 
@@ -332,7 +332,7 @@ export function registerDashboardReadyHandler(app: Electron.App): void {
       
       console.log("[Auto-start] Dashboard is ready, checking if auto-start should be triggered...")
       
-      // Check if onboarding is complete
+
       const isOnboardingComplete = await mainWindow?.webContents?.executeJavaScript(
         '(function() { try { const liquidbKey = localStorage.getItem(\'liquidb-onboarding-complete\'); const legacyKey = localStorage.getItem(\'onboarding-complete\'); const result = liquidbKey === \'true\' || legacyKey === \'true\'; console.log("[Auto-start] Onboarding check - liquidb-onboarding-complete:", liquidbKey, "onboarding-complete:", legacyKey, "result:", result); return result; } catch(e) { if (e.name !== "SecurityError") { console.error("[Auto-start] Error checking onboarding:", e); } return false; } })()'
       )
@@ -342,7 +342,7 @@ export function registerDashboardReadyHandler(app: Electron.App): void {
       if (isOnboardingComplete) {
         console.log("[Auto-start] Onboarding complete, triggering auto-start immediately...")
         
-        // Start helper service if needed
+
         let helperService = sharedState.getHelperService()
         if (!helperService) {
           helperService = new HelperServiceManager(app)

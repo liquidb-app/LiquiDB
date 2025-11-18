@@ -26,7 +26,7 @@ export function registerPortHandlers(app: App): void {
       return { available: false, reason: "privileged" }
     }
 
-    // Load banned ports from a JSON file under app data
+
     const bannedFile = getBannedPortsFile(app)
     let banned: number[] = []
     try {
@@ -90,11 +90,11 @@ export function registerPortHandlers(app: App): void {
         }
       }
 
-      // Check if this PID belongs to one of our own databases
+
       const runningDatabases = sharedState.getRunningDatabases()
       const databases = storage.loadDatabases(app)
       
-      // Check if PID matches any running database
+
       for (const [id, db] of runningDatabases) {
         if (db.process.pid && db.process.pid.toString() === processInfo.pid) {
           // This is one of our own databases
@@ -121,7 +121,7 @@ export function registerPortHandlers(app: App): void {
           const dbRecord = databases.find((d) => d.id === id)
           if (dbRecord) {
             // It's one of our databases, but we don't know which one is checking
-            // Return as conflict to be safe, but indicate it's a database
+
             return {
               success: true,
               inUse: true,
@@ -134,7 +134,7 @@ export function registerPortHandlers(app: App): void {
         }
       }
 
-      // Check if PID matches any database's stored PID (for stopped databases with stale processes)
+
       for (const db of databases) {
         if (db.pid && db.pid.toString() === processInfo.pid) {
           // This PID matches a database's stored PID

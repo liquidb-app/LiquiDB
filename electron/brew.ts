@@ -76,9 +76,9 @@ export function execBrew(args: string[], { onStdout, onStderr }: InstallOptions 
   return new Promise((resolve, reject) => {
     const brewPath = findBrewPath()
     
-    // Set up environment with Homebrew paths
-    // Disable auto-update to prevent Homebrew from installing unrelated packages
-    // (like migrating casks to formulae during installation)
+
+
+
     const env = {
       ...process.env,
       PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH}`,
@@ -228,7 +228,7 @@ export async function installDatabase({ dbType, version, onStdout, onStderr }: I
   // For MongoDB, use the full tap path
   const fullFormula = dbType === "mongodb" ? `mongodb/brew/${formula}` : formula
   
-  // Check if already installed first
+
   try {
     const { stdout } = await execBrew(["list", fullFormula])
     if (stdout.includes(formula) || stdout.includes(fullFormula)) {
@@ -258,7 +258,7 @@ export async function installDatabase({ dbType, version, onStdout, onStderr }: I
       }
     })
     
-    // Check if the installation was successful or if it was already installed
+
     if (result.stderr && result.stderr.includes("already installed")) {
       console.log(`[Homebrew] ${fullFormula} was already installed (detected from stderr)`)
       return {
@@ -272,7 +272,7 @@ export async function installDatabase({ dbType, version, onStdout, onStderr }: I
     // Provide more detailed error message
     let errorMessage = installError.message || `Failed to install ${fullFormula}`
     
-    // Extract more details from stderr if available
+
     if (installError.stderr) {
       const stderrLines = installError.stderr.split('\n').filter((line: string) => line.trim())
       const lastErrorLine = stderrLines[stderrLines.length - 1]

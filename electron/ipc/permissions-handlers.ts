@@ -90,7 +90,7 @@ export function registerPermissionsHandlers(): void {
         return { success: false, error: "Permissions manager not initialized" }
       }
       const granted = await permissionsManager.requestPermission(permissionName)
-      // Re-check permissions after request to ensure state is updated
+
       await permissionsManager.checkAllPermissions()
       return { success: true, data: { granted } }
     } catch (error: any) {

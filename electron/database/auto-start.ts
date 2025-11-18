@@ -48,7 +48,7 @@ export async function autoStartDatabases(
     console.log(`[Auto-start] Found ${autoStartDatabasesList.length} databases to auto-start:`, 
       autoStartDatabasesList.map((db) => `${db.name} (${db.type})`).join(", "))
     
-    // Check for port conflicts among auto-start databases
+
     const portConflicts: PortConflict[] = []
     const usedPorts: number[] = []
     const databasesToStart: IDatabase[] = []
@@ -71,7 +71,7 @@ export async function autoStartDatabases(
       }
     }
     
-    // Handle port conflicts
+
     if (portConflicts.length > 0) {
       console.log(`[Auto-start] Found ${portConflicts.length} port conflicts, resolving automatically`)
       
@@ -79,7 +79,7 @@ export async function autoStartDatabases(
         const { database, suggestedPort } = conflict
         console.log(`[Auto-start] Resolving conflict: ${database.name} port changed from ${database.port} to ${suggestedPort}`)
         
-        // Update the database port in storage
+
         try {
           const updatedDb = { ...database, port: suggestedPort }
           const allDatabases = storage.loadDatabases(app)
@@ -90,7 +90,7 @@ export async function autoStartDatabases(
             console.log(`[Auto-start] Updated ${database.name} port to ${suggestedPort} in storage`)
           }
           
-          // Add to databases to start with updated port
+
           databasesToStart.push(updatedDb)
           usedPorts.push(suggestedPort)
         } catch (error) {
@@ -120,7 +120,7 @@ export async function autoStartDatabases(
       try {
         console.log(`[Auto-start] Starting database ${db.name} (${db.type}) on port ${db.port}...`)
         
-        // Send initial "starting" status to frontend before starting the process
+
         if (mainWindow) {
           mainWindow.webContents.send('database-status-changed', { 
             id: db.id, 
@@ -130,14 +130,14 @@ export async function autoStartDatabases(
           console.log(`[Auto-start] Sent initial starting status for ${db.name} to frontend`)
         }
         
-        // Start the database process
+
         const result = await startDatabaseProcessAsync(db)
         
         if (result && result.success) {
           console.log(`[Auto-start] Successfully started ${db.name}`)
           successCount++
           
-          // Verify the database is actually running by checking the running databases map
+
           setTimeout(() => {
             const runningDb = runningDatabases.get(db.id)
             if (runningDb) {
@@ -155,7 +155,7 @@ export async function autoStartDatabases(
         failureCount++
       }
       
-      // Add a small delay between starts to avoid overwhelming the system
+
       await new Promise(resolve => setTimeout(resolve, 1000))
     }
     
@@ -164,7 +164,7 @@ export async function autoStartDatabases(
     
     console.log(`[Auto-start] Auto-start process completed: ${successCount} successful, ${failureCount} failed, ${skippedCount} skipped due to port conflicts`)
     
-    // Send summary to frontend
+
     if (mainWindow) {
       mainWindow.webContents.send('auto-start-completed', {
         total: autoStartDatabasesList.length,

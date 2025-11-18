@@ -16,7 +16,7 @@ export async function alternativeMySQLInit(mysqldPath: string, dataDir: string, 
   const initProcess = spawn(mysqldPath, [
     "--initialize-insecure", 
     `--datadir=${dataDir}`,
-    // Don't specify --log-error to prevent log file creation during alternative initialization
+
     "--skip-log-bin",
     "--skip-innodb",
     "--default-storage-engine=MyISAM"
@@ -59,7 +59,7 @@ export async function alternativeMySQLInit(mysqldPath: string, dataDir: string, 
         console.error(`[MySQL Alt] Output:`, initOutput)
         console.error(`[MySQL Alt] Error:`, initError)
         
-        // Log files are disabled, error details are in initError
+
         
         reject(new Error(`Alternative MySQL initialization failed with exit code ${code}`))
       }
@@ -133,15 +133,15 @@ export async function configurePostgreSQL(config: IDatabase, app: Electron.App):
       return
     }
     
-    // Sanitize database name (PostgreSQL database names must be valid identifiers)
+
     const dbName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63) || 'liquidb_db'
     
     const actualUsername = username || dbRecord.username || 'postgres'
     console.log(`[PostgreSQL Config] ${id} Configuring with username: ${actualUsername}, database: ${dbName}`)
     
-    // Connect as postgres superuser to configure the database
+
     try {
-      // Create database if it doesn't exist
+
       const createDbCmd = `CREATE DATABASE "${dbName}";`
       execSync(`${psqlPath} -h localhost -p ${port} -U postgres -d postgres -c "${createDbCmd}"`, {
         env: { ...env, PGPASSWORD: '' },
@@ -165,7 +165,7 @@ export async function configurePostgreSQL(config: IDatabase, app: Electron.App):
     
     if (actualUsername && actualUsername !== 'postgres' && actualUsername.trim() !== '') {
       try {
-        // Check if postgres user exists
+
         const checkPostgresCmd = `SELECT 1 FROM pg_user WHERE usename = 'postgres';`
         let postgresExists = false
         try {
@@ -180,7 +180,7 @@ export async function configurePostgreSQL(config: IDatabase, app: Electron.App):
           postgresExists = false
         }
         
-        // Check if custom username already exists (maybe it was renamed earlier)
+
         let customUserExists = false
         if (postgresExists) {
           try {
@@ -224,7 +224,7 @@ export async function configurePostgreSQL(config: IDatabase, app: Electron.App):
             connectAsUser = actualUsername
           } catch (renameError) {
             console.log(`[PostgreSQL Config] ${id} Could not rename postgres user:`, renameError)
-            // If rename fails, we'll create the user and drop postgres below
+
           }
         } else if (postgresExists && customUserExists) {
           // Both exist - drop postgres user
@@ -270,7 +270,7 @@ export async function configurePostgreSQL(config: IDatabase, app: Electron.App):
             console.log(`[PostgreSQL Config] ${id} Set password for renamed user: ${actualUsername}`)
           }
         } else {
-          // Check if user exists (connect as postgres or custom username depending on what's available)
+
           const checkUserCmd = `SELECT 1 FROM pg_user WHERE usename = '${actualUsername}';`
           let userExists = false
           try {
@@ -296,7 +296,7 @@ export async function configurePostgreSQL(config: IDatabase, app: Electron.App):
               console.log(`[PostgreSQL Config] ${id} Updated password for user: ${actualUsername}`)
             }
           } else {
-            // Create new user
+
             const passwordPart = actualPassword && actualPassword.trim() !== '' 
               ? `WITH PASSWORD '${actualPassword.replace(/'/g, "''")}'` 
               : ''
@@ -337,7 +337,7 @@ export async function configurePostgreSQL(config: IDatabase, app: Electron.App):
         console.log(`[PostgreSQL Config] ${id} Could not configure user:`, userError)
       }
     } else if (actualUsername === 'postgres' && actualPassword && actualPassword.trim() !== '') {
-      // Update postgres user password if provided
+
       try {
         const escapedPassword = actualPassword.replace(/'/g, "''")
         const alterUserCmd = `ALTER USER postgres WITH PASSWORD '${escapedPassword}';`
@@ -375,7 +375,7 @@ export async function configureMySQL(config: IDatabase, app: Electron.App): Prom
       return
     }
     
-    // Get containerId from config or dbRecord
+
     const containerId = config.containerId || dbRecord.containerId || id
     
     // Use password directly from config
@@ -391,22 +391,22 @@ export async function configureMySQL(config: IDatabase, app: Electron.App): Prom
     // Wait a moment for MySQL to be fully ready
     await new Promise(resolve => setTimeout(resolve, 3000))
     
-    // Sanitize database name (MySQL database names)
+
     const dbName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 64) || 'liquidb_db'
     const actualUsername = username || dbRecord.username || 'root'
     
     console.log(`[MySQL Config] ${id} Configuring with username: ${actualUsername}, database: ${dbName}`)
     
-    // Connect using socket (more reliable than TCP for initial setup)
+
     const socketPath = `/tmp/mysql-${containerId}.sock`
     
-    // Check if MySQL server is running by checking if socket exists
+
     if (!fs.existsSync(socketPath)) {
       console.log(`[MySQL Config] ${id} MySQL server is not running (socket not found: ${socketPath}). Skipping configuration.`)
       return
     }
     
-    // Verify MySQL is actually accessible by checking connection
+
     try {
       const testCmd = 'SELECT 1;'
       const escapedTestCmd = testCmd.replace(/'/g, "'\\''")
@@ -421,10 +421,10 @@ export async function configureMySQL(config: IDatabase, app: Electron.App): Prom
     }
     
     try {
-      // Create database if it doesn't exist
-      // Use single quotes around SQL command to prevent shell interpretation of backticks
+
+
       const createDbCmd = `CREATE DATABASE IF NOT EXISTS \`${dbName}\`;`
-      // Escape single quotes in the SQL command for shell execution
+
       const escapedCmd = createDbCmd.replace(/'/g, "'\\''")
       execSync(`${mysqlPath} --socket=${socketPath} -e '${escapedCmd}'`, {
         env,
@@ -435,11 +435,11 @@ export async function configureMySQL(config: IDatabase, app: Electron.App): Prom
       console.log(`[MySQL Config] ${id} Could not create database:`, e)
     }
     
-    // Handle username rename if username changed
+
     if (oldUsername && typeof oldUsername === 'string' && oldUsername.trim() !== '' && oldUsername !== actualUsername && oldUsername !== 'root' && actualUsername && actualUsername !== 'root') {
       console.log(`[MySQL Config] ${id} Username changed - renaming user: ${oldUsername} to ${actualUsername}`)
       try {
-        // Check if old user exists
+
         const checkOldUserCmd = `SELECT COUNT(*) FROM mysql.user WHERE user = '${oldUsername}' AND host = 'localhost';`
         let oldUserExists = false
         try {
@@ -452,7 +452,7 @@ export async function configureMySQL(config: IDatabase, app: Electron.App): Prom
         } catch {}
         
         if (oldUserExists) {
-          // Check if new username already exists
+
           const checkNewUserCmd = `SELECT COUNT(*) FROM mysql.user WHERE user = '${actualUsername}' AND host = 'localhost';`
           let newUserExists = false
           try {
@@ -521,7 +521,7 @@ export async function configureMySQL(config: IDatabase, app: Electron.App): Prom
     // Only create/update user if custom username is provided and not 'root'
     if (actualUsername && actualUsername !== 'root' && actualUsername.trim() !== '') {
       try {
-        // Create user if it doesn't exist, or update password if it does
+
         const passwordPart = actualPassword && actualPassword.trim() !== '' 
           ? `IDENTIFIED BY '${actualPassword.replace(/'/g, "''")}'` 
           : 'IDENTIFIED BY ""'
@@ -532,7 +532,7 @@ export async function configureMySQL(config: IDatabase, app: Electron.App): Prom
           stdio: 'pipe'
         })
         
-        // Update password if user already exists
+
         if (actualPassword && actualPassword.trim() !== '') {
           const updatePasswordCmd = `ALTER USER '${actualUsername}'@'localhost' ${passwordPart};`
           try {
@@ -574,7 +574,7 @@ export async function configureMySQL(config: IDatabase, app: Electron.App): Prom
         console.log(`[MySQL Config] ${id} Could not configure user:`, userError)
       }
     } else if (actualUsername === 'root' && actualPassword && actualPassword.trim() !== '') {
-      // Update root user password if provided
+
       try {
         const updateRootCmd = `ALTER USER 'root'@'localhost' IDENTIFIED BY '${actualPassword.replace(/'/g, "''")}'; FLUSH PRIVILEGES;`
         execSync(`${mysqlPath} --socket=${socketPath} -e "${updateRootCmd}"`, {
@@ -650,18 +650,18 @@ export async function configureMongoDB(config: IDatabase, app: Electron.App): Pr
     // Wait a moment for MongoDB to be fully ready
     await new Promise(resolve => setTimeout(resolve, 3000))
     
-    // Sanitize database name (MongoDB database names)
+
     const dbName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').substring(0, 63) || 'liquidb_db'
     const actualUsername = username || dbRecord.username || ''
     
     console.log(`[MongoDB Config] ${id} Configuring with username: ${actualUsername}, database: ${dbName}`)
     
-    // Connect to MongoDB (by default, MongoDB doesn't require auth initially)
+
     try {
       // Switch to the target database
       // MongoDB databases are created automatically when first used
       
-      // Handle username rename if username changed
+
       // Note: MongoDB doesn't support renaming users directly, so we drop and recreate
       if (oldUsername && typeof oldUsername === 'string' && oldUsername.trim() !== '' && oldUsername !== actualUsername && actualUsername && actualUsername.trim() !== '') {
         console.log(`[MongoDB Config] ${id} Username changed - removing old user: ${oldUsername}, new user: ${actualUsername}`)
@@ -704,10 +704,10 @@ export async function configureMongoDB(config: IDatabase, app: Electron.App): Pr
       
       // Only configure user if username is provided
       if (actualUsername && actualUsername.trim() !== '') {
-        // Escape password for MongoDB
+
         const escapedPassword = actualPassword.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'")
         
-        // Create user in the target database
+
         try {
           // First create user in the target database
           const createUserScript = `use('${dbName}'); db.createUser({ user: '${actualUsername}', pwd: '${escapedPassword}', roles: [{ role: 'readWrite', db: '${dbName}' }] })`
@@ -767,7 +767,7 @@ export async function configureMongoDB(config: IDatabase, app: Electron.App): Pr
         }
       }
       
-      // Create the database by inserting a dummy document (MongoDB creates DBs on first write)
+
       try {
         const createDbScript = `use('${dbName}'); db.dummy.insertOne({created: new Date()})`
         execSync(`${mongoshCmd} --host localhost:${port} --eval "${createDbScript}" --quiet`, {
@@ -872,9 +872,9 @@ export async function configureRedis(config: IDatabase, app: Electron.App): Prom
     // First, try without password (for initial setup)
     if (actualPassword && actualPassword.trim() !== '') {
       try {
-        // Set password using CONFIG SET (temporary, until restart)
-        // Use spawn instead of execSync to prevent command injection
-        // Pass arguments as array to avoid shell interpretation
+
+
+
         await new Promise<void>((resolve, reject) => {
           const child = spawn(redisCliCmd, [
             '-h', 'localhost',
@@ -922,13 +922,13 @@ export async function configureRedis(config: IDatabase, app: Electron.App): Prom
         // Password persistence is handled via command-line args on restart
         console.log(`[Redis Config] ${id} Skipping CONFIG REWRITE to avoid creating config files with unquoted paths`)
       } catch (passError) {
-        // If that fails, Redis might already have a password set
-        // In that case, password updates should be done via settings which will restart Redis
+
+
         console.log(`[Redis Config] ${id} Could not set password:`, passError)
         console.log(`[Redis Config] ${id} Note: If Redis already has a password, changes require restart`)
       }
     } else {
-      // Remove password if it was set
+
       try {
         // Try to check if there's a password first
         try {
@@ -940,7 +940,7 @@ export async function configureRedis(config: IDatabase, app: Electron.App): Prom
           })
           // If this succeeds, no password is set
         } catch {
-          // If this fails, password might be set
+
           // Password removal requires restart
           console.log(`[Redis Config] ${id} Password removal requires Redis restart`)
         }
