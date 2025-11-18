@@ -60,7 +60,7 @@ export function registerFileHandlers(app: App): void {
         created: fs.statSync(path.join(imagesDir, file)).birthtime
       }))
       
-      // Sort by creation date (newest first)
+
       images.sort((a, b) => b.created.getTime() - a.created.getTime())
       
       console.log(`[Image Get] Found ${images.length} saved images`)
@@ -87,7 +87,7 @@ export function registerFileHandlers(app: App): void {
       const fileName = `avatar_${timestamp}.${extension}`
       const filePath = path.join(imagesDir, fileName)
 
-      // Save data URL to file
+
       await saveDataUrlToFile(dataUrl, filePath)
 
       console.log(`[Avatar Save] Avatar saved successfully: ${filePath}`)
@@ -104,18 +104,18 @@ export function registerFileHandlers(app: App): void {
     try {
       console.log(`[Image Convert] Converting file URL to data URL: ${fileUrl}`)
       
-      // Remove file:// prefix and decode URL
+
       const filePath = decodeURIComponent(fileUrl.replace('file://', ''))
       
-      // Check if file exists
+
       if (!fs.existsSync(filePath)) {
         throw new Error(`File not found: ${filePath}`)
       }
       
-      // Read file as buffer
+
       const fileBuffer = fs.readFileSync(filePath)
       
-      // Get file extension to determine MIME type
+
       const ext = path.extname(filePath).toLowerCase()
       let mimeType = 'image/png' // default
       
@@ -138,7 +138,7 @@ export function registerFileHandlers(app: App): void {
           break
       }
       
-      // Convert buffer to base64
+
       const base64Data = fileBuffer.toString('base64')
       const dataUrl = `data:${mimeType};base64,${base64Data}`
       
