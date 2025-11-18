@@ -41,7 +41,7 @@ export function registerDatabaseHandlers(app: App): void {
   })
 
   ipcMain.handle("stop-database", async (event, id: string) => {
-    // Clean up temporary files when stopping database
+
     try {
       const databases = storage.loadDatabases(app)
       const dbRecord = databases.find((d: any) => d.id === id)
@@ -62,7 +62,7 @@ export function registerDatabaseHandlers(app: App): void {
       await stopDatabaseProcessGracefully(db, db.config, app)
       runningDatabases.delete(id)
       
-      // Update database in storage to clear PID, update status, and clear lastStarted timestamp
+
       try {
         const databases = storage.loadDatabases(app)
         const dbIndex = databases.findIndex((db: any) => db.id === id)
