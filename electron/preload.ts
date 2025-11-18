@@ -113,7 +113,7 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.removeAllListeners('export-progress')
   },
   
-  // Update methods
+
   checkForUpdate: () => ipcRenderer.invoke("update:check"),
   onUpdateAvailable: (callback: (data: any) => void) => {
     ipcRenderer.on('update-available', (_event: any, data: any) => callback(data))
