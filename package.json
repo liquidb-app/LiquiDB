@@ -156,7 +156,7 @@
     "@types/semver": "^7.7.1",
     "concurrently": "^9.1.2",
     "conventional-changelog-conventionalcommits": "^9.1.0",
-    "electron": "^39.2.1",
+    "electron": "^39.2.3",
     "electron-builder": "^26.0.12",
     "eslint": "^9.39.0",
     "eslint-config-next": "^16.0.3",
