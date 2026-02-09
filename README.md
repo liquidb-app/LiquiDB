@@ -15,6 +15,15 @@
   <img src="public/dashboard.png" alt="LiquiDB Dashboard" width="100%" />
 </div>
 
+
+## Sponsors
+
+LiquiDB is proudly **sponsored by Hetzner**, who provide reliable cloud infrastructure and hosting for the project. 
+You can learn more about their services and get your own servers at https://www.hetzner.com.
+<div align="center">
+  <img src="public/Hetzner-Logo-Server-Cloud-Hosting-Web.png" alt="LiquiDB Dashboard" width="100%" />
+</div>
+
 ## Key Capabilities
 
 LiquiDB provides a comprehensive solution for managing local database instances:
