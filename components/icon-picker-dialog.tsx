@@ -318,7 +318,7 @@ export function IconPickerDialog({ open, onOpenChange, currentIcon, onSave }: Ic
                 {imageUrl && (
                   <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
                     <img
-                      src={sanitizeImageUrl(imageUrl) || "/placeholder.svg"}
+                      src={(imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://') || imageUrl.startsWith('data:image/') || imageUrl.startsWith('file://') || imageUrl.startsWith('/'))) ? imageUrl : "/placeholder.svg"}
                       alt="Preview"
                       className="w-12 h-12 object-cover rounded"
                     />

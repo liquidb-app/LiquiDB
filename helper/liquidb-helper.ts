@@ -376,25 +376,28 @@ export async function checkPortAvailability(port: number): Promise<PortCheckResu
 
 async function getProcessUsingPort(port: number): Promise<ProcessInfo | null> {
   return new Promise((resolve) => {
-    exec(`lsof -i :${port}`, (error: ExecException | null, stdout: string, _stderr: string) => {
-      if (error || !stdout.trim()) {
-        resolve(null)
-        return
-      }
-      
-      const lines = stdout.trim().split('\n')
-      if (lines.length > 1) {
-        // Skip header line, get first process
-        const processLine = lines[1]
-        const parts = processLine.split(/\s+/)
-        if (parts.length >= 2) {
-          const processName = parts[0]
-          const pid = parts[1]
-          resolve({ processName, pid })
+    import('child_process').then(({ execFile }) => {
+      execFile('lsof', ['-i', `:${port}`], (error: any, stdout: string | Buffer, _stderr: string | Buffer) => {
+        if (error || !stdout.toString().trim()) {
+          resolve(null)
+          return
         }
-      }
-      resolve(null)
-    })
+        
+        const lines = stdout.toString().trim().split('\n')
+        if (lines.length > 1) {
+          // Skip header line, get first process
+          const processLine = lines[1]
+          const parts = processLine.split(/\s+/)
+          if (parts.length >= 2) {
+            const processName = parts[0]
+            const pid = parts[1]
+            resolve({ processName, pid })
+            return
+          }
+        }
+        resolve(null)
+      })
+    }).catch(() => resolve(null))
   })
 }
 

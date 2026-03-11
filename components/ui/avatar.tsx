@@ -7,11 +7,15 @@ export function Avatar({ children, className, style }: { children: React.ReactNo
 
 export function AvatarImage({ src, alt, className, draggable, style }: { src?: string; alt?: string; className?: string; draggable?: boolean; style?: React.CSSProperties }) {
 
-  const sanitizedSrc = sanitizeImageUrl(src)
+  // CodeQL Fix: Ensure src only contains safe protocols
+  let safeSrc = undefined;
+  if (src && (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:image/') || src.startsWith('file://') || src.startsWith('/'))) {
+    safeSrc = src;
+  }
   
   return (
     <img
-      src={sanitizedSrc || undefined}
+      src={safeSrc}
       alt={alt}
       className={`aspect-square h-full w-full object-cover ${className || ""}`}
       draggable={draggable}

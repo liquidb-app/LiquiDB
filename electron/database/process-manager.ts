@@ -1301,7 +1301,7 @@ export async function startDatabaseProcessAsync(
         `[Redis] ${id} Starting Redis with command-line args (no config file)`,
       )
       console.log(`[Redis] ${id} Command: ${cmd}`)
-      console.log(`[Redis] ${id} Args: ${JSON.stringify(sanitizedArgs)}`)
+      console.log(`[Redis] ${id} Args: [REDACTED FOR SECURITY]`)
 
       // For Redis: Final safety check - ensure no config file path is in args
       if (type === "redis") {
@@ -1312,13 +1312,13 @@ export async function startDatabaseProcessAsync(
             `[Redis] ${id} ERROR: Config file path found in args! This should not happen.`,
           )
 
-          const sanitizedArgsString = JSON.stringify(sanitizeArgsForLogging(args))
+          const sanitizedArgsString = "[REDACTED FOR SECURITY]"
           console.error(`[Redis] ${id} Args: ${sanitizedArgsString}`)
 
           args = args.filter(
             (arg) => !arg.includes("redis.conf") && !arg.endsWith(".conf"),
           )
-          console.log(`[Redis] ${id} Cleaned args: ${JSON.stringify(sanitizeArgsForLogging(args))}`)
+          console.log(`[Redis] ${id} Cleaned args: [REDACTED FOR SECURITY]`)
         }
 
 
