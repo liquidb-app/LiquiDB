@@ -648,7 +648,7 @@ export function createWindow(app: App): BrowserWindow {
     <pre>• ${outDir}
 • ${fallbackOutDir}
 • ${appPath}</pre>
-    <p>Please rebuild the application with <code>npm run build</code>.</p>
+    <p>Please rebuild the application with <code>bun run build</code>.</p>
   </div>
 </body>
 </html>`
