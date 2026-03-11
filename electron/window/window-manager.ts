@@ -561,7 +561,7 @@ export function createWindow(app: App): BrowserWindow {
   // ... other config
 }</pre>
       <p>Then rebuild the application:</p>
-      <pre>npm run build</pre>
+      <pre>bun run build</pre>
       <p><strong>Expected location:</strong> <code>${outDir}</code></p>
     </div>
   </div>
