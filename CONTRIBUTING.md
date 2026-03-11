@@ -68,21 +68,21 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 2. Install dependencies:
    ```bash
-   npm install
+   bun install
    ```
 
 3. Run the development server:
    ```bash
-   npm run dev
+   bun run dev
    ```
 
 ### Available Scripts
 
-- `npm run dev` - Start development server with hot reload
-- `npm run build` - Build the Next.js application
-- `npm run electron:build` - Build the Electron application
-- `npm run lint` - Run ESLint
-- `npm run electron:compile` - Compile TypeScript for Electron
+- `bun run dev` - Start development server with hot reload
+- `bun run build` - Build the Next.js application
+- `bun run electron:build` - Build the Electron application
+- `bun run lint` - Run ESLint
+- `bun run electron:compile` - Compile TypeScript for Electron
 
 ## Coding Standards
 
