@@ -55,7 +55,7 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 ### Prerequisites
 
 - Node.js (v18 or higher)
-- npm or yarn
+- bun or yarn
 - macOS (for development and testing)
 
 ### Getting Started
