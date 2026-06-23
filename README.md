@@ -4,6 +4,8 @@
   # LiquiDB
   
   A modern, lightweight database management tool. Create, manage, and run multiple database instances locally with an intuitive interface.
+    [liquidb.app](https://liquidb.app)
+
   
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![macOS](https://img.shields.io/badge/platform-macOS-blue.svg)](https://www.apple.com/macos/)
